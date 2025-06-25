@@ -1,7 +1,7 @@
-
 import React from 'react';
 import { ShotGrid } from './ShotGrid';
 import { GridSizeSelector } from './GridSizeSelector';
+import { AspectRatioSelector } from './AspectRatioSelector';
 import { useStoryboardStore } from '@/store/storyboardStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,7 +72,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         <div>
           <h2 className="text-2xl font-bold text-gray-900">{page.name}</h2>
           <p className="text-sm text-gray-600 mt-1">
-            {page.shots.length} shots • {page.gridCols} × {page.gridRows} grid
+            {page.shots.length} shots • {page.gridCols} × {page.gridRows} grid • {page.aspectRatio || '16:9'} ratio
           </p>
         </div>
         
@@ -101,6 +101,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
       {/* Controls Section */}
       <div className="mb-6 flex flex-col lg:flex-row gap-6">
         <GridSizeSelector pageId={pageId} />
+        <AspectRatioSelector pageId={pageId} />
       </div>
 
       {/* Storyboard Grid */}

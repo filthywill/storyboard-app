@@ -58,7 +58,7 @@ export const ShotGrid: React.FC<ShotGridProps> = ({ pageId, className }) => {
     );
   }
 
-  const { shots, gridRows, gridCols } = page;
+  const { shots, gridRows, gridCols, aspectRatio } = page;
   const totalSlots = gridRows * gridCols;
   const emptySlotsCount = Math.max(0, totalSlots - shots.length);
 
@@ -112,13 +112,11 @@ export const ShotGrid: React.FC<ShotGridProps> = ({ pageId, className }) => {
         <SortableContext items={shots.map(s => s.id)} strategy={rectSortingStrategy}>
           <div
             className={cn(
-              'grid gap-4 w-full',
-              `grid-cols-${gridCols}`,
-              `grid-rows-${gridRows}`
+              'grid gap-4 w-full'
             )}
             style={{
               gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${gridRows}, minmax(300px, 1fr))`
+              gridTemplateRows: `repeat(${gridRows}, minmax(200px, auto))`
             }}
           >
             {/* Existing Shots */}
@@ -128,6 +126,7 @@ export const ShotGrid: React.FC<ShotGridProps> = ({ pageId, className }) => {
                 shot={shot}
                 onUpdate={(updates) => handleShotUpdate(shot.id, updates)}
                 onDelete={() => handleShotDelete(shot.id)}
+                aspectRatio={aspectRatio}
               />
             ))}
 
@@ -135,7 +134,11 @@ export const ShotGrid: React.FC<ShotGridProps> = ({ pageId, className }) => {
             {Array.from({ length: emptySlotsCount }).map((_, index) => (
               <div
                 key={`empty-${index}`}
-                className="border-2 border-dashed border-gray-200 rounded-lg min-h-[300px] flex items-center justify-center hover:border-gray-300 transition-colors group cursor-pointer"
+                className="border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center hover:border-gray-300 transition-colors group cursor-pointer"
+                style={{
+                  aspectRatio: aspectRatio?.replace('/', ' / ') || '16 / 9',
+                  minHeight: '200px'
+                }}
                 onClick={() => handleAddShot()}
               >
                 <div className="text-center text-gray-400 group-hover:text-gray-600 transition-colors">
@@ -155,6 +158,7 @@ export const ShotGrid: React.FC<ShotGridProps> = ({ pageId, className }) => {
               onUpdate={() => {}}
               onDelete={() => {}}
               isOverlay
+              aspectRatio={aspectRatio}
             />
           ) : null}
         </DragOverlay>

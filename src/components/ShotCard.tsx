@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -15,6 +14,7 @@ interface ShotCardProps {
   onDelete: () => void;
   isOverlay?: boolean;
   className?: string;
+  aspectRatio?: string;
 }
 
 export const ShotCard: React.FC<ShotCardProps> = ({
@@ -22,7 +22,8 @@ export const ShotCard: React.FC<ShotCardProps> = ({
   onUpdate,
   onDelete,
   isOverlay = false,
-  className
+  className,
+  aspectRatio = '16/9'
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -46,6 +47,14 @@ export const ShotCard: React.FC<ShotCardProps> = ({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition
+  };
+
+  // Calculate aspect ratio for image container
+  const getAspectRatioStyle = (ratio: string) => {
+    const [width, height] = ratio.split('/').map(Number);
+    return {
+      aspectRatio: `${width} / ${height}`
+    };
   };
 
   const handleFileSelect = (files: FileList | null) => {
@@ -109,7 +118,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group relative h-full min-h-[300px] transition-all duration-200',
+        'group relative h-full transition-all duration-200',
         isDragging && 'opacity-50 rotate-2 shadow-lg',
         isOverlay && 'rotate-2 shadow-xl',
         'hover:shadow-md border-2',
@@ -146,14 +155,15 @@ export const ShotCard: React.FC<ShotCardProps> = ({
       </Button>
 
       <CardContent className="p-4 h-full flex flex-col">
-        {/* Image Area */}
+        {/* Image Area with Aspect Ratio */}
         <div
           className={cn(
-            'relative flex-1 min-h-[180px] border-2 border-dashed border-gray-300 rounded-lg',
+            'relative w-full border-2 border-dashed border-gray-300 rounded-lg',
             'transition-all duration-200',
             isDragOver && 'border-blue-400 bg-blue-50',
             'hover:border-gray-400'
           )}
+          style={getAspectRatioStyle(aspectRatio)}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}

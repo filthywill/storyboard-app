@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
@@ -19,6 +18,7 @@ export interface StoryboardPage {
   shots: Shot[];
   gridRows: number;
   gridCols: number;
+  aspectRatio: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +46,7 @@ export interface StoryboardActions {
   
   // Grid management
   updateGridSize: (pageId: string, rows: number, cols: number) => void;
+  updatePageAspectRatio: (pageId: string, aspectRatio: string) => void;
   
   // UI state
   setIsExporting: (isExporting: boolean) => void;
@@ -65,6 +66,7 @@ const createDefaultPage = (name: string = 'Page 1'): StoryboardPage => ({
   shots: [],
   gridRows: 3,
   gridCols: 4,
+  aspectRatio: '16/9',
   createdAt: new Date(),
   updatedAt: new Date()
 });
@@ -239,6 +241,16 @@ export const useStoryboardStore = create<StoryboardStore>()(
           
           page.gridRows = rows;
           page.gridCols = cols;
+          page.updatedAt = new Date();
+        });
+      },
+
+      updatePageAspectRatio: (pageId, aspectRatio) => {
+        set((state) => {
+          const page = state.pages.find(p => p.id === pageId);
+          if (!page) return;
+          
+          page.aspectRatio = aspectRatio;
           page.updatedAt = new Date();
         });
       },
