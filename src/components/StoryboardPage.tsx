@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { ShotGrid } from './ShotGrid';
+import { GridSizeSelector } from './GridSizeSelector';
 import { useStoryboardStore } from '@/store/storyboardStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,6 +96,11 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
             Export PDF
           </Button>
         </div>
+      </div>
+
+      {/* Controls Section */}
+      <div className="mb-6 flex flex-col lg:flex-row gap-6">
+        <GridSizeSelector pageId={pageId} />
       </div>
 
       {/* Storyboard Grid */}
