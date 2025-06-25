@@ -198,6 +198,7 @@ export const exportCurrentPage = async (
       shots: [],
       gridRows: 3,
       gridCols: 4,
+      aspectRatio: '16/9',
       createdAt: new Date(),
       updatedAt: new Date()
     };

@@ -3,7 +3,7 @@ import React from 'react';
 import { useStoryboardStore } from '@/store/storyboardStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { AspectRatio as AspectRatioIcon } from 'lucide-react';
+import { RectangleHorizontal } from 'lucide-react';
 
 interface AspectRatioSelectorProps {
   pageId: string;
@@ -33,7 +33,7 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
     <Card className="w-full max-w-md">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <AspectRatioIcon size={16} />
+          <RectangleHorizontal size={16} />
           Image Aspect Ratio
         </CardTitle>
       </CardHeader>
