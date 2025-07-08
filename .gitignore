@@ -11,6 +11,7 @@ node_modules/
 
 # Environment variables
 .env
+.env.*
 
 # Editor directories and files
 .idea
@@ -27,3 +28,40 @@ node_modules/
 # Task files
 # tasks.json
 # tasks/ 
+
+# Vite
+/dist
+/.vite
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Cursor/AI/Secrets
+.cursor/
+!.cursor/rules/
+.cursor/mcp.json
+*.key
+*.pem
+*.crt
+*.pfx
+
+# Taskmaster
+.taskmaster/
+!.taskmaster/tasks/
+!.taskmaster/docs/
+
+# Misc
+*.lock
+
+# Ignore test exports and other local output
+test exports/
+
+# Ignore local config
+*.local 
