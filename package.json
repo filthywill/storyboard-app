@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "@types/lodash": "^4.17.20",
+    "@types/lodash-es": "^4.17.12",
+    "browser-image-compression": "^2.0.2",
+    "html-to-image": "^1.11.13",
+    "immer": "^10.1.1",
+    "lodash": "^4.17.21",
+    "lodash-es": "^4.17.21",
+    "zustand": "^5.0.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "typescript": "^5.8.3"
+  }
+}

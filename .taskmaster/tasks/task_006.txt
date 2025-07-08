@@ -1,0 +1,11 @@
+# Task ID: 6
+# Title: ShotCard Component Refactoring
+# Status: pending
+# Dependencies: 5 (Not found)
+# Priority: medium
+# Description: Break down ShotCard into smaller sub-components
+# Details:
+Break down the monolithic ShotCard into smaller, focused components: ShotImage, ShotActions, and ShotText. Create a new directory structure to house the components.
+
+# Test Strategy:
+Component testing for each extracted component, visual regression tests

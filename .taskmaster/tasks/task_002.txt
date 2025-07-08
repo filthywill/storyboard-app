@@ -1,0 +1,11 @@
+# Task ID: 2
+# Title: State Store Architecture Refactoring
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Split the monolithic 705-line store into focused domain stores
+# Details:
+Split the monolithic store into focused domain stores: shotStore, storyboardStore, pageStore, projectStore, uiStore. Create migration utilities to ensure backward compatibility.
+
+# Test Strategy:
+Unit tests for each store, integration tests for store interactions
