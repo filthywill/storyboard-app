@@ -1,14 +1,20 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ShotGrid } from './ShotGrid';
 import { GridSizeSelector } from './GridSizeSelector';
 import { AspectRatioSelector } from './AspectRatioSelector';
-import { useStoryboardStore } from '@/store/storyboardStore';
+import { StartNumberSelector } from './StartNumberSelector';
+import { useAppStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, FileImage, FileText } from 'lucide-react';
-import { exportCurrentPage } from '@/utils/export';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { PageTabs } from './PageTabs';
+import { MasterHeader } from './MasterHeader';
+import { TemplateSettings } from './TemplateSettings';
+import { PDFExportModal } from './PDFExportModal';
+import { exportManager } from '@/utils/export/exportManager';
+import ErrorBoundary from './ErrorBoundary';
 
 interface StoryboardPageProps {
   pageId: string;
@@ -19,8 +25,59 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   pageId, 
   className 
 }) => {
-  const { pages, isExporting, setIsExporting } = useStoryboardStore();
-  const page = pages.find(p => p.id === pageId);
+  const { 
+    pages, 
+    isExporting, 
+    setIsExporting, 
+    templateSettings,
+    getPageById,
+    getPageShots,
+    shots,
+    startNumber,
+    projectName,
+    projectInfo,
+    projectLogoUrl,
+    projectLogoFile,
+    clientAgency,
+    jobInfo
+  } = useAppStore();
+  
+  const page = getPageById(pageId);
+  const pageIndex = pages.findIndex(p => p.id === pageId);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [showPDFModal, setShowPDFModal] = useState(false);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    const content = contentRef.current;
+    if (!wrapper || !content) return;
+
+    const updateLayout = () => {
+      const { width: wrapperWidth } = wrapper.getBoundingClientRect();
+      if (wrapperWidth > 0) {
+        const wrapperPadding = 32;
+        const availableWidth = wrapperWidth - wrapperPadding;
+        const newScale = Math.max(availableWidth / 1000, 0.2);
+        setScale(newScale);
+        const contentHeight = content.scrollHeight;
+        const newHeight = contentHeight * newScale + wrapperPadding;
+        wrapper.style.height = `${newHeight}px`;
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(updateLayout);
+    resizeObserver.observe(wrapper);
+    resizeObserver.observe(content);
+    updateLayout();
+    return () => {
+      resizeObserver.disconnect();
+      if (wrapper) {
+        wrapper.style.height = '';
+      }
+    };
+  }, [page, templateSettings]);
 
   if (!page) {
     return (
@@ -40,40 +97,69 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   }
 
   const handleExportPNG = async () => {
+    if (!page) {
+      toast.error('No active page to export.');
+      return;
+    }
+
     try {
       setIsExporting(true);
-      await exportCurrentPage(pageId, page.name, { format: 'png' });
-      toast.success('Page exported as PNG successfully!');
+      
+      // Convert new format to old format for export compatibility
+      const pageShots = getPageShots(pageId);
+      const legacyPage = {
+        ...page,
+        shots: pageShots // Convert from shot IDs to shot objects
+      };
+      
+      const legacyState = {
+        pages: pages.map(p => ({
+          ...p,
+          shots: getPageShots(p.id)
+        })),
+        activePageId: pageId,
+        startNumber,
+        projectName,
+        projectInfo,
+        projectLogoUrl,
+        projectLogoFile,
+        clientAgency,
+        jobInfo,
+        isDragging: false,
+        isExporting: false,
+        showDeleteConfirmation: false,
+        templateSettings
+      };
+      
+      await exportManager.downloadPage(
+        legacyPage,
+        legacyState,
+        `${page.name}_export_${Date.now()}.png`,
+        { scale: 2, quality: 0.95 }
+      );
+      toast.success(`Exported ${page.name} as PNG`);
     } catch (error) {
-      console.error('Export failed:', error);
-      toast.error('Failed to export page. Please try again.');
+      console.error('PNG export failed:', error);
+      toast.error(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleExportPDF = async () => {
-    try {
-      setIsExporting(true);
-      await exportCurrentPage(pageId, page.name, { format: 'pdf' });
-      toast.success('Page exported as PDF successfully!');
-    } catch (error) {
-      console.error('Export failed:', error);
-      toast.error('Failed to export page. Please try again.');
-    } finally {
-      setIsExporting(false);
-    }
+  const handleExportPDF = () => {
+    setShowPDFModal(true);
   };
 
   return (
     <div className={cn('w-full', className)}>
-      {/* Page Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">{page.name}</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            {page.shots.length} shots • {page.gridCols} × {page.gridRows} grid • {page.aspectRatio || '16:9'} ratio
-          </p>
+      <div className="mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div className="flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <GridSizeSelector pageId={pageId} />
+            <AspectRatioSelector pageId={pageId} />
+            <StartNumberSelector />
+            <TemplateSettings />
+          </div>
         </div>
         
         <div className="flex gap-2">
@@ -97,60 +183,42 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
           </Button>
         </div>
       </div>
+      
+      <PageTabs />
 
-      {/* Controls Section */}
-      <div className="mb-6 flex flex-col lg:flex-row gap-6">
-        <GridSizeSelector pageId={pageId} />
-        <AspectRatioSelector pageId={pageId} />
-      </div>
-
-      {/* Storyboard Grid */}
+      <ErrorBoundary>
       <div 
-        id={`storyboard-page-${pageId}`}
-        className="bg-white rounded-lg border p-6"
+        ref={wrapperRef}
+        className={cn(
+          "w-full flex justify-center bg-gray-100 p-4 rounded-lg"
+        )}
+        style={{ transition: 'height 0.2s ease-out' }}
       >
-        <ShotGrid pageId={pageId} />
+        <div 
+          ref={contentRef}
+          id={`storyboard-page-${pageId}`}
+          className={cn(
+            "bg-white rounded-md shadow-lg border border-gray-200 overflow-visible"
+          )}
+          style={{
+            height: 'min-content',
+            transform: `scale(${scale})`,
+            transformOrigin: 'top center',
+          }}
+        >
+          <MasterHeader />
+          <div className='p-1'>
+          <ShotGrid pageId={pageId} />
+          </div>
+        </div>
       </div>
+      </ErrorBoundary>
 
-      {/* Page Stats */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Total Shots
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold">{page.shots.length}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              With Images
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold">
-              {page.shots.filter(s => s.imageUrl).length}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              With Descriptions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold">
-              {page.shots.filter(s => s.description.trim()).length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <PDFExportModal
+        isOpen={showPDFModal}
+        onClose={() => setShowPDFModal(false)}
+        currentPageIndex={pageIndex}
+      />
     </div>
   );
 };

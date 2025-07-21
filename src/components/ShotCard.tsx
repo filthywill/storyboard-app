@@ -1,33 +1,57 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Shot } from '@/store/storyboardStore';
-import { GripVertical, Plus, X, Upload } from 'lucide-react';
+import { Shot, useAppStore } from '@/store';
+import { Move, Plus, X, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 interface ShotCardProps {
   shot: Shot;
   onUpdate: (updates: Partial<Shot>) => void;
   onDelete: () => void;
+  onAddSubShot: () => void;
+  onInsertShot: () => void;
   isOverlay?: boolean;
   className?: string;
   aspectRatio?: string;
+  previewDimensions?: { width: number; imageHeight: number; gap: number } | null;
 }
 
 export const ShotCard: React.FC<ShotCardProps> = ({
   shot,
   onUpdate,
   onDelete,
+  onAddSubShot,
+  onInsertShot,
   isOverlay = false,
   className,
-  aspectRatio = '16/9'
+  aspectRatio = '16/9',
+  previewDimensions = null
 }) => {
+  const { templateSettings } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const actionTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const scriptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (actionTextareaRef.current) {
+      actionTextareaRef.current.style.height = 'auto';
+      actionTextareaRef.current.style.height = `${actionTextareaRef.current.scrollHeight}px`;
+    }
+  }, [shot.actionText]);
+
+  useEffect(() => {
+    if (scriptTextareaRef.current) {
+      scriptTextareaRef.current.style.height = 'auto';
+      scriptTextareaRef.current.style.height = `${scriptTextareaRef.current.scrollHeight}px`;
+    }
+  }, [shot.scriptText]);
 
   const {
     attributes,
@@ -59,21 +83,12 @@ export const ShotCard: React.FC<ShotCardProps> = ({
 
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    
     const file = files[0];
     if (!file.type.startsWith('image/')) {
       console.warn('Selected file is not an image');
       return;
     }
-
-    // Create object URL for preview
-    const imageUrl = URL.createObjectURL(file);
-    
-    onUpdate({
-      imageFile: file,
-      imageUrl: imageUrl
-    });
-    
+    onUpdate({ imageFile: file });
     setImageError(false);
   };
 
@@ -95,106 +110,160 @@ export const ShotCard: React.FC<ShotCardProps> = ({
 
   const handleImageError = () => {
     setImageError(true);
-    onUpdate({ imageUrl: null });
   };
 
   const handleRemoveImage = () => {
-    if (shot.imageUrl) {
-      URL.revokeObjectURL(shot.imageUrl);
-    }
-    onUpdate({
-      imageFile: null,
-      imageUrl: null
-    });
+    onUpdate({ imageFile: null });
     setImageError(false);
   };
 
-  const handleDescriptionChange = (value: string) => {
-    onUpdate({ description: value });
+  const handleActionTextChange = (value: string) => {
+    onUpdate({ actionText: value });
+  };
+
+  const handleScriptTextChange = (value: string) => {
+    onUpdate({ scriptText: value });
   };
 
   return (
     <Card
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        ...(previewDimensions ? {
+          width: `${previewDimensions.width}px`,
+          flex: 'none',
+          overflow: 'visible'
+        } : {})
+      }}
       className={cn(
-        'group relative h-full transition-all duration-200',
+        'group relative transition-all duration-200',
+        'border-0',
         isDragging && 'opacity-50 rotate-2 shadow-lg',
         isOverlay && 'rotate-2 shadow-xl',
-        'hover:shadow-md border-2',
+        'hover:shadow-md',
+        shot.subShotGroupId && 'bg-blue-50/50',
         isDragOver && 'border-blue-400 bg-blue-50',
         className
       )}
     >
       {/* Drag Handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute top-2 left-2 z-10 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <div className="bg-white/90 backdrop-blur-sm rounded p-1 shadow-sm">
-          <GripVertical size={16} className="text-gray-600" />
-        </div>
-      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            {...attributes}
+            {...listeners}
+            className="absolute top-2 left-1/2 -translate-x-1/2 z-10 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <div className="bg-blue-500 text-white rounded-full p-2 shadow-lg">
+              <Move size={20} />
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Move Shot</p>
+        </TooltipContent>
+      </Tooltip>
 
       {/* Shot Number */}
-      <div className="absolute top-2 right-2 z-10">
-        <div className="bg-white/90 backdrop-blur-sm rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold text-gray-700 shadow-sm">
+      <div className="shot-number-container">
+        <div className="shot-number">
           {shot.number}
         </div>
       </div>
 
       {/* Delete Button */}
-      <Button
-        variant="destructive"
-        size="sm"
-        className="absolute top-2 right-12 z-10 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={onDelete}
-      >
-        <X size={14} />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="absolute top-2 right-2 z-10 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={onDelete}
+          >
+            <X size={14} strokeWidth={3} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Delete Shot</p>
+        </TooltipContent>
+      </Tooltip>
 
-      <CardContent className="p-4 h-full flex flex-col">
+      {/* Insert Shot Button */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="default"
+            size="icon"
+            className="absolute top-1/2 -translate-y-1/2 -left-5 z-10 h-8 w-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={onInsertShot}
+          >
+            <Plus size={14} strokeWidth={3} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='right'>
+          <p>Insert Shot</p>
+        </TooltipContent>
+      </Tooltip>
+
+      {/* Add Sub-Shot Button */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="absolute top-1/2 -translate-y-1/2 right-2 z-10 h-6 w-6 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-600 hover:bg-gray-700 text-white"
+            onClick={onAddSubShot}
+          >
+            <Plus size={14} strokeWidth={3} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='left'>
+          <p>Add Sub-Shot</p>
+        </TooltipContent>
+      </Tooltip>
+
+      <CardContent className={cn('p-2')}>
         {/* Image Area with Aspect Ratio */}
         <div
           className={cn(
-            'relative w-full border-2 border-dashed border-gray-300 rounded-lg',
+            'relative w-full border border-gray-200 rounded-sm bg-gray-100',
             'transition-all duration-200',
             isDragOver && 'border-blue-400 bg-blue-50',
             'hover:border-gray-400'
           )}
-          style={getAspectRatioStyle(aspectRatio)}
+          style={previewDimensions ? {
+            height: `${previewDimensions.imageHeight}px`
+          } : getAspectRatioStyle(aspectRatio)}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
         >
-          {shot.imageUrl && !imageError ? (
+          {shot.imageFile ? (
             <div className="relative w-full h-full group">
               <img
-                src={shot.imageUrl}
+                src={URL.createObjectURL(shot.imageFile)}
                 alt={`Shot ${shot.number}`}
-                className="w-full h-full object-cover rounded-lg"
+                className="w-full h-full object-cover rounded-sm"
                 onError={handleImageError}
               />
-              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-end justify-center pb-4">
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
-                    size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    className="bg-white/90 hover:bg-white"
+                    className="bg-white/90 hover:bg-white h-7 px-2 text-xs"
                   >
-                    <Upload size={14} className="mr-1" />
-                    Change
+                    <Upload size={12} className="mr-1" />
+                    New
                   </Button>
                   <Button
                     variant="destructive"
-                    size="sm"
                     onClick={handleRemoveImage}
-                    className="bg-red-500/90 hover:bg-red-500"
+                    className="bg-red-500/90 hover:bg-red-500 h-7 px-2 text-xs"
                   >
-                    <X size={14} className="mr-1" />
-                    Remove
+                    <X size={12} className="mr-1" />
+                    Clear
                   </Button>
                 </div>
               </div>
@@ -213,19 +282,42 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           )}
         </div>
 
-        {/* Description */}
-        <div className="mt-4">
-          <Textarea
-            placeholder="Shot description..."
-            value={shot.description}
-            onChange={(e) => handleDescriptionChange(e.target.value)}
-            className="min-h-[60px] text-sm resize-none border-gray-200 focus:border-blue-400 transition-colors"
-            maxLength={200}
-          />
-          <div className="text-xs text-gray-400 mt-1 text-right">
-            {shot.description.length}/200
+        {/* Text Fields Container */}
+        {(templateSettings.showActionText || templateSettings.showScriptText) && (
+          <div className={cn("flex flex-col gap-0", "mt-1")}>
+            {/* Action Text */}
+            {templateSettings.showActionText && (
+              <Textarea
+                ref={actionTextareaRef}
+                placeholder="Action text..."
+                value={shot.actionText}
+                onChange={(e) => handleActionTextChange(e.target.value)}
+                className={cn(
+                  "w-full font-semibold resize-none overflow-hidden border-gray-100 rounded-sm bg-transparent focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-ring",
+                  "text-xs px-1 py-0.5"
+                )}
+                maxLength={200}
+                rows={1}
+              />
+            )}
+
+            {/* Script Text */}
+            {templateSettings.showScriptText && (
+              <Textarea
+                ref={scriptTextareaRef}
+                placeholder="Script text..."
+                value={shot.scriptText}
+                onChange={(e) => handleScriptTextChange(e.target.value)}
+                className={cn(
+                  "w-full resize-none overflow-hidden border-gray-100 rounded-sm bg-transparent focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-ring",
+                  "text-xs px-1 py-0.5"
+                )}
+                maxLength={200}
+                rows={1}
+              />
+            )}
           </div>
-        </div>
+        )}
 
         {/* Hidden File Input */}
         <input

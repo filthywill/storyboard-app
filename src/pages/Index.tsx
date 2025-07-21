@@ -1,13 +1,44 @@
-
-import React from 'react';
+import React, { useEffect } from 'react';
 import { PageTabs } from '@/components/PageTabs';
 import { StoryboardPage } from '@/components/StoryboardPage';
-import { useStoryboardStore } from '@/store/storyboardStore';
+import { useAppStore } from '@/store';
 import { Card, CardContent } from '@/components/ui/card';
-import { FileText, Image, Grid3X3 } from 'lucide-react';
+import { FileText, Target } from 'lucide-react';
+import { formatShotNumber } from '@/utils/formatShotNumber';
 
 const Index = () => {
-  const { activePageId, pages } = useStoryboardStore();
+  const { 
+    activePageId, 
+    pages, 
+    setActivePage,
+    getTotalShots,
+    initializeAppContent,
+    renumberAllShotsImmediate,
+    templateSettings,
+    shots,
+    shotOrder
+  } = useAppStore();
+  
+  // Initialize app content only once on mount
+  useEffect(() => {
+    try {
+      initializeAppContent();
+      // Force renumbering after initialization
+      setTimeout(() => {
+        renumberAllShotsImmediate(templateSettings.shotNumberFormat || '01');
+      }, 100);
+    } catch (error) {
+      console.error('Error during app initialization:', error);
+    }
+  }, []); // Empty dependency array - run only once on mount
+  
+  // Handle active page validation separately
+  useEffect(() => {
+    if (!pages.find(p => p.id === activePageId) && pages.length > 0) {
+      setActivePage(pages[0].id);
+    }
+  }, [activePageId, pages, setActivePage]);
+
   const activePage = pages.find(p => p.id === activePageId);
 
   if (!activePage) {
@@ -37,8 +68,11 @@ const Index = () => {
     );
   }
 
+  const activePageIndex = pages.findIndex(p => p.id === activePageId);
+  const totalShots = pages.reduce((total, page) => total + getTotalShots(page.id), 0);
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -55,19 +89,11 @@ const Index = () => {
             <div className="flex items-center gap-6 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <FileText size={16} />
-                <span>{pages.length} pages</span>
+                <span>{pages.length} Pages</span>
               </div>
               <div className="flex items-center gap-2">
-                <Image size={16} />
-                <span>
-                  {pages.reduce((total, page) => 
-                    total + page.shots.filter(s => s.imageUrl).length, 0
-                  )} images
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Grid3X3 size={16} />
-                <span>{activePage.gridCols} × {activePage.gridRows} grid</span>
+                <Target size={16} />
+                <span>{totalShots} Shots</span>
               </div>
             </div>
           </div>
@@ -75,13 +101,11 @@ const Index = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto p-6">
-        <PageTabs />
-        <StoryboardPage pageId={activePageId} />
-      </div>
+      <main className="max-w-7xl mx-auto px-6 py-8 flex-grow w-full">
+        <StoryboardPage pageId={activePage.id} />
+      </main>
 
-      {/* Footer */}
-      <div className="mt-12 border-t bg-white">
+      <footer className="bg-white border-t">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between text-sm text-gray-500">
             <div>
@@ -92,7 +116,7 @@ const Index = () => {
             </div>
           </div>
         </div>
-      </div>
+      </footer>
     </div>
   );
 };

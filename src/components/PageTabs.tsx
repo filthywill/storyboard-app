@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { useStoryboardStore } from '@/store/storyboardStore';
+import { useState } from 'react';
+import { useAppStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,6 +19,9 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, MoreHorizontal, Edit2, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 export const PageTabs: React.FC = () => {
   const {
@@ -29,16 +31,21 @@ export const PageTabs: React.FC = () => {
     createPage,
     deletePage,
     renamePage,
-    duplicatePage
-  } = useStoryboardStore();
+    duplicatePage,
+    showDeleteConfirmation,
+    setShowDeleteConfirmation
+  } = useAppStore();
 
   const [isRenaming, setIsRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const handleCreatePage = () => {
     createPage();
     toast.success('New page created!');
+    setIsRenaming(null);
+    setRenameValue('');
   };
 
   const handleStartRename = (pageId: string, currentName: string) => {
@@ -73,21 +80,44 @@ export const PageTabs: React.FC = () => {
       }
       deletePage(showDeleteDialog);
       toast.success('Page deleted successfully!');
+      if (dontShowAgain) {
+        setShowDeleteConfirmation(false);
+      }
     }
     setShowDeleteDialog(null);
+    setDontShowAgain(false);
+  };
+
+  const handleAttemptDelete = (pageId: string) => {
+    if (showDeleteConfirmation) {
+      setShowDeleteDialog(pageId);
+    } else {
+      if (pages.length <= 1) {
+        toast.error('Cannot delete the last page');
+        return;
+      }
+      deletePage(pageId);
+      toast.success('Page deleted successfully!');
+    }
   };
 
   return (
     <>
-      <div className="flex items-center gap-4 mb-6">
-        <div className="flex-1">
+      <div className="flex items-center gap-1 mb-1">
+        <div className="overflow-x-auto">
           <Tabs value={activePageId} onValueChange={setActivePage}>
-            <TabsList className="grid w-full grid-cols-[repeat(auto-fit,minmax(150px,1fr))] h-auto p-1">
+            <TabsList className="h-auto p-0 bg-transparent gap-2">
               {pages.map((page) => (
-                <div key={page.id} className="flex items-center group">
+                <div
+                  key={page.id}
+                  className={cn(
+                    "flex items-center group rounded-md",
+                    activePageId === page.id ? "bg-white shadow-sm" : "bg-muted"
+                  )}
+                >
                   <TabsTrigger
                     value={page.id}
-                    className="flex-1 px-3 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    className="bg-transparent shadow-none px-3 py-2 text-sm font-medium"
                   >
                     {page.name}
                   </TabsTrigger>
@@ -97,7 +127,7 @@ export const PageTabs: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+                        className="h-8 w-8 p-0 transition-opacity mr-1 text-muted-foreground hover:text-foreground"
                       >
                         <MoreHorizontal size={14} />
                       </Button>
@@ -117,7 +147,7 @@ export const PageTabs: React.FC = () => {
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={() => setShowDeleteDialog(page.id)}
+                        onClick={() => handleAttemptDelete(page.id)}
                         className="text-red-600 focus:text-red-600"
                         disabled={pages.length <= 1}
                       >
@@ -181,6 +211,16 @@ export const PageTabs: React.FC = () => {
             <p className="text-sm text-gray-600">
               Are you sure you want to delete this page? This action cannot be undone.
             </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="dont-show-again"
+              checked={dontShowAgain}
+              onCheckedChange={(checked) => setDontShowAgain(!!checked)}
+            />
+            <Label htmlFor="dont-show-again" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Don't show this again
+            </Label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeleteDialog(null)}>

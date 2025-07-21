@@ -1,17 +1,16 @@
-
-import React from 'react';
-import { useStoryboardStore } from '@/store/storyboardStore';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAppStore } from '@/store';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Grid3X3, RotateCcw } from 'lucide-react';
+import { Grid3X3 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { buttonVariants } from './ui/button';
+import { cn } from '@/lib/utils';
 
 interface GridSizeSelectorProps {
   pageId: string;
 }
 
 export const GridSizeSelector: React.FC<GridSizeSelectorProps> = ({ pageId }) => {
-  const { pages, updateGridSize } = useStoryboardStore();
+  const { pages, updateGridSize } = useAppStore();
   const page = pages.find(p => p.id === pageId);
 
   if (!page) return null;
@@ -26,68 +25,44 @@ export const GridSizeSelector: React.FC<GridSizeSelectorProps> = ({ pageId }) =>
     updateGridSize(pageId, gridRows, parseInt(value));
   };
 
-  const resetToDefault = () => {
-    updateGridSize(pageId, 3, 4);
-  };
-
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className={cn(
+            buttonVariants({ variant: 'outline' }),
+            'flex items-center justify-between p-2 gap-2 h-10'
+          )}
+        >
           <Grid3X3 size={16} />
-          Grid Size
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-600">Rows</label>
-            <Select value={gridRows.toString()} onValueChange={handleRowsChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 8 }, (_, i) => i + 1).map(num => (
-                  <SelectItem key={num} value={num.toString()}>
-                    {num}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-600">Columns</label>
+          <div className="flex items-center gap-1">
             <Select value={gridCols.toString()} onValueChange={handleColsChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 8 }, (_, i) => i + 1).map(num => (
-                  <SelectItem key={num} value={num.toString()}>
-                    {num}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <SelectTrigger className="h-7 w-[50px] border-none shadow-none bg-transparent focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 8 }, (_, i) => i + 1).map(num => (
+                  <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            <span className="text-sm text-muted-foreground">×</span>
+            <Select value={gridRows.toString()} onValueChange={handleRowsChange}>
+              <SelectTrigger className="h-7 w-[50px] border-none shadow-none bg-transparent focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 8 }, (_, i) => i + 1).map(num => (
+                  <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
           </div>
         </div>
-        
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-sm text-gray-500">
-            {gridCols} × {gridRows} = {gridCols * gridRows} shots
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={resetToDefault}
-            className="text-xs"
-          >
-            <RotateCcw size={12} className="mr-1" />
-            Reset
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Grid Layout</p>
+      </TooltipContent>
+    </Tooltip>
   );
 };
