@@ -150,6 +150,14 @@ export const useAppStore = () => {
     getShotById: shotStore.getShotById,
     getShotsById: shotStore.getShotsById,
     getSubGroupShots: shotStore.getSubGroupShots,
+    insertShotIntoSubGroup: (shotId: string, targetGroupId: string, insertPosition: number) => {
+      shotStore.insertShotIntoSubGroup(shotId, targetGroupId, insertPosition);
+      // Renumber shots after inserting into sub-group
+      const { templateSettings } = getProjectStore();
+      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      // Redistribute shots across pages to update visual positions
+      redistributeShotsAcrossPages();
+    },
 
     // Project management
     projectName: projectStore.projectName,
@@ -222,7 +230,24 @@ export const useAppStore = () => {
 
     addSubShot: (pageId: string, shotId: string) => {
       const subShotId = shotStore.createSubShot(shotId);
-      pageStore.addShotToPage(pageId, subShotId);
+      
+      // Find the correct position in the page to insert the sub-shot
+      const { pages } = getPageStore();
+      const page = pages.find(p => p.id === pageId);
+      if (page) {
+        const originalShotIndex = page.shots.indexOf(shotId);
+        if (originalShotIndex !== -1) {
+          // Insert the sub-shot right after the original shot in the page
+          pageStore.addShotToPage(pageId, subShotId, originalShotIndex + 1);
+        } else {
+          // Fallback: add to the end of the page
+          pageStore.addShotToPage(pageId, subShotId);
+        }
+      } else {
+        // Fallback: add to the end of the page
+        pageStore.addShotToPage(pageId, subShotId);
+      }
+      
       // Renumber shots after adding sub-shot
       const { templateSettings } = getProjectStore();
       shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);

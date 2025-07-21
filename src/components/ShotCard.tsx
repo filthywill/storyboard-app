@@ -8,6 +8,8 @@ import { Shot, useAppStore } from '@/store';
 import { Move, Plus, X, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { compressImage, getImageSource, revokeImageObjectURL, shouldUseBase64, MAX_BASE64_SIZE, AUTO_COMPRESS_THRESHOLD } from '@/utils/imageCompression';
+import { toast } from 'sonner';
 
 interface ShotCardProps {
   shot: Shot;
@@ -81,15 +83,50 @@ export const ShotCard: React.FC<ShotCardProps> = ({
     };
   };
 
-  const handleFileSelect = (files: FileList | null) => {
+  const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const file = files[0];
     if (!file.type.startsWith('image/')) {
-      console.warn('Selected file is not an image');
+      toast.error('Please select an image file');
       return;
     }
-    onUpdate({ imageFile: file });
-    setImageError(false);
+
+    try {
+      // Check if file is too large for base64 storage
+      if (!shouldUseBase64(file)) {
+        toast.warning(`Image too large (${(file.size / 1024).toFixed(1)}KB). Please use an image under ${MAX_BASE64_SIZE / 1024}KB.`);
+        return;
+      }
+
+      // Show loading message for large images
+      const isLargeImage = file.size > AUTO_COMPRESS_THRESHOLD;
+      if (isLargeImage) {
+        toast.info(`Compressing large image (${(file.size / 1024).toFixed(1)}KB)...`);
+      }
+
+      // Compress and convert to base64
+      const compressedResult = await compressImage(file);
+      
+      // Update shot with both session file and persistent base64
+      onUpdate({ 
+        imageFile: file,           // For current session
+        imageData: compressedResult.dataUrl, // For persistence
+        imageSize: file.size,
+        imageStorageType: 'base64'
+      });
+      
+      setImageError(false);
+      
+      // Show appropriate success message
+      if (compressedResult.wasCompressed) {
+        toast.success(`Image auto-compressed from ${(compressedResult.originalSize / 1024).toFixed(1)}KB to ${(compressedResult.size / 1024).toFixed(1)}KB (${compressedResult.compressionRatio.toFixed(1)}x smaller)`);
+      } else {
+        toast.success(`Image added successfully`);
+      }
+    } catch (error) {
+      console.error('Image processing failed:', error);
+      toast.error('Failed to process image. Please try again.');
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -113,7 +150,13 @@ export const ShotCard: React.FC<ShotCardProps> = ({
   };
 
   const handleRemoveImage = () => {
-    onUpdate({ imageFile: null });
+    onUpdate({ 
+      imageFile: null,
+      imageData: undefined,
+      imageUrl: undefined,
+      imageSize: undefined,
+      imageStorageType: undefined
+    });
     setImageError(false);
   };
 
@@ -146,6 +189,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
         isDragOver && 'border-blue-400 bg-blue-50',
         className
       )}
+      {...attributes}
     >
       {/* Drag Handle */}
       <Tooltip>
@@ -239,47 +283,50 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
         >
-          {shot.imageFile ? (
-            <div className="relative w-full h-full group">
-              <img
-                src={URL.createObjectURL(shot.imageFile)}
-                alt={`Shot ${shot.number}`}
-                className="w-full h-full object-cover rounded-sm"
-                onError={handleImageError}
-              />
-              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-end justify-center pb-4">
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-white/90 hover:bg-white h-7 px-2 text-xs"
-                  >
-                    <Upload size={12} className="mr-1" />
-                    New
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleRemoveImage}
-                    className="bg-red-500/90 hover:bg-red-500 h-7 px-2 text-xs"
-                  >
-                    <X size={12} className="mr-1" />
-                    Clear
-                  </Button>
+          {(() => {
+            const imageSource = getImageSource(shot);
+            return imageSource ? (
+              <div className="relative w-full h-full group">
+                <img
+                  src={imageSource}
+                  alt={`Shot ${shot.number}`}
+                  className="w-full h-full object-cover rounded-sm"
+                  onError={handleImageError}
+                />
+                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-end justify-center pb-4">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-white/90 hover:bg-white h-7 px-2 text-xs"
+                    >
+                      <Upload size={12} className="mr-1" />
+                      New
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleRemoveImage}
+                      className="bg-red-500/90 hover:bg-red-500 h-7 px-2 text-xs"
+                    >
+                      <X size={12} className="mr-1" />
+                      Clear
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div 
-              className="w-full h-full flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:text-gray-700 transition-colors"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Plus size={32} className="mb-2" />
-              <span className="text-sm font-medium">Add Image</span>
-              <span className="text-xs text-gray-400 mt-1">
-                Drag & drop or click
-              </span>
-            </div>
-          )}
+            ) : (
+              <div 
+                className="w-full h-full flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:text-gray-700 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Plus size={32} className="mb-2" />
+                <span className="text-sm font-medium">Add Image</span>
+                <span className="text-xs text-gray-400 mt-1">
+                  Drag & drop or click
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Text Fields Container */}

@@ -8,7 +8,11 @@ export interface Shot {
   id: string;
   number: string;
   subShotGroupId: string | null;
-  imageFile: File | null;
+  imageFile: File | null;        // Session-only
+  imageData?: string;            // Base64 (compressed)
+  imageUrl?: string;             // Supabase URL (future)
+  imageSize?: number;            // Original file size
+  imageStorageType?: 'base64' | 'supabase';
   actionText: string;
   scriptText: string;
   createdAt: Date;
@@ -30,6 +34,7 @@ export interface ShotActions {
   // Sub-shot management
   createSubShot: (originalShotId: string) => string; // Returns new shot ID
   removeFromSubGroup: (shotId: string) => void;
+  insertShotIntoSubGroup: (shotId: string, targetGroupId: string, insertPosition: number) => void;
   
   // Shot ordering and numbering
   setShotOrder: (shotIds: string[]) => void;
@@ -197,12 +202,16 @@ export const useShotStore = create<ShotStore>()(
         newShot.id = newShotId;
 
         set((state) => {
+          // Access the original shot through the draft state
+          const draftOriginalShot = state.shots[originalShotId];
+          if (!draftOriginalShot) return;
+
           // Set up sub-shot group relationship
-          if (originalShot.subShotGroupId) {
-            newShot.subShotGroupId = originalShot.subShotGroupId;
+          if (draftOriginalShot.subShotGroupId) {
+            newShot.subShotGroupId = draftOriginalShot.subShotGroupId;
           } else {
             const newGroupId = crypto.randomUUID();
-            originalShot.subShotGroupId = newGroupId;
+            draftOriginalShot.subShotGroupId = newGroupId;
             newShot.subShotGroupId = newGroupId;
           }
 
@@ -236,6 +245,47 @@ export const useShotStore = create<ShotStore>()(
           if (remainingInGroup.length === 1) {
             remainingInGroup[0].subShotGroupId = null;
           }
+        });
+      },
+
+      insertShotIntoSubGroup: (shotId, targetGroupId, insertPosition) => {
+        set((state) => {
+          const shot = state.shots[shotId];
+          if (!shot) return;
+
+          // Remove shot from its current sub-group if it has one
+          if (shot.subShotGroupId) {
+            const oldSubGroupId = shot.subShotGroupId;
+            shot.subShotGroupId = null;
+
+            // Check if this was the last shot in the old group
+            const remainingInOldGroup = Object.values(state.shots).filter(
+              s => s.subShotGroupId === oldSubGroupId && s.id !== shotId
+            );
+            
+            if (remainingInOldGroup.length === 1) {
+              remainingInOldGroup[0].subShotGroupId = null;
+            }
+          }
+
+          // Add shot to the new sub-group
+          shot.subShotGroupId = targetGroupId;
+
+          // Move the shot to the correct position in the global order
+          const currentIndex = state.shotOrder.indexOf(shotId);
+          if (currentIndex !== -1) {
+            // Remove from current position
+            state.shotOrder.splice(currentIndex, 1);
+            
+            // Insert at the target position
+            if (insertPosition >= 0 && insertPosition <= state.shotOrder.length) {
+              state.shotOrder.splice(insertPosition, 0, shotId);
+            } else {
+              state.shotOrder.push(shotId);
+            }
+          }
+
+          shot.updatedAt = new Date();
         });
       },
 
@@ -350,7 +400,20 @@ export const useShotStore = create<ShotStore>()(
     {
       name: 'shot-storage',
       partialize: (state) => ({
-        shots: state.shots,
+        shots: Object.fromEntries(
+          Object.entries(state.shots).map(([id, shot]) => [
+            id,
+            {
+              ...shot,
+              imageFile: null, // Don't persist File objects
+              // Keep base64 data and other image properties
+              imageData: shot.imageData,
+              imageUrl: shot.imageUrl,
+              imageSize: shot.imageSize,
+              imageStorageType: shot.imageStorageType
+            }
+          ])
+        ),
         shotOrder: state.shotOrder,
       })
     }
