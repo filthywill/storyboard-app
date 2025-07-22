@@ -20,7 +20,7 @@ export interface PageState {
 
 export interface PageActions {
   // Page management
-  createPage: (name?: string) => void;
+  createPage: (name?: string) => string; // Returns page ID
   deletePage: (pageId: string) => void;
   renamePage: (pageId: string, name: string) => void;
   setActivePage: (pageId: string) => void;
@@ -62,11 +62,12 @@ export const usePageStore = create<PageStore>()(
 
       // Page management
       createPage: (name) => {
+        const newPage = createDefaultPage(name || `Page ${get().pages.length + 1}`);
         set((state) => {
-          const newPage = createDefaultPage(name || `Page ${state.pages.length + 1}`);
           state.pages.push(newPage);
           state.activePageId = newPage.id;
         });
+        return newPage.id;
       },
 
       deletePage: (pageId) => {

@@ -28,55 +28,131 @@ export const useAppStore = () => {
   const projectStore = useProjectStore();
   const uiStore = useUIStore();
   
-  // Helper function to redistribute shots without circular dependency
+  // Enhanced redistribution function that handles both overflow and backflow
   const redistributeShotsAcrossPages = () => {
     const { shotOrder } = getShotStore();
     const { pages } = getPageStore();
     
+    console.log('redistributeShotsAcrossPages called:', { shotCount: shotOrder.length, pageCount: pages.length });
+    
     if (pages.length === 0 || shotOrder.length === 0) return;
     
-    // Calculate page capacity from the first page (assuming all pages have same grid)
+    // Calculate page capacity (all pages now have the same grid)
     const firstPage = pages[0];
     const pageCapacity = firstPage.gridRows * firstPage.gridCols;
     
-    // Redistribute shots across pages
-    pages.forEach((page, pageIndex) => {
-      const startIndex = pageIndex * pageCapacity;
-      const endIndex = startIndex + pageCapacity;
-      const pageShotIds = shotOrder.slice(startIndex, endIndex);
-      
-      // Update the page's shots array
-      pageStore.reorderShotsInPage(page.id, pageShotIds);
-    });
+    console.log('Page capacity:', pageCapacity, 'Total capacity:', pages.length * pageCapacity);
     
-    // Handle case where we have more shots than pages can accommodate
+    // Handle overflow: create additional pages if needed BEFORE redistribution
     const totalCapacity = pages.length * pageCapacity;
     if (shotOrder.length > totalCapacity) {
+      console.log('Overflow detected, creating new pages');
       // Create additional pages as needed
       const shotsPerPage = pageCapacity;
       const pagesNeeded = Math.ceil(shotOrder.length / shotsPerPage);
       const currentPageCount = pages.length;
       
+      console.log('Creating pages:', currentPageCount, 'to', pagesNeeded);
       for (let i = currentPageCount; i < pagesNeeded; i++) {
-        pageStore.createPage(`Page ${i + 1}`);
+        // Use the unified store's createPage method to ensure global settings are applied
+        const newPageId = pageStore.createPage(`Page ${i + 1}`);
+        
+        // Apply the same grid settings as existing pages (global setting)
+        if (pages.length > 0) {
+          const firstPage = pages[0];
+          pageStore.updateGridSize(newPageId, firstPage.gridRows, firstPage.gridCols);
+          pageStore.updatePageAspectRatio(newPageId, firstPage.aspectRatio);
+        }
+        
+        console.log('Created page:', newPageId);
       }
       
-      // Re-run redistribution with new pages
-      setTimeout(() => redistributeShotsAcrossPages(), 0);
+      // Re-run redistribution with new pages immediately instead of setTimeout
+      // Use setTimeout with 0 delay to ensure the page creation has been processed
+      setTimeout(() => {
+        console.log('Re-running redistribution after page creation');
+        redistributeShotsAcrossPages();
+      }, 0);
+      return; // Exit early, will be called again with new pages
     }
+    
+    console.log('Starting redistribution of shots across pages');
+    
+    // Get fresh page data to ensure we have the latest state
+    const currentPages = getPageStore().pages;
+    
+    // Clear all pages first
+    currentPages.forEach(page => {
+      pageStore.reorderShotsInPage(page.id, []);
+    });
+    
+    // Redistribute shots across pages
+    currentPages.forEach((page, pageIndex) => {
+      const startIndex = pageIndex * pageCapacity;
+      const endIndex = startIndex + pageCapacity;
+      const pageShotIds = shotOrder.slice(startIndex, endIndex);
+      
+      console.log(`Page ${pageIndex + 1} (${page.id}): shots ${startIndex}-${endIndex-1}`, pageShotIds);
+      
+      // Update the page's shots array
+      pageStore.reorderShotsInPage(page.id, pageShotIds);
+    });
+    
+    // Handle backflow: remove empty pages at the end (but be careful not to remove pages we just created)
+    const updatedPages = getPageStore().pages;
+    const nonEmptyPages = updatedPages.filter(page => page.shots.length > 0);
+    const emptyPagesAtEnd = updatedPages.slice(nonEmptyPages.length);
+    
+    console.log('Backflow check:', { totalPages: updatedPages.length, nonEmptyPages: nonEmptyPages.length, emptyPagesAtEnd: emptyPagesAtEnd.length });
+    
+    // Only remove empty pages if we have more than one page and the empty pages are truly at the end
+    if (emptyPagesAtEnd.length > 0 && updatedPages.length > 1 && nonEmptyPages.length > 0) {
+      console.log('Removing empty pages at end:', emptyPagesAtEnd.map(p => p.name));
+      emptyPagesAtEnd.forEach(page => {
+        pageStore.deletePage(page.id);
+      });
+    }
+    
+    console.log('Redistribution completed');
   };
 
   return {
     // Page management
     pages: pageStore.pages,
     activePageId: pageStore.activePageId,
-    createPage: pageStore.createPage,
+    createPage: (name?: string) => {
+      const { pages } = getPageStore();
+      const pageId = pageStore.createPage(name);
+      
+      // Apply the same grid settings as existing pages (global setting)
+      if (pages.length > 0) {
+        const firstPage = pages[0];
+        pageStore.updateGridSize(pageId, firstPage.gridRows, firstPage.gridCols);
+        pageStore.updatePageAspectRatio(pageId, firstPage.aspectRatio);
+      }
+      
+      return pageId;
+    },
     deletePage: pageStore.deletePage,
     renamePage: pageStore.renamePage,
     setActivePage: pageStore.setActivePage,
     duplicatePage: pageStore.duplicatePage,
-    updateGridSize: pageStore.updateGridSize,
-    updatePageAspectRatio: pageStore.updatePageAspectRatio,
+    updateGridSize: (pageId: string, rows: number, cols: number) => {
+      // Apply grid size to ALL pages (global setting)
+      const { pages } = getPageStore();
+      pages.forEach(page => {
+        pageStore.updateGridSize(page.id, rows, cols);
+      });
+      // Trigger redistribution after grid size change to handle backflow
+      setTimeout(() => redistributeShotsAcrossPages(), 0);
+    },
+    updatePageAspectRatio: (pageId: string, aspectRatio: string) => {
+      // Apply aspect ratio to ALL pages (global setting)
+      const { pages } = getPageStore();
+      pages.forEach(page => {
+        pageStore.updatePageAspectRatio(page.id, aspectRatio);
+      });
+    },
     getActivePage: pageStore.getActivePage,
     getPageById: pageStore.getPageById,
     addShotToPage: pageStore.addShotToPage,
