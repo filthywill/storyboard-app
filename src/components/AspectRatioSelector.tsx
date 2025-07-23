@@ -34,8 +34,7 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
       <TooltipTrigger asChild>
         <div
           className={cn(
-            buttonVariants({ variant: 'outline' }),
-            'flex items-center justify-between p-2 gap-2 h-10'
+            'flex items-center justify-between p-2 gap-2 h-10 border border-input bg-background rounded-md'
           )}
         >
           <RectangleHorizontal size={16} />
@@ -51,7 +50,7 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
                 key={ratio.value}
                 value={ratio.value}
                 aria-label={ratio.label}
-                className="h-7 px-2 border-none"
+                className="h-7 px-2 border-none hover:bg-accent hover:text-accent-foreground transition-colors"
                 >
                   {ratio.label}
               </ToggleGroupItem>

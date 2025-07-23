@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Shot, useAppStore } from '@/store';
-import { Move, Plus, X, Upload } from 'lucide-react';
+import { Move, Plus, X, Upload, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { compressImage, getImageSource, revokeImageObjectURL, shouldUseBase64, MAX_BASE64_SIZE, AUTO_COMPRESS_THRESHOLD } from '@/utils/imageCompression';
@@ -17,6 +17,7 @@ interface ShotCardProps {
   onDelete: () => void;
   onAddSubShot: () => void;
   onInsertShot: () => void;
+  onInsertBatch?: () => void;
   isOverlay?: boolean;
   className?: string;
   aspectRatio?: string;
@@ -29,6 +30,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
   onDelete,
   onAddSubShot,
   onInsertShot,
+  onInsertBatch,
   isOverlay = false,
   className,
   aspectRatio = '16/9',
@@ -197,7 +199,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           <div
             {...attributes}
             {...listeners}
-            className="absolute top-2 left-1/2 -translate-x-1/2 z-10 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <div className="bg-blue-500 text-white rounded-full p-2 shadow-lg">
               <Move size={20} />
@@ -222,7 +224,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           <Button
             variant="destructive"
             size="sm"
-            className="absolute top-2 right-2 z-10 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute top-1 right-1 z-10 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={onDelete}
           >
             <X size={14} strokeWidth={3} />
@@ -232,6 +234,26 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           <p>Delete Shot</p>
         </TooltipContent>
       </Tooltip>
+
+      {/* Insert Batch Button */}
+      {onInsertBatch && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="default"
+              size="icon"
+              className="absolute top-1/2 -translate-y-1/2 -left-5 z-10 h-8 w-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-purple-500 hover:bg-purple-600"
+              style={{ top: 'calc(50% - 2rem)' }}
+              onClick={onInsertBatch}
+            >
+              <FolderOpen size={14} strokeWidth={3} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side='right'>
+            <p>Insert Batch</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {/* Insert Shot Button */}
       <Tooltip>

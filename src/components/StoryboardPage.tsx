@@ -6,13 +6,14 @@ import { StartNumberSelector } from './StartNumberSelector';
 import { useAppStore, Shot } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, FileImage, FileText } from 'lucide-react';
+import { Download, FileImage, FileText, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { PageTabs } from './PageTabs';
 import { MasterHeader } from './MasterHeader';
 import { TemplateSettings } from './TemplateSettings';
 import { PDFExportModal } from './PDFExportModal';
+import { BatchLoadModal } from './BatchLoadModal';
 import { exportManager } from '@/utils/export/exportManager';
 import ErrorBoundary from './ErrorBoundary';
 import {
@@ -72,6 +73,8 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [showPDFModal, setShowPDFModal] = useState(false);
+  const [showBatchLoadModal, setShowBatchLoadModal] = useState(false);
+  const [batchInsertPosition, setBatchInsertPosition] = useState<number | null>(null);
   
   // Drag and drop state
   const [activeShot, setActiveShot] = React.useState<Shot | null>(null);
@@ -336,6 +339,84 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     setShowPDFModal(true);
   };
 
+  const handleBatchLoad = () => {
+    setBatchInsertPosition(null);
+    setShowBatchLoadModal(true);
+  };
+
+  const handleInsertBatch = (shotId: string) => {
+    // Find the position of the shot in the current page
+    const shotIndex = pageShots.findIndex(shot => shot.id === shotId);
+    if (shotIndex !== -1) {
+      // Create a hidden file input for direct batch insertion
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.multiple = true;
+      fileInput.accept = 'image/*';
+      fileInput.style.display = 'none';
+      
+      fileInput.onchange = async (e) => {
+        const files = (e.target as HTMLInputElement).files;
+        if (!files || files.length === 0) return;
+        
+        try {
+          const { parseAndSortImageFiles, processBatchImages } = await import('@/utils/batchImageLoader');
+          
+          // Parse and sort the files
+          const parsedFiles = parseAndSortImageFiles(Array.from(files));
+          
+          if (parsedFiles.length === 0) {
+            toast.error('No valid image files found');
+            return;
+          }
+          
+          // Process the images
+          const result = await processBatchImages(parsedFiles);
+          
+          if (result.successful.length > 0) {
+            // Insert shots at the specific position
+            let createdCount = 0;
+            
+            for (const parsedFile of result.successful) {
+              const compressedResult = (parsedFile as any).compressedResult;
+              
+              // Create shot at the target position
+              const shotId = addShot(pageId, shotIndex + createdCount);
+              
+              // Update shot with image data
+              updateShot(shotId, {
+                imageFile: parsedFile.file,
+                imageData: compressedResult.dataUrl,
+                imageSize: parsedFile.file.size,
+                imageStorageType: 'base64'
+              });
+              
+              createdCount++;
+            }
+            
+            toast.success(`Successfully inserted ${createdCount} images at position ${shotIndex + 1}`);
+            
+            if (result.failed.length > 0) {
+              toast.warning(`${result.failed.length} images failed to load`);
+            }
+          } else {
+            toast.error('No images were successfully processed');
+          }
+        } catch (error) {
+          console.error('Batch insert failed:', error);
+          toast.error('Failed to insert images. Please try again.');
+        }
+        
+        // Clean up the file input
+        document.body.removeChild(fileInput);
+      };
+      
+      // Add to DOM and trigger click
+      document.body.appendChild(fileInput);
+      fileInput.click();
+    }
+  };
+
   return (
     <div className={cn('w-full', className)}>
       <div className="mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
@@ -349,6 +430,15 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         </div>
         
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleBatchLoad}
+            disabled={isExporting}
+            className="hover:bg-purple-50"
+          >
+            <FolderOpen size={16} className="mr-2" />
+            Batch Load
+          </Button>
           <Button
             variant="outline"
             onClick={handleExportPNG}
@@ -408,6 +498,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
               onShotDelete={deleteShot}
               onAddShot={addShot}
               onAddSubShot={addSubShot}
+              onInsertBatch={handleInsertBatch}
             />
           </SortableContext>
           </div>
@@ -434,6 +525,13 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         isOpen={showPDFModal}
         onClose={() => setShowPDFModal(false)}
         currentPageIndex={pageIndex}
+      />
+
+      <BatchLoadModal
+        isOpen={showBatchLoadModal}
+        onClose={() => setShowBatchLoadModal(false)}
+        pageId={pageId}
+        initialPosition={batchInsertPosition}
       />
     </div>
   );

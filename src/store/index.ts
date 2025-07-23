@@ -122,7 +122,7 @@ export const useAppStore = () => {
     activePageId: pageStore.activePageId,
     createPage: (name?: string) => {
       const { pages } = getPageStore();
-      const pageId = pageStore.createPage(name);
+      const pageId = pageStore.createPage(); // Automatic numbering handled in pageStore
       
       // Apply the same grid settings as existing pages (global setting)
       if (pages.length > 0) {
@@ -133,8 +133,26 @@ export const useAppStore = () => {
       
       return pageId;
     },
-    deletePage: pageStore.deletePage,
-    renamePage: pageStore.renamePage,
+    deletePage: (pageId: string) => {
+      // Get the page to be deleted
+      const page = pageStore.getPageById(pageId);
+      if (!page) return;
+      
+      // Delete all shots on this page from the shot store
+      page.shots.forEach(shotId => {
+        shotStore.deleteShot(shotId);
+      });
+      
+      // Delete the page (this will also handle active page switching and renumbering)
+      pageStore.deletePage(pageId);
+      
+      // Renumber remaining shots
+      const { templateSettings } = getProjectStore();
+      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      
+      // Redistribute remaining shots across pages
+      redistributeShotsAcrossPages();
+    },
     setActivePage: pageStore.setActivePage,
     duplicatePage: pageStore.duplicatePage,
     updateGridSize: (pageId: string, rows: number, cols: number) => {

@@ -62,7 +62,21 @@ export const usePageStore = create<PageStore>()(
 
       // Page management
       createPage: (name) => {
-        const newPage = createDefaultPage(name || `Page ${get().pages.length + 1}`);
+        // Find the next available page number
+        const existingPages = get().pages;
+        const usedNumbers = new Set(
+          existingPages.map(page => {
+            const match = page.name.match(/^Page (\d+)$/);
+            return match ? parseInt(match[1]) : null;
+          }).filter(num => num !== null)
+        );
+        
+        let nextNumber = 1;
+        while (usedNumbers.has(nextNumber)) {
+          nextNumber++;
+        }
+        
+        const newPage = createDefaultPage(`Page ${nextNumber}`);
         set((state) => {
           state.pages.push(newPage);
           state.activePageId = newPage.id;
@@ -84,6 +98,11 @@ export const usePageStore = create<PageStore>()(
             const newActiveIndex = Math.min(pageIndex, state.pages.length - 1);
             state.activePageId = state.pages[newActiveIndex]?.id || null;
           }
+          
+          // Renumber all pages to maintain sequential order
+          state.pages.forEach((page, index) => {
+            page.name = `Page ${index + 1}`;
+          });
         });
       },
 
@@ -108,10 +127,23 @@ export const usePageStore = create<PageStore>()(
           const originalPage = state.pages.find(p => p.id === pageId);
           if (!originalPage) return;
           
+          // Find the next available page number
+          const usedNumbers = new Set(
+            state.pages.map(page => {
+              const match = page.name.match(/^Page (\d+)$/);
+              return match ? parseInt(match[1]) : null;
+            }).filter(num => num !== null)
+          );
+          
+          let nextNumber = 1;
+          while (usedNumbers.has(nextNumber)) {
+            nextNumber++;
+          }
+          
           const duplicatedPage: StoryboardPage = {
             ...originalPage,
             id: crypto.randomUUID(),
-            name: `${originalPage.name} (Copy)`,
+            name: `Page ${nextNumber}`,
             shots: [...originalPage.shots], // Copy shot IDs
             createdAt: new Date(),
             updatedAt: new Date()

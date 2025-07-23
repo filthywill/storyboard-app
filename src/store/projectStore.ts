@@ -34,7 +34,7 @@ export interface ProjectActions {
   setJobInfo: (info: string) => void;
   
   // Template settings
-  setTemplateSetting: (setting: keyof TemplateSettings, value: boolean) => void;
+  setTemplateSetting: (setting: keyof TemplateSettings, value: boolean | string) => void;
   setTemplateSettings: (settings: Partial<TemplateSettings>) => void;
   resetTemplateSettings: () => void;
   
@@ -104,7 +104,7 @@ export const useProjectStore = create<ProjectStore>()(
       // Template settings
       setTemplateSetting: (setting, value) => {
         set((state) => {
-          state.templateSettings[setting] = value;
+          (state.templateSettings as any)[setting] = value;
         });
       },
 

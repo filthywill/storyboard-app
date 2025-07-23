@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/store';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogFooter
 } from '@/components/ui/dialog';
-import { Plus, MoreHorizontal, Edit2, Copy, Trash2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,41 +30,17 @@ export const PageTabs: React.FC = () => {
     setActivePage,
     createPage,
     deletePage,
-    renamePage,
     duplicatePage,
     showDeleteConfirmation,
     setShowDeleteConfirmation
   } = useAppStore();
 
-  const [isRenaming, setIsRenaming] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const handleCreatePage = () => {
     createPage();
     toast.success('New page created!');
-    setIsRenaming(null);
-    setRenameValue('');
-  };
-
-  const handleStartRename = (pageId: string, currentName: string) => {
-    setIsRenaming(pageId);
-    setRenameValue(currentName);
-  };
-
-  const handleRename = () => {
-    if (isRenaming && renameValue.trim()) {
-      renamePage(isRenaming, renameValue.trim());
-      toast.success('Page renamed successfully!');
-    }
-    setIsRenaming(null);
-    setRenameValue('');
-  };
-
-  const handleCancelRename = () => {
-    setIsRenaming(null);
-    setRenameValue('');
   };
 
   const handleDuplicate = (pageId: string) => {
@@ -134,12 +110,6 @@ export const PageTabs: React.FC = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
-                        onClick={() => handleStartRename(page.id, page.name)}
-                      >
-                        <Edit2 size={14} className="mr-2" />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
                         onClick={() => handleDuplicate(page.id)}
                       >
                         <Copy size={14} className="mr-2" />
@@ -172,34 +142,7 @@ export const PageTabs: React.FC = () => {
         </Button>
       </div>
 
-      {/* Rename Dialog */}
-      <Dialog open={isRenaming !== null} onOpenChange={() => handleCancelRename()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename Page</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              placeholder="Enter page name"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRename();
-                if (e.key === 'Escape') handleCancelRename();
-              }}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelRename}>
-              Cancel
-            </Button>
-            <Button onClick={handleRename} disabled={!renameValue.trim()}>
-              Rename
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog !== null} onOpenChange={() => setShowDeleteDialog(null)}>

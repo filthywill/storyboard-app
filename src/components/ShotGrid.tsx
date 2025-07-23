@@ -14,6 +14,7 @@ interface ShotGridProps {
   onShotDelete: (shotId: string) => void;
   onAddShot: (pageId: string, position?: number) => void;
   onAddSubShot: (pageId: string, shotId: string) => void;
+  onInsertBatch?: (shotId: string) => void;
 }
 
 export const ShotGrid: React.FC<ShotGridProps> = ({ 
@@ -23,7 +24,8 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
   onShotUpdate,
   onShotDelete,
   onAddShot,
-  onAddSubShot
+  onAddSubShot,
+  onInsertBatch
 }) => {
   const {
     pages,
@@ -53,6 +55,10 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
   const handleAddSubShot = useCallback((shotId: string) => {
     onAddSubShot(pageId, shotId);
   }, [pageId, onAddSubShot]);
+
+  const handleInsertBatch = useCallback((shotId: string) => {
+    onInsertBatch?.(shotId);
+  }, [onInsertBatch]);
 
   const handleInsertShot = useCallback((shotId: string) => {
     const shot = shots[shotId];
@@ -142,6 +148,7 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
             onDelete={() => handleShotDelete(shot.id)}
             onAddSubShot={() => handleAddSubShot(shot.id)}
             onInsertShot={() => handleInsertShot(shot.id)}
+            onInsertBatch={() => handleInsertBatch(shot.id)}
             aspectRatio={aspectRatio}
             previewDimensions={previewDimensions}
           />
