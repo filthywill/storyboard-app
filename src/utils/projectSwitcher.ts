@@ -12,6 +12,8 @@ import { useProjectStore } from '@/store/projectStore';
 import { useUIStore } from '@/store/uiStore';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { LocalStorageManager } from './localStorageManager';
+import { withOperation } from '@/utils/operations';
+import { Telemetry } from '@/utils/telemetry';
 
 export class ProjectSwitcher {
   /**
@@ -53,14 +55,16 @@ export class ProjectSwitcher {
    * This saves current data and loads new project data
    */
   static async switchToProject(projectId: string, skipSaveCurrent: boolean = false): Promise<boolean> {
-    // Import lock utilities
-    const { lockProjectSwitching, unlockProjectSwitching } = await import('@/utils/autoSave');
-    
-    try {
+    return withOperation<boolean>(async () => {
+      Telemetry.event('project.switch.begin', { projectId, skipSaveCurrent });
+      const endTimer = Telemetry.timer('project.switch.duration');
+
       // Validate project exists
       const projectManager = useProjectManagerStore.getState();
       if (!projectManager.projects[projectId]) {
         console.error(`Project ${projectId} not found`);
+        Telemetry.event('project.switch.error', { projectId, reason: 'not-found' });
+        endTimer.end({ projectId, success: false });
         return false;
       }
 
@@ -68,6 +72,8 @@ export class ProjectSwitcher {
       const currentProjectId = projectManager.currentProjectId;
       if (currentProjectId === projectId) {
         console.log('Already on this project, no switch needed');
+        Telemetry.event('project.switch.noop', { projectId });
+        endTimer.end({ projectId, success: true, noop: true });
         return true;
       }
 
@@ -87,9 +93,6 @@ export class ProjectSwitcher {
         }
       }
       
-      // Step 2: LOCK to prevent any auto-saves during switch
-      lockProjectSwitching();
-      
       console.log('📥 Loading new project data...');
       
       // Step 3: Load new project data with timeout protection
@@ -106,12 +109,14 @@ export class ProjectSwitcher {
         
         if (!loadSuccess) {
           console.error(`Failed to load project ${projectId}`);
-          unlockProjectSwitching();
+          Telemetry.event('project.switch.error', { projectId, reason: 'load-failed' });
+          endTimer.end({ projectId, success: false });
           return false;
         }
       } catch (loadError) {
         console.error(`Timeout or error loading project ${projectId}:`, loadError);
-        unlockProjectSwitching();
+        Telemetry.event('project.switch.error', { projectId, reason: 'timeout-or-exception' });
+        endTimer.end({ projectId, success: false });
         return false;
       }
 
@@ -120,9 +125,6 @@ export class ProjectSwitcher {
       
       // Step 5: Update project metadata
       this.updateProjectMetadata(projectId);
-      
-      // Step 6: UNLOCK - switch complete
-      unlockProjectSwitching();
       
       // Step 7: Reconcile layout from shotOrder to prevent first-action swaps
       try {
@@ -136,16 +138,10 @@ export class ProjectSwitcher {
       }
       
       console.log(`✅ Project switch complete: ${projectId}`);
-      
+      Telemetry.event('project.switch.success', { projectId });
+      endTimer.end({ projectId, success: true });
       return true;
-
-    } catch (error) {
-      console.error('Error switching projects:', error);
-      // Always unlock on error
-      const { unlockProjectSwitching } = await import('@/utils/autoSave');
-      unlockProjectSwitching();
-      return false;
-    }
+    }, { name: 'project-switch', lockSwitching: true, batchSaves: true });
   }
 
   /**

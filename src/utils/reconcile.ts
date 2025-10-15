@@ -1,6 +1,7 @@
 import { usePageStore } from '@/store/pageStore';
 import { useShotStore } from '@/store/shotStore';
 import { useProjectStore } from '@/store/projectStore';
+import { Telemetry } from '@/utils/telemetry';
 
 /**
  * Reconcile pages from canonical shotOrder without using React hooks in caller.
@@ -13,6 +14,8 @@ export function reconcileFromShotOrderNonHook(): void {
 
   const pages = pageStore.pages;
   const shotOrder = shotStore.shotOrder;
+
+  const timer = Telemetry.timer('reconcile.duration');
 
   try {
     const pageIds = new Set<string>();
@@ -29,8 +32,10 @@ export function reconcileFromShotOrderNonHook(): void {
         pageIdCount: pageIds.size,
         orderCount: orderIds.size,
       });
+      Telemetry.event('reconcile.triggered', { reason: 'mismatch', pageCount: pages.length, pageIdCount: pageIds.size, orderCount: orderIds.size });
     } else {
       console.debug('[reconcile-nonhook] No mismatch detected. Ensuring layout matches shotOrder.');
+      Telemetry.event('reconcile.triggered', { reason: 'no-mismatch' });
     }
   } catch (_) {}
 
@@ -68,6 +73,9 @@ export function reconcileFromShotOrderNonHook(): void {
 
   // Single renumber pass
   shotStore.renumberAllShotsImmediate(projectStore.templateSettings.shotNumberFormat);
+
+  timer.end({ shots: shotOrder.length, pages: pageStore.pages.length });
+  Telemetry.event('reconcile.success', { shots: shotOrder.length, pages: pageStore.pages.length });
 }
 
 
