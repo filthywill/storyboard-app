@@ -1,24 +1,18 @@
-# Welcome to your Lovable project
+# Storyboard Flow
 
-## Project info
+A professional storyboard creation application built with React, TypeScript, and Tailwind CSS.
 
-**URL**: https://lovable.dev/projects/093c4ced-fa24-4620-97b3-214537b61d73
+## Project Overview
+
+This is a React-based storyboard creation application that allows users to create, organize, and export professional storyboards with drag-and-drop functionality. The application features a modular architecture with sophisticated state management and export capabilities.
 
 ## How can I edit this code?
 
 There are several ways of editing your application.
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/093c4ced-fa24-4620-97b3-214537b61d73) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
 **Use your preferred IDE**
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Clone this repo and work locally using your own IDE. The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
 Follow these steps:
 
@@ -59,15 +53,44 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Zustand (State Management)
+- React Router DOM
+- DnD Kit (Drag & Drop)
+- jsPDF & html2canvas (Export functionality)
 
-## How can I deploy this project?
+## Development Commands
 
-Simply open [Lovable](https://lovable.dev/projects/093c4ced-fa24-4620-97b3-214537b61d73) and click on Share -> Publish.
+```bash
+# Development server
+npm run dev          # Start development server on port 8080
+npm run preview      # Preview production build locally
 
-## Can I connect a custom domain to my Lovable project?
+# Build commands  
+npm run build        # Production build (outputs to dist/)
+npm run build:dev    # Development build with source maps
 
-Yes, you can!
+# Code quality
+npm run lint         # Run ESLint on all TypeScript/React files
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Features
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- **Drag & Drop Interface**: Intuitive shot organization with DnD Kit
+- **Multi-page Support**: Create and manage multiple storyboard pages
+- **Export Capabilities**: Export to PNG and PDF formats
+- **Image Management**: Upload, compress, and position images
+- **Template Settings**: Customizable storyboard templates
+- **Responsive Design**: Works on desktop and mobile devices
+- **State Persistence**: Automatic saving to localStorage
+
+## Architecture
+
+The application uses a modular Zustand store architecture with separate stores for:
+- **Page Store**: Manages storyboard pages and grid settings
+- **Shot Store**: Handles individual shots and shot ordering
+- **Project Store**: Manages project metadata and template settings
+- **UI Store**: Handles application UI state
+
+## License
+
+This project is open source and available under the MIT License.

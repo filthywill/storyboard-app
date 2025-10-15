@@ -1,16 +1,14 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileImage, AlertCircle, CheckCircle, X, Eye, ArrowRight, ArrowDown } from 'lucide-react';
+import { Upload, FileImage, AlertCircle, CheckCircle, X, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   parseAndSortImageFiles, 
@@ -19,6 +17,8 @@ import {
   type ParsedImageFile,
   type BatchLoadResult 
 } from '@/utils/batchImageLoader';
+import { enableBatchMode, disableBatchMode } from '@/utils/autoSave';
+import { formatShotNumber } from '@/utils/formatShotNumber';
 import { useAppStore } from '@/store';
 import { toast } from 'sonner';
 
@@ -31,8 +31,7 @@ interface BatchLoadModalProps {
 
 type LoadingState = 'idle' | 'processing' | 'complete' | 'error';
 
-
-type StartingPosition = 'end' | 'specific';
+type StartingPosition = 'start' | 'end' | 'custom';
 
 export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
   isOpen,
@@ -40,7 +39,7 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
   pageId,
   initialPosition
 }) => {
-  const { addShot, setTemplateSetting, templateSettings, updateShot, getPageShots, shots, shotOrder, deleteShot } = useAppStore();
+  const { addShot, setTemplateSetting, templateSettings, updateShot, getPageShots, shots, shotOrder, deleteShot, pages } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // State management
@@ -53,9 +52,9 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
   
   // Load options
   const [startingPosition, setStartingPosition] = useState<StartingPosition>(
-    initialPosition !== null && initialPosition !== undefined ? 'specific' : 'end'
+    initialPosition !== null && initialPosition !== undefined ? 'custom' : 'end'
   );
-  const [specificPosition, setSpecificPosition] = useState<number>(
+  const [customPosition, setCustomPosition] = useState<number>(
     initialPosition !== null && initialPosition !== undefined ? initialPosition + 1 : 1
   );
 
@@ -83,25 +82,118 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
     setBatchResult(null);
   }, []);
 
+  // Get the target page for insertion based on user selection
+  const getTargetPageForInsertion = useCallback(() => {
+    if (startingPosition === 'start') {
+      // Find the first page with shots, or the first page if no shots exist
+      const firstPageWithShots = pages.find(page => page.shots.length > 0);
+      return firstPageWithShots || pages[0];
+    }
+    
+    if (startingPosition === 'custom') {
+      // For custom position, find which page contains the target shot number
+      const targetShotNumber = customPosition;
+      
+      // If custom position is 1, treat it as global start
+      if (targetShotNumber === 1) {
+        const firstPageWithShots = pages.find(page => page.shots.length > 0);
+        return firstPageWithShots || pages[0];
+      }
+      
+      // Format the target shot number using the project's shot number format
+      const formattedShotNumber = formatShotNumber(targetShotNumber, templateSettings.shotNumberFormat);
+      
+      // Find which page contains the target shot number
+      const targetPage = pages.find(page => {
+        const pageShots = getPageShots(page.id);
+        return pageShots.some(shot => shot.number === formattedShotNumber);
+      });
+      
+      return targetPage || pages.find(page => page.id === pageId) || pages[0];
+    }
+    
+    // For 'end' or default, use current page
+    return pages.find(page => page.id === pageId) || pages[0];
+  }, [startingPosition, customPosition, pages, getPageShots, pageId, templateSettings.shotNumberFormat]);
+
   // Calculate target position based on user selection
   const calculateTargetPosition = useCallback(() => {
-    const existingShots = getPageShots(pageId);
+    const targetPage = getTargetPageForInsertion();
+    const targetPageShots = getPageShots(targetPage.id);
     
     switch (startingPosition) {
+      case 'start':
+        // Always insert at position 0 of the target page (first page with shots)
+        return 0;
+        
       case 'end':
-        return existingShots.length;
-      case 'specific':
-        // For specific position, we want to insert at the exact position specified
-        // If user says position 1, we want to insert at index 0 (before the first shot)
-        return Math.max(0, Math.min(specificPosition - 1, existingShots.length));
+        // Insert at the end of the current page
+        const currentPageShotsEnd = getPageShots(pageId);
+        return currentPageShotsEnd.length;
+        
+      case 'custom':
+        // If custom position is 1, insert at position 0 of first page
+        if (customPosition === 1) {
+          return 0;
+        }
+        
+        // Format the target shot number using the project's shot number format
+        const targetShotNumber = formatShotNumber(customPosition, templateSettings.shotNumberFormat);
+        const shotIndex = targetPageShots.findIndex(shot => shot.number === targetShotNumber);
+        
+        if (shotIndex !== -1) {
+          return shotIndex; // Insert before the existing shot at this position
+        }
+        
+        // If shot number not found, insert at the end of the target page
+        return targetPageShots.length;
+        
       default:
-        return existingShots.length;
+        const currentPageShotsDefault = getPageShots(pageId);
+        return currentPageShotsDefault.length;
     }
-  }, [startingPosition, specificPosition, getPageShots, pageId]);
+  }, [startingPosition, customPosition, getPageShots, pageId, getTargetPageForInsertion, templateSettings.shotNumberFormat]);
 
-  // Get existing shots for preview
-  const existingShots = getPageShots(pageId);
+  // Get target page and shots for preview
+  const targetPage = getTargetPageForInsertion();
   const targetPosition = calculateTargetPosition();
+
+  // For preview, we need to show the global shot order when inserting at start
+  let existingShots;
+  let previewTargetPosition;
+  
+  if (startingPosition === 'start') {
+    // Show all shots in global order for accurate preview
+    existingShots = shotOrder.map(shotId => shots[shotId]).filter(Boolean);
+    previewTargetPosition = 0; // Always start at position 0 for global start
+  } else {
+    // For other insertion types, use the target page shots
+    existingShots = getPageShots(targetPage.id);
+    previewTargetPosition = targetPosition;
+  }
+
+
+  // Helper function to queue batch images for background cloud upload
+  const queueBatchImageForCloud = async (shotId: string, file: File): Promise<void> => {
+    try {
+      const isCloudEnabled = import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true';
+      const { useAuthStore } = await import('@/store/authStore');
+      const { isAuthenticated } = useAuthStore.getState();
+      
+      if (isCloudEnabled && isAuthenticated) {
+        const { BackgroundSyncService } = await import('@/services/backgroundSyncService');
+        const { useProjectManagerStore } = await import('@/store/projectManagerStore');
+        const { currentProjectId } = useProjectManagerStore.getState();
+        
+        if (currentProjectId) {
+          BackgroundSyncService.queueImageUpload(currentProjectId, shotId, file);
+          console.log(`Queued batch image upload for shot ${shotId}`);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to queue batch image for cloud upload:', error);
+    }
+  };
 
   // Process and load images
   const handleBatchLoad = useCallback(async () => {
@@ -109,6 +201,9 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
 
     setLoadingState('processing');
     setProgress({ current: 0, total: parsedFiles.length, currentFile: '' });
+
+    // Enable batch mode to prevent auto-save during bulk operations
+    enableBatchMode();
 
     try {
       const result = await processBatchImages(
@@ -127,24 +222,105 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
           toast.info(`Shot numbering format updated to "${result.numberingPattern}" based on detected pattern`);
         }
 
+        // Determine the target page and position for insertion
+        const targetPage = getTargetPageForInsertion();
+        const targetPageId = targetPage.id;
+        const targetIndex = calculateTargetPosition();
+
         // Create shots for successful images
         let createdCount = 0;
         
-        for (const parsedFile of result.successful) {
-          const compressedResult = (parsedFile as any).compressedResult;
+        // For global start insertion, we need to handle the global shot order
+        if (startingPosition === 'start') {
+          // Get all shots in global order
+          const allShots = shotOrder.map(shotId => shots[shotId]).filter(Boolean);
           
-          // Create shot at the target position
-          const shotId = addShot(pageId, targetPosition + createdCount);
+          // Check cloud availability for storage type
+          const isCloudEnabled = import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true';
+          const { useAuthStore } = await import('@/store/authStore');
+          const { isAuthenticated } = useAuthStore.getState();
+          const storageType = (isCloudEnabled && isAuthenticated) ? 'local-pending-sync' : 'base64';
           
-          // Update shot with image data
-          updateShot(shotId, {
-            imageFile: parsedFile.file,
-            imageData: compressedResult.dataUrl,
-            imageSize: parsedFile.file.size,
-            imageStorageType: 'base64'
-          });
+          for (const parsedFile of result.successful) {
+            const compressedResult = (parsedFile as any).compressedResult;
+            const globalIndex = createdCount; // Insert at global position createdCount
+            
+            if (globalIndex < allShots.length) {
+              // Update existing shot with image data
+              const existingShot = allShots[globalIndex];
+              
+              // INSTANT: Save locally first
+              updateShot(existingShot.id, {
+                imageFile: parsedFile.file,
+                imageData: compressedResult.dataUrl,
+                imageSize: parsedFile.file.size,
+                imageStorageType: storageType,
+                cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,
+                cloudSyncRetries: 0
+              });
+              
+              // BACKGROUND: Queue cloud upload
+              if (isCloudEnabled && isAuthenticated) {
+                await queueBatchImageForCloud(existingShot.id, parsedFile.file);
+              }
+            } else {
+              // Create new shot at the global position
+              const targetPageForShot = pages.find(page => {
+                const pageShots = getPageShots(page.id);
+                return pageShots.length > 0;
+              }) || pages[0];
+              
+              const shotId = addShot(targetPageForShot.id, globalIndex);
+              
+              // INSTANT: Save locally first
+              updateShot(shotId, {
+                imageFile: parsedFile.file,
+                imageData: compressedResult.dataUrl,
+                imageSize: parsedFile.file.size,
+                imageStorageType: storageType,
+                cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,
+                cloudSyncRetries: 0
+              });
+              
+              // BACKGROUND: Queue cloud upload
+              if (isCloudEnabled && isAuthenticated) {
+                await queueBatchImageForCloud(shotId, parsedFile.file);
+              }
+            }
+            
+            createdCount++;
+          }
+        } else {
+          // For other insertion types, use the original logic
+          // Check cloud availability for storage type
+          const isCloudEnabled = import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true';
+          const { useAuthStore } = await import('@/store/authStore');
+          const { isAuthenticated } = useAuthStore.getState();
+          const storageType = (isCloudEnabled && isAuthenticated) ? 'local-pending-sync' : 'base64';
           
-          createdCount++;
+          for (const parsedFile of result.successful) {
+            const compressedResult = (parsedFile as any).compressedResult;
+            
+            // Create shot at the target position
+            const shotId = addShot(targetPageId, targetIndex + createdCount);
+            
+            // INSTANT: Save locally first
+            updateShot(shotId, {
+              imageFile: parsedFile.file,
+              imageData: compressedResult.dataUrl,
+              imageSize: parsedFile.file.size,
+              imageStorageType: storageType,
+              cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,
+              cloudSyncRetries: 0
+            });
+            
+            // BACKGROUND: Queue cloud upload
+            if (isCloudEnabled && isAuthenticated) {
+              await queueBatchImageForCloud(shotId, parsedFile.file);
+            }
+            
+            createdCount++;
+          }
         }
 
         toast.success(`Successfully loaded ${createdCount} images`);
@@ -160,8 +336,11 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
       console.error('Batch load failed:', error);
       toast.error('Batch load failed. Please try again.');
       setLoadingState('error');
+    } finally {
+      // Disable batch mode and trigger a single auto-save for all changes
+      disableBatchMode();
     }
-  }, [parsedFiles, pageId, addShot, setTemplateSetting, templateSettings.shotNumberFormat, targetPosition, updateShot]);
+  }, [parsedFiles, pageId, addShot, setTemplateSetting, templateSettings.shotNumberFormat, targetPosition, updateShot, startingPosition, pages, getTargetPageForInsertion, calculateTargetPosition]);
 
   // Reset modal state
   const handleClose = useCallback(() => {
@@ -172,7 +351,7 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
     setBatchResult(null);
     setShowPreview(false);
     setStartingPosition('end');
-    setSpecificPosition(1);
+    setCustomPosition(1);
     onClose();
   }, [onClose]);
 
@@ -187,6 +366,9 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
             <Upload size={18} />
             Batch Load Images
           </DialogTitle>
+          <DialogDescription>
+            Upload multiple images to create storyboard shots quickly
+          </DialogDescription>
         </DialogHeader>
         {/* File Selection */}
         {!showPreview && (
@@ -253,6 +435,78 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
                 </Card>
               </div>
 
+              {/* Image Preview */}
+              {parsedFiles.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Image Preview</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {parsedFiles.map((parsedFile, index) => {
+                        const targetShotIndex = previewTargetPosition + index;
+                        const targetShot = existingShots[targetShotIndex];
+                        const isUpdate = targetShot && targetShotIndex < existingShots.length;
+                        const isCreate = !targetShot || targetShotIndex >= existingShots.length;
+                        
+                        return (
+                          <div key={index} className="flex items-center gap-3 p-2 border rounded-lg">
+                            {/* Image Thumbnail */}
+                            <div className="w-12 h-12 bg-gray-100 rounded border flex items-center justify-center overflow-hidden">
+                              <img 
+                                src={URL.createObjectURL(parsedFile.file)} 
+                                alt={parsedFile.originalName}
+                                className="w-full h-full object-cover"
+                                onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                              />
+                            </div>
+                            
+                            {/* File Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {parsedFile.originalName}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {parsedFile.parsedNumber ? `Number: ${parsedFile.numberString}` : 'No number detected'}
+                              </div>
+                            </div>
+                            
+                            {/* Shot Assignment */}
+                            <div className="flex items-center gap-2">
+                              <div className={cn(
+                                "px-2 py-1 rounded text-xs font-medium",
+                                isUpdate ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
+                              )}>
+                                {isUpdate ? `Update Shot ${targetShot?.number || formatShotNumber(targetShotIndex + 1, templateSettings.shotNumberFormat)}` : `Create Shot ${formatShotNumber(targetShotIndex + 1, templateSettings.shotNumberFormat)}`}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Operation Summary */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Operation Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span>Will update: {Math.min(parsedFiles.length, existingShots.length)} existing shots</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span>Will create: {Math.max(0, parsedFiles.length - existingShots.length)} new shots</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Load Options */}
               <Card>
                 <CardHeader className="pb-1">
@@ -262,90 +516,44 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
-                  {/* Starting Position */}
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium">Starting Position</Label>
-                    <RadioGroup value={startingPosition} onValueChange={(value) => setStartingPosition(value as StartingPosition)}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="end" id="end" />
-                        <Label htmlFor="end" className="text-xs">
-                          End of current shots ({existingShots.length} total)
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="specific" id="specific" />
-                        <Label htmlFor="specific" className="text-xs">
-                          Specific position
-                        </Label>
-                      </div>
-                      {startingPosition === 'specific' && (
-                        <div className="ml-6 flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min="1"
-                            max={existingShots.length + 1}
-                            value={specificPosition}
-                            onChange={(e) => setSpecificPosition(parseInt(e.target.value) || 1)}
-                            className="w-16 h-7 text-xs"
-                            placeholder="1"
-                          />
-                          <span className="text-xs text-gray-500">
-                            (1-{existingShots.length + 1})
-                          </span>
-                        </div>
-                      )}
-
-                    </RadioGroup>
-                  </div>
-
-                  {/* Preview of Impact */}
-                  {existingShots.length > 0 && (
-                    <div className="space-y-1">
-                      <Label className="text-sm font-medium">Impact Preview</Label>
-                      <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
-                        <div className="font-medium">
-                          <ArrowRight className="inline w-3 h-3 mr-1" />
-                          {previewInfo.totalFiles} new shots will be inserted at position {targetPosition + 1}
-                        </div>
-                        <div className="text-gray-500">
-                          Existing shots {targetPosition + 1}-{existingShots.length} will be pushed back
-                        </div>
-                      </div>
+                  <RadioGroup value={startingPosition} onValueChange={(value) => setStartingPosition(value as StartingPosition)}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="start" id="start" />
+                      <Label htmlFor="start" className="text-xs">
+                        Insert at Start
+                      </Label>
                     </div>
-                  )}
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="end" id="end" />
+                      <Label htmlFor="end" className="text-xs">
+                        Insert at End
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="custom" id="custom" />
+                      <Label htmlFor="custom" className="text-xs">
+                        Custom
+                      </Label>
+                    </div>
+                    {startingPosition === 'custom' && (
+                      <div className="ml-6 flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          max={existingShots.length + 1}
+                          value={customPosition}
+                          onChange={(e) => setCustomPosition(parseInt(e.target.value) || 1)}
+                          className="w-16 h-7 text-xs"
+                          placeholder="1"
+                        />
+                        <span className="text-xs text-gray-500">
+                          (1-{existingShots.length + 1})
+                        </span>
+                      </div>
+                    )}
+                  </RadioGroup>
                 </CardContent>
               </Card>
-
-              {/* File List Preview */}
-              <Card>
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Eye size={14} />
-                    Load Order Preview
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-20">
-                    <div className="grid grid-cols-4 gap-2 text-xs">
-                      {previewInfo.sortedNames.map((name, index) => (
-                        <div 
-                          key={index}
-                          className="flex items-center gap-1 p-1 bg-gray-50 rounded"
-                        >
-                          <Badge variant="outline" className="text-xs px-1">
-                            {index + 1}
-                          </Badge>
-                          <span className="truncate" title={name}>
-                            {name}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-
-
             </div>
           )}
 
@@ -442,4 +650,4 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
       </DialogContent>
     </Dialog>
   );
-}; 
+};

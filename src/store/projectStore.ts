@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import ObjectURLManager from '@/utils/objectURLManager';
+import { triggerAutoSave } from '@/utils/autoSave';
 
 export interface TemplateSettings {
   showLogo: boolean;
@@ -73,12 +74,18 @@ export const useProjectStore = create<ProjectStore>()(
         set((state) => {
           state.projectName = name;
         });
+        
+        // Trigger auto-save after changing project name
+        triggerAutoSave();
       },
 
       setProjectInfo: (info) => {
         set((state) => {
           state.projectInfo = info;
         });
+        
+        // Trigger auto-save after changing project info
+        triggerAutoSave();
       },
 
       setProjectLogo: (file) => {
@@ -93,12 +100,18 @@ export const useProjectStore = create<ProjectStore>()(
         set((state) => {
           state.clientAgency = name;
         });
+        
+        // Trigger auto-save after changing client/agency
+        triggerAutoSave();
       },
 
       setJobInfo: (info) => {
         set((state) => {
           state.jobInfo = info;
         });
+        
+        // Trigger auto-save after changing job info
+        triggerAutoSave();
       },
 
       // Template settings
@@ -106,6 +119,9 @@ export const useProjectStore = create<ProjectStore>()(
         set((state) => {
           (state.templateSettings as any)[setting] = value;
         });
+        
+        // Trigger auto-save after changing template setting
+        triggerAutoSave();
       },
 
       setTemplateSettings: (settings) => {

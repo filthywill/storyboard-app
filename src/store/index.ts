@@ -3,6 +3,7 @@ export { usePageStore, type PageStore, type StoryboardPage } from './pageStore';
 export { useShotStore, type ShotStore, type Shot } from './shotStore';
 export { useProjectStore, type ProjectStore, type TemplateSettings } from './projectStore';
 export { useUIStore, type UIStore } from './uiStore';
+export { useProjectManagerStore, type ProjectManagerStore, type ProjectMetadata } from './projectManagerStore';
 
 // Performance optimization exports
 export { renumberingOptimizer } from '@/utils/renumberingOptimizer';
@@ -13,13 +14,24 @@ import { usePageStore } from './pageStore';
 import { useShotStore } from './shotStore';
 import { useProjectStore } from './projectStore';
 import { useUIStore } from './uiStore';
+import { useProjectManagerStore } from './projectManagerStore';
 import { useShallow } from 'zustand/react/shallow';
+import ProjectSwitcher from '@/utils/projectSwitcher';
+import { registerAutoSave, enableBatchMode, disableBatchMode } from '@/utils/autoSave';
+
+// Extend window interface for auto-save timeout
+declare global {
+  interface Window {
+    autoSaveTimeout?: NodeJS.Timeout;
+  }
+}
 
 // Get the actual store instances for internal operations
 const getPageStore = () => usePageStore.getState();
 const getShotStore = () => useShotStore.getState();
 const getProjectStore = () => useProjectStore.getState();
 const getUIStore = () => useUIStore.getState();
+const getProjectManagerStore = () => useProjectManagerStore.getState();
 
 // Unified store hook that provides access to all stores
 export const useAppStore = () => {
@@ -27,6 +39,7 @@ export const useAppStore = () => {
   const shotStore = useShotStore();
   const projectStore = useProjectStore();
   const uiStore = useUIStore();
+  const projectManagerStore = useProjectManagerStore();
   
   // Enhanced redistribution function that handles both overflow and backflow
   const redistributeShotsAcrossPages = () => {
@@ -47,14 +60,12 @@ export const useAppStore = () => {
     const totalCapacity = pages.length * pageCapacity;
     if (shotOrder.length > totalCapacity) {
       console.log('Overflow detected, creating new pages');
-      // Create additional pages as needed
       const shotsPerPage = pageCapacity;
       const pagesNeeded = Math.ceil(shotOrder.length / shotsPerPage);
       const currentPageCount = pages.length;
       
       console.log('Creating pages:', currentPageCount, 'to', pagesNeeded);
       for (let i = currentPageCount; i < pagesNeeded; i++) {
-        // Use the unified store's createPage method to ensure global settings are applied
         const newPageId = pageStore.createPage(`Page ${i + 1}`);
         
         // Apply the same grid settings as existing pages (global setting)
@@ -67,8 +78,7 @@ export const useAppStore = () => {
         console.log('Created page:', newPageId);
       }
       
-      // Re-run redistribution with new pages immediately instead of setTimeout
-      // Use setTimeout with 0 delay to ensure the page creation has been processed
+      // Re-run redistribution with new pages
       setTimeout(() => {
         console.log('Re-running redistribution after page creation');
         redistributeShotsAcrossPages();
@@ -81,31 +91,27 @@ export const useAppStore = () => {
     // Get fresh page data to ensure we have the latest state
     const currentPages = getPageStore().pages;
     
-    // Clear all pages first
-    currentPages.forEach(page => {
-      pageStore.reorderShotsInPage(page.id, []);
-    });
-    
-    // Redistribute shots across pages
+    // NEW APPROACH: Use shotOrder as source of truth, distribute to pages
+    // DO NOT clear pages first - just update them based on shotOrder
     currentPages.forEach((page, pageIndex) => {
       const startIndex = pageIndex * pageCapacity;
       const endIndex = startIndex + pageCapacity;
       const pageShotIds = shotOrder.slice(startIndex, endIndex);
       
-      console.log(`Page ${pageIndex + 1} (${page.id}): shots ${startIndex}-${endIndex-1}`, pageShotIds);
+      console.log(`Page ${pageIndex + 1} (${page.id}): shots ${startIndex}-${endIndex-1} (${pageShotIds.length})`, pageShotIds);
       
-      // Update the page's shots array
+      // Update the page's shots array to match shotOrder
       pageStore.reorderShotsInPage(page.id, pageShotIds);
     });
     
-    // Handle backflow: remove empty pages at the end (but be careful not to remove pages we just created)
+    // Handle backflow: remove empty pages at the end
     const updatedPages = getPageStore().pages;
     const nonEmptyPages = updatedPages.filter(page => page.shots.length > 0);
     const emptyPagesAtEnd = updatedPages.slice(nonEmptyPages.length);
     
     console.log('Backflow check:', { totalPages: updatedPages.length, nonEmptyPages: nonEmptyPages.length, emptyPagesAtEnd: emptyPagesAtEnd.length });
     
-    // Only remove empty pages if we have more than one page and the empty pages are truly at the end
+    // Only remove empty pages if we have more than one page
     if (emptyPagesAtEnd.length > 0 && updatedPages.length > 1 && nonEmptyPages.length > 0) {
       console.log('Removing empty pages at end:', emptyPagesAtEnd.map(p => p.name));
       emptyPagesAtEnd.forEach(page => {
@@ -116,13 +122,47 @@ export const useAppStore = () => {
     console.log('Redistribution completed');
   };
 
+  // Reconcile pages from canonical shotOrder before first render or after imports
+  const reconcileFromShotOrder = () => {
+    const { pages } = getPageStore();
+    const { shotOrder } = getShotStore();
+
+    // Compare ID sets to detect drift for telemetry (silent auto-heal via redistribution)
+    try {
+      const pageIds = new Set<string>();
+      pages.forEach(p => p.shots.forEach(id => pageIds.add(id)));
+      const orderIds = new Set<string>(shotOrder);
+      let mismatch = false;
+      if (pageIds.size !== orderIds.size) mismatch = true;
+      else {
+        for (const id of pageIds) if (!orderIds.has(id)) { mismatch = true; break; }
+      }
+      if (mismatch) {
+        console.log('[reconcile] Detected layout/order mismatch. Normalizing from shotOrder.', {
+          pageCount: pages.length,
+          pageIdCount: pageIds.size,
+          orderCount: orderIds.size,
+        });
+      } else {
+        console.log('[reconcile] No mismatch detected. Ensuring layout matches shotOrder.');
+      }
+    } catch (_) {
+      // best-effort telemetry only
+    }
+
+    // Project pages strictly from shotOrder and renumber once
+    redistributeShotsAcrossPages();
+    const { templateSettings } = getProjectStore();
+    shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+  };
+
   return {
     // Page management
     pages: pageStore.pages,
     activePageId: pageStore.activePageId,
-    createPage: (name?: string) => {
+    createPage: (name?: string, preserveActivePage = false) => {
       const { pages } = getPageStore();
-      const pageId = pageStore.createPage(); // Automatic numbering handled in pageStore
+      const pageId = pageStore.createPage(name); // Automatic numbering handled in pageStore
       
       // Apply the same grid settings as existing pages (global setting)
       if (pages.length > 0) {
@@ -138,38 +178,61 @@ export const useAppStore = () => {
       const page = pageStore.getPageById(pageId);
       if (!page) return;
       
-      // Delete all shots on this page from the shot store
-      page.shots.forEach(shotId => {
-        shotStore.deleteShot(shotId);
-      });
+      // Enable batch mode to prevent auto-save spam during page deletion
+      enableBatchMode();
       
-      // Delete the page (this will also handle active page switching and renumbering)
-      pageStore.deletePage(pageId);
-      
-      // Renumber remaining shots
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      
-      // Redistribute remaining shots across pages
-      redistributeShotsAcrossPages();
+      try {
+        // Delete all shots on this page from the shot store
+        page.shots.forEach(shotId => {
+          shotStore.deleteShot(shotId);
+        });
+        
+        // Delete the page (this will also handle active page switching and renumbering)
+        pageStore.deletePage(pageId);
+        
+        // Renumber remaining shots
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        
+        // Redistribute remaining shots across pages
+        redistributeShotsAcrossPages();
+      } finally {
+        // Disable batch mode and trigger a single auto-save for all changes
+        disableBatchMode();
+      }
     },
     setActivePage: pageStore.setActivePage,
-    duplicatePage: pageStore.duplicatePage,
     updateGridSize: (pageId: string, rows: number, cols: number) => {
-      // Apply grid size to ALL pages (global setting)
-      const { pages } = getPageStore();
-      pages.forEach(page => {
-        pageStore.updateGridSize(page.id, rows, cols);
-      });
-      // Trigger redistribution after grid size change to handle backflow
-      setTimeout(() => redistributeShotsAcrossPages(), 0);
+      // Enable batch mode to prevent auto-save spam during grid size update
+      enableBatchMode();
+      
+      try {
+        // Apply grid size to ALL pages (global setting)
+        const { pages } = getPageStore();
+        pages.forEach(page => {
+          pageStore.updateGridSize(page.id, rows, cols);
+        });
+        // Trigger redistribution after grid size change to handle backflow
+        setTimeout(() => redistributeShotsAcrossPages(), 0);
+      } finally {
+        // Disable batch mode and trigger a single auto-save for all changes
+        disableBatchMode();
+      }
     },
     updatePageAspectRatio: (pageId: string, aspectRatio: string) => {
-      // Apply aspect ratio to ALL pages (global setting)
-      const { pages } = getPageStore();
-      pages.forEach(page => {
-        pageStore.updatePageAspectRatio(page.id, aspectRatio);
-      });
+      // Enable batch mode to prevent auto-save spam during aspect ratio update
+      enableBatchMode();
+      
+      try {
+        // Apply aspect ratio to ALL pages (global setting)
+        const { pages } = getPageStore();
+        pages.forEach(page => {
+          pageStore.updatePageAspectRatio(page.id, aspectRatio);
+        });
+      } finally {
+        // Disable batch mode and trigger a single auto-save for all changes
+        disableBatchMode();
+      }
     },
     getActivePage: pageStore.getActivePage,
     getPageById: pageStore.getPageById,
@@ -269,7 +332,6 @@ export const useAppStore = () => {
     setTemplateSetting: projectStore.setTemplateSetting,
     setTemplateSettings: projectStore.setTemplateSettings,
     resetTemplateSettings: projectStore.resetTemplateSettings,
-    getProjectMetadata: projectStore.getProjectMetadata,
 
     // UI state
     isDragging: uiStore.isDragging,
@@ -345,6 +407,10 @@ export const useAppStore = () => {
       // Renumber shots after adding sub-shot
       const { templateSettings } = getProjectStore();
       shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      
+      // Redistribute shots across pages to handle overflow
+      redistributeShotsAcrossPages();
+      
       return subShotId;
     },
 
@@ -396,6 +462,9 @@ export const useAppStore = () => {
     
     redistributeShotsAcrossPages,
 
+    // Pre-render reconciliation entrypoint
+    reconcileFromShotOrder,
+
     getTotalShots: (pageId: string) => {
       const page = pageStore.getPageById(pageId);
       return page?.shots.length || 0;
@@ -406,6 +475,36 @@ export const useAppStore = () => {
       const page = pageStore.getPageById(pageId);
       if (!page) return [];
       return shotStore.getShotsById(page.shots);
+    },
+
+    // Convert new store format to legacy format for export compatibility
+    getLegacyStoryboardState: () => {
+      const { pages } = getPageStore();
+      const { shots, shotOrder } = getShotStore();
+      const { projectName, projectInfo, projectLogoUrl, projectLogoFile, clientAgency, jobInfo, templateSettings } = getProjectStore();
+      const { isDragging, isExporting, showDeleteConfirmation } = getUIStore();
+
+      // Convert pages to legacy format with embedded shots
+      const legacyPages = pages.map(page => ({
+        ...page,
+        shots: shotStore.getShotsById(page.shots) // Convert shot IDs to shot objects
+      }));
+
+      return {
+        pages: legacyPages,
+        activePageId: pageStore.activePageId,
+        startNumber: '01',
+        projectName,
+        projectInfo,
+        projectLogoUrl,
+        projectLogoFile,
+        clientAgency,
+        jobInfo,
+        isDragging,
+        isExporting,
+        showDeleteConfirmation,
+        templateSettings
+      };
     },
     
     // Initialize app with default content if needed
@@ -434,7 +533,7 @@ export const useAppStore = () => {
             return;
           }
           
-          const slotsToFill = Math.min(6, firstPage.gridRows * firstPage.gridCols); // Fill up to 6 slots initially
+          const slotsToFill = 1; // Create only 1 shot initially
           
           const newShotIds: string[] = [];
           for (let i = 0; i < slotsToFill; i++) {
@@ -467,7 +566,85 @@ export const useAppStore = () => {
         console.error('Error initializing app content:', error);
       }
     },
+
+    // Project Management
+    // Project metadata
+    projects: projectManagerStore.projects,
+    currentProjectId: projectManagerStore.currentProjectId,
+    currentProject: projectManagerStore.getCurrentProject(),
+    // Compute allProjects inline to make it reactive to projectManagerStore.projects changes
+    allProjects: Object.values(projectManagerStore.projects).sort((a, b) => {
+      const aTime = a.lastModified instanceof Date ? a.lastModified.getTime() : new Date(a.lastModified).getTime();
+      const bTime = b.lastModified instanceof Date ? b.lastModified.getTime() : new Date(b.lastModified).getTime();
+      return bTime - aTime;
+    }),
+    canCreateProject: projectManagerStore.canCreateProject(),
+    
+    // Project operations
+    createProject: async (name: string, description?: string) => {
+      return await ProjectSwitcher.createAndSwitchToProject(name, description);
+    },
+    
+    switchToProject: async (projectId: string) => {
+      return await ProjectSwitcher.switchToProject(projectId);
+    },
+    
+    deleteProject: async (projectId: string) => {
+      return await ProjectSwitcher.deleteProject(projectId);
+    },
+    
+    renameProject: (projectId: string, name: string) => {
+      projectManagerStore.renameProject(projectId, name);
+    },
+    
+    updateProjectMetadata: (projectId: string, updates: any) => {
+      projectManagerStore.updateProjectMetadata(projectId, updates);
+    },
+    
+    // Cloud project management
+    getProjectsSortedBy: (sortBy: 'name' | 'date') => {
+      return projectManagerStore.getProjectsSortedBy(sortBy);
+    },
+    
+    // Save current project
+    saveCurrentProject: async () => {
+      return await ProjectSwitcher.saveCurrentProject();
+    },
+
+    // Auto-save current project (call this after any data changes)
+    autoSaveCurrentProject: () => {
+      // Debounce auto-save to avoid excessive saves
+      if (window.autoSaveTimeout) {
+        clearTimeout(window.autoSaveTimeout);
+      }
+      window.autoSaveTimeout = setTimeout(() => {
+        ProjectSwitcher.saveCurrentProject();
+      }, 2000); // Save 2 seconds after last change
+    },
+    
+    // Initialize project system
+    initializeProjectSystem: async () => {
+      return await ProjectSwitcher.initializeProjectSystem();
+    },
   };
 };
+
+// Register auto-save callbacks during module initialization
+registerAutoSave(
+  // Debounced auto-save callback
+  () => {
+    // Call the auto-save method directly from the store
+    if (window.autoSaveTimeout) {
+      clearTimeout(window.autoSaveTimeout);
+    }
+    window.autoSaveTimeout = setTimeout(async () => {
+      await ProjectSwitcher.saveCurrentProject();
+    }, 2000);
+  },
+  // Immediate save callback
+  async () => {
+    await ProjectSwitcher.saveCurrentProject();
+  }
+);
 
 // Note: Legacy storyboardStore has been removed in favor of modular stores 

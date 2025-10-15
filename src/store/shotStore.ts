@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { renumberingOptimizer } from '@/utils/renumberingOptimizer';
 import { formatShotNumber } from '@/utils/formatShotNumber';
+import { triggerAutoSave, triggerImmediateSave } from '@/utils/autoSave';
+import { BackgroundSyncService } from '@/services/backgroundSyncService';
 
 export interface Shot {
   id: string;
@@ -12,7 +14,13 @@ export interface Shot {
   imageData?: string;            // Base64 (compressed)
   imageUrl?: string;             // Supabase URL (future)
   imageSize?: number;            // Original file size
-  imageStorageType?: 'base64' | 'supabase';
+  imageStorageType?: 'base64' | 'supabase' | 'local-pending-sync' | 'hybrid';
+  imageScale?: number;           // Scale factor for image (1.0 = original size)
+  imageOffsetX?: number;         // X offset for image positioning
+  imageOffsetY?: number;         // Y offset for image positioning
+  cloudSyncStatus?: 'pending' | 'syncing' | 'synced' | 'failed';
+  cloudSyncRetries?: number;
+  lastSyncAttempt?: Date;
   actionText: string;
   scriptText: string;
   createdAt: Date;
@@ -59,6 +67,9 @@ const createDefaultShot = (number: string = ''): Shot => ({
   number,
   subShotGroupId: null,
   imageFile: null,
+  imageScale: 1.0,
+  imageOffsetX: 0,
+  imageOffsetY: 0,
   actionText: '',
   scriptText: '',
   createdAt: new Date(),
@@ -129,6 +140,9 @@ export const useShotStore = create<ShotStore>()(
           state.shotOrder.push(shotId);
         });
         
+        // Trigger auto-save after creating shot
+        triggerAutoSave();
+        
         return shotId;
       },
 
@@ -154,15 +168,52 @@ export const useShotStore = create<ShotStore>()(
             state.shotOrder.splice(orderIndex, 1);
           }
         });
+        
+        // Clean up background sync queue
+        if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
+          try {
+            // Dynamic import to avoid circular dependencies
+            import('@/services/backgroundSyncService').then(({ BackgroundSyncService }) => {
+              BackgroundSyncService.markShotDeleted(shotId);
+            });
+          } catch (error) {
+            console.warn('Failed to clean up sync queue for deleted shot:', error);
+          }
+        }
+        
+        // Trigger immediate save for deletion (critical operation)
+        triggerImmediateSave();
       },
 
       updateShot: (shotId, updates) => {
         set((state) => {
           const shot = state.shots[shotId];
           if (!shot) return;
-          
+
+          // Track old image ID for cleanup
+          const oldImageId = shot.imageId;
+          const newImageId = updates.imageId;
+
+          // Update the shot
           Object.assign(shot, updates, { updatedAt: new Date() });
+
+          // If image changed, trigger cleanup of old image
+          if (oldImageId && newImageId && oldImageId !== newImageId) {
+            console.log(`🔄 Image changed for shot ${shotId}: ${oldImageId} → ${newImageId}`);
+            
+            // Trigger cleanup of old image asynchronously
+            BackgroundSyncService.markImageForCleanup(oldImageId, shotId)
+              .then(() => {
+                console.log(`✅ Old image ${oldImageId} marked for cleanup`);
+              })
+              .catch((error) => {
+                console.error(`❌ Failed to mark image ${oldImageId} for cleanup:`, error);
+              });
+          }
         });
+        
+        // Trigger auto-save after shot update
+        triggerAutoSave();
       },
 
       duplicateShot: (shotId) => {
@@ -188,6 +239,9 @@ export const useShotStore = create<ShotStore>()(
             state.shotOrder.push(newShotId);
           }
         });
+
+        // Trigger auto-save after duplicating shot
+        triggerAutoSave();
 
         return newShotId;
       },
@@ -410,7 +464,11 @@ export const useShotStore = create<ShotStore>()(
               imageData: shot.imageData,
               imageUrl: shot.imageUrl,
               imageSize: shot.imageSize,
-              imageStorageType: shot.imageStorageType
+              imageStorageType: shot.imageStorageType,
+              // Keep sync status fields
+              cloudSyncStatus: shot.cloudSyncStatus,
+              cloudSyncRetries: shot.cloudSyncRetries,
+              lastSyncAttempt: shot.lastSyncAttempt
             }
           ])
         ),

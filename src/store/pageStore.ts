@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { triggerAutoSave } from '@/utils/autoSave';
 
 export interface StoryboardPage {
   id: string;
@@ -81,6 +82,10 @@ export const usePageStore = create<PageStore>()(
           state.pages.push(newPage);
           state.activePageId = newPage.id;
         });
+        
+        // Trigger auto-save after creating page
+        triggerAutoSave();
+        
         return newPage.id;
       },
 
@@ -104,6 +109,9 @@ export const usePageStore = create<PageStore>()(
             page.name = `Page ${index + 1}`;
           });
         });
+        
+        // Trigger auto-save after deleting page
+        triggerAutoSave();
       },
 
       renamePage: (pageId, name) => {
@@ -114,6 +122,9 @@ export const usePageStore = create<PageStore>()(
             page.updatedAt = new Date();
           }
         });
+        
+        // Trigger auto-save after renaming page
+        triggerAutoSave();
       },
 
       setActivePage: (pageId) => {
@@ -153,6 +164,9 @@ export const usePageStore = create<PageStore>()(
           state.pages.splice(originalIndex + 1, 0, duplicatedPage);
           state.activePageId = duplicatedPage.id;
         });
+        
+        // Trigger auto-save after duplicating page
+        triggerAutoSave();
       },
 
       // Grid management
