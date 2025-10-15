@@ -28,14 +28,14 @@ const extractNumberFromFilename = (filename: string): { number: number | null; n
   
   // Common numbering patterns (in order of preference)
   const patterns = [
-    // Pattern 1: Numbers at the end (shot001, image_05, etc.)
+    // Pattern 1: Just numbers (001, 05, 10, etc.) - CHECK FIRST
+    /^(\d+)$/,
+    // Pattern 2: Numbers at the end (shot001, image_05, etc.)
     /^(.+?)(\d+)$/,
-    // Pattern 2: Numbers at the beginning (001_shot, 05_image, etc.)
+    // Pattern 3: Numbers at the beginning (001_shot, 05_image, etc.)
     /^(\d+)(.+)$/,
-    // Pattern 3: Numbers in the middle (shot_001_final, image_05_v2, etc.)
-    /^(.+?)(\d+)(.+)$/,
-    // Pattern 4: Just numbers (001, 05, etc.)
-    /^(\d+)$/
+    // Pattern 4: Numbers in the middle (shot_001_final, image_05_v2, etc.)
+    /^(.+?)(\d+)(.+)$/
   ];
   
   for (const pattern of patterns) {
@@ -45,22 +45,22 @@ const extractNumberFromFilename = (filename: string): { number: number | null; n
       let prefix: string;
       let suffix: string;
       
-      if (pattern === patterns[0]) { // Numbers at end
+      if (pattern === patterns[0]) { // Just numbers
+        prefix = '';
+        numberString = match[1];
+        suffix = extension;
+      } else if (pattern === patterns[1]) { // Numbers at end
         prefix = match[1];
         numberString = match[2];
         suffix = extension;
-      } else if (pattern === patterns[1]) { // Numbers at beginning
+      } else if (pattern === patterns[2]) { // Numbers at beginning
         prefix = '';
         numberString = match[1];
         suffix = match[2] + extension;
-      } else if (pattern === patterns[2]) { // Numbers in middle
+      } else { // Numbers in middle
         prefix = match[1];
         numberString = match[2];
         suffix = match[3] + extension;
-      } else { // Just numbers
-        prefix = '';
-        numberString = match[1];
-        suffix = extension;
       }
       
       const number = parseInt(numberString, 10);
