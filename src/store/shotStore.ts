@@ -147,6 +147,10 @@ export const useShotStore = create<ShotStore>()(
       },
 
       deleteShot: (shotId) => {
+        // Capture shot data before deletion for cleanup
+        const shot = get().shots[shotId];
+        const hasImage = shot && (shot.imageUrl || shot.imageData);
+        
         set((state) => {
           const shot = state.shots[shotId];
           if (!shot) return;
@@ -169,12 +173,26 @@ export const useShotStore = create<ShotStore>()(
           }
         });
         
-        // Clean up background sync queue
+        // Clean up background sync queue and associated image
         if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
           try {
             // Dynamic import to avoid circular dependencies
             import('@/services/backgroundSyncService').then(({ BackgroundSyncService }) => {
               BackgroundSyncService.markShotDeleted(shotId);
+              
+              // If shot had an image, mark it for cleanup
+              if (hasImage) {
+                import('@/services/storageService').then(({ StorageService }) => {
+                  import('@/store/projectManagerStore').then(({ useProjectManagerStore }) => {
+                    const projectId = useProjectManagerStore.getState().currentProjectId;
+                    if (projectId) {
+                      StorageService.deleteShotImage(projectId, shotId).catch(error => {
+                        console.warn(`Failed to delete image for shot ${shotId}:`, error);
+                      });
+                    }
+                  });
+                });
+              }
             });
           } catch (error) {
             console.warn('Failed to clean up sync queue for deleted shot:', error);
@@ -186,31 +204,39 @@ export const useShotStore = create<ShotStore>()(
       },
 
       updateShot: (shotId, updates) => {
+        // Capture old image URL before update for cleanup
+        const oldShot = get().shots[shotId];
+        const oldImageUrl = oldShot?.imageUrl;
+        const isImageReplacement = updates.imageUrl && oldImageUrl && updates.imageUrl !== oldImageUrl;
+        
         set((state) => {
           const shot = state.shots[shotId];
           if (!shot) return;
 
-          // Track old image ID for cleanup
-          const oldImageId = shot.imageId;
-          const newImageId = updates.imageId;
-
           // Update the shot
           Object.assign(shot, updates, { updatedAt: new Date() });
-
-          // If image changed, trigger cleanup of old image
-          if (oldImageId && newImageId && oldImageId !== newImageId) {
-            console.log(`🔄 Image changed for shot ${shotId}: ${oldImageId} → ${newImageId}`);
-            
-            // Trigger cleanup of old image asynchronously
-            BackgroundSyncService.markImageForCleanup(oldImageId, shotId)
-              .then(() => {
-                console.log(`✅ Old image ${oldImageId} marked for cleanup`);
-              })
-              .catch((error) => {
-                console.error(`❌ Failed to mark image ${oldImageId} for cleanup:`, error);
-              });
-          }
         });
+        
+        // If image was replaced, clean up old image from storage
+        if (isImageReplacement && import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
+          try {
+            console.log(`🔄 Image replaced for shot ${shotId}, cleaning up old image`);
+            
+            // Dynamic import to avoid circular dependencies
+            import('@/services/storageService').then(({ StorageService }) => {
+              import('@/store/projectManagerStore').then(({ useProjectManagerStore }) => {
+                const projectId = useProjectManagerStore.getState().currentProjectId;
+                if (projectId) {
+                  StorageService.deleteShotImage(projectId, shotId, oldImageUrl).catch(error => {
+                    console.warn(`Failed to delete old image for shot ${shotId}:`, error);
+                  });
+                }
+              });
+            });
+          } catch (error) {
+            console.warn('Failed to clean up old image:', error);
+          }
+        }
         
         // Trigger auto-save after shot update
         triggerAutoSave();

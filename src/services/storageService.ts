@@ -11,12 +11,20 @@ export class StorageService {
     const user = await supabase.auth.getUser()
     if (!user.data.user) throw new Error('Not authenticated')
     
+    // Check if there's an existing image for this shot and clean it up
+    const { data: existingImage } = await supabase
+      .from('project_images')
+      .select('storage_path')
+      .eq('project_id', projectId)
+      .eq('shot_id', shotId)
+      .single()
+    
     // Create unique file path: userId/projectId/shotId-timestamp.ext
     const fileExt = file.name.split('.').pop()
     const fileName = `${shotId}-${Date.now()}.${fileExt}`
     const filePath = `${user.data.user.id}/${projectId}/${fileName}`
     
-    // Upload file
+    // Upload new file
     const { data, error } = await supabase.storage
       .from(this.bucketName)
       .upload(filePath, file, {
@@ -33,7 +41,7 @@ export class StorageService {
     
     // Storage upload successful
     
-    // Track in database - use upsert to handle potential duplicates
+    // Update database tracking (upsert will replace existing record)
     const { error: dbError } = await supabase.from('project_images').upsert({
       project_id: projectId,
       shot_id: shotId,
@@ -47,6 +55,20 @@ export class StorageService {
     if (dbError) {
       console.error('Failed to track image in database:', dbError)
       throw dbError
+    }
+    
+    // Clean up old image file from storage (if it existed)
+    if (existingImage?.storage_path && existingImage.storage_path !== filePath) {
+      console.log(`Cleaning up old image: ${existingImage.storage_path}`)
+      try {
+        await supabase.storage
+          .from(this.bucketName)
+          .remove([existingImage.storage_path])
+        console.log(`✅ Old image cleaned up successfully`)
+      } catch (cleanupError) {
+        // Don't fail the upload if cleanup fails, just log it
+        console.warn('Failed to cleanup old image:', cleanupError)
+      }
     }
     
     // Database tracking successful
@@ -65,6 +87,63 @@ export class StorageService {
       .from('project_images')
       .delete()
       .eq('storage_path', storagePath)
+  }
+  
+  /**
+   * Delete a shot's image from both storage and database tracking
+   * This is the primary method to use when cleaning up shot images
+   */
+  static async deleteShotImage(
+    projectId: string,
+    shotId: string,
+    imageUrl?: string
+  ): Promise<void> {
+    try {
+      // First, get the storage path from the database
+      const { data: imageRecord, error: fetchError } = await supabase
+        .from('project_images')
+        .select('storage_path')
+        .eq('project_id', projectId)
+        .eq('shot_id', shotId)
+        .single()
+      
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error fetching image record:', fetchError)
+        throw fetchError
+      }
+      
+      // If we found a record, delete the file from storage
+      if (imageRecord?.storage_path) {
+        console.log(`Deleting image from storage: ${imageRecord.storage_path}`)
+        await this.deleteImage(imageRecord.storage_path)
+      } else if (imageUrl) {
+        // Fallback: try to extract storage path from URL
+        console.log('No database record found, attempting to extract path from URL')
+        const pathMatch = imageUrl.match(/project-images\/(.+)$/)
+        if (pathMatch) {
+          const storagePath = pathMatch[1]
+          console.log(`Deleting image from storage (via URL): ${storagePath}`)
+          await this.deleteImage(storagePath)
+        }
+      }
+      
+      // Delete the database tracking record
+      const { error: deleteError } = await supabase
+        .from('project_images')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('shot_id', shotId)
+      
+      if (deleteError) {
+        console.error('Error deleting image record from database:', deleteError)
+        throw deleteError
+      }
+      
+      console.log(`✅ Successfully deleted image for shot ${shotId}`)
+    } catch (error) {
+      console.error(`Failed to delete image for shot ${shotId}:`, error)
+      throw error
+    }
   }
   
   static async deleteProjectImages(projectId: string): Promise<void> {
