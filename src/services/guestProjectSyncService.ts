@@ -28,7 +28,22 @@ export class GuestProjectSyncService {
 
     try {
       const projectManager = useProjectManagerStore.getState();
-      const localProjects = projectManager.getAllProjects().filter(p => p.isLocal);
+      // CRITICAL FIX: Only sync projects that are BOTH isLocal AND have actual data
+      const localProjects = projectManager.getAllProjects().filter(p => {
+        // Must be marked as local
+        if (!p.isLocal) return false;
+        
+        // Must NOT be cloud-only
+        if (p.isCloudOnly) return false;
+        
+        // Must have actual shot data (not empty projects)
+        if (p.shotCount === 0) {
+          console.log(`Skipping empty local project: ${p.name} (${p.id})`);
+          return false;
+        }
+        
+        return true;
+      });
 
       if (localProjects.length === 0) {
         console.log('No local projects to sync');
