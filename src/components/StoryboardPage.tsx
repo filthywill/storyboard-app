@@ -14,6 +14,7 @@ import { MasterHeader } from './MasterHeader';
 import { TemplateSettings } from './TemplateSettings';
 import { PDFExportModal } from './PDFExportModal';
 import { BatchLoadModal } from './BatchLoadModal';
+import { ShotListLoadModal } from './ShotListLoadModal';
 import { exportManager } from '@/utils/export/exportManager';
 import ErrorBoundary from './ErrorBoundary';
 import {
@@ -74,6 +75,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const [scale, setScale] = useState(1);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [showBatchLoadModal, setShowBatchLoadModal] = useState(false);
+  const [showShotListLoadModal, setShowShotListLoadModal] = useState(false);
   const [batchInsertPosition, setBatchInsertPosition] = useState<number | null>(null);
   
   // Drag and drop state
@@ -344,6 +346,11 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     setShowBatchLoadModal(true);
   };
 
+  const handleShotListLoad = () => {
+    setBatchInsertPosition(null);
+    setShowShotListLoadModal(true);
+  };
+
   const handleInsertBatch = (shotId: string) => {
     // Find the position of the shot in the current page
     const shotIndex = pageShots.findIndex(shot => shot.id === shotId);
@@ -441,6 +448,15 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
           </Button>
           <Button
             variant="outline"
+            onClick={handleShotListLoad}
+            disabled={isExporting}
+            className="hover:bg-orange-50"
+          >
+            <FileText size={16} className="mr-2" />
+            Load Shot List
+          </Button>
+          <Button
+            variant="outline"
             onClick={handleExportPNG}
             disabled={isExporting}
             className="hover:bg-blue-50"
@@ -530,6 +546,13 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
       <BatchLoadModal
         isOpen={showBatchLoadModal}
         onClose={() => setShowBatchLoadModal(false)}
+        pageId={pageId}
+        initialPosition={batchInsertPosition}
+      />
+
+      <ShotListLoadModal
+        isOpen={showShotListLoadModal}
+        onClose={() => setShowShotListLoadModal(false)}
         pageId={pageId}
         initialPosition={batchInsertPosition}
       />
