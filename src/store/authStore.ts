@@ -14,11 +14,13 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   error: string | null;
+  logoutReason: 'none' | 'expired' | 'other_session';
   
   // Actions
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setLogoutReason: (reason: 'none' | 'expired' | 'other_session') => void;
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -33,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isLoading: false,
       error: null,
+      logoutReason: 'none',
       
       setUser: (user) => set({ 
         user, 
@@ -43,6 +46,8 @@ export const useAuthStore = create<AuthState>()(
       setLoading: (isLoading) => set({ isLoading }),
       
       setError: (error) => set({ error }),
+
+      setLogoutReason: (reason) => set({ logoutReason: reason }),
       
       clearError: () => set({ error: null }),
       
@@ -72,7 +77,15 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           await AuthService.signOut();
-          set({ user: null, isAuthenticated: false, isLoading: false });
+          set({ user: null, isAuthenticated: false, isLoading: false, logoutReason: 'none' });
+          
+          // Clear all current project data on manual sign-out
+          try {
+            const { ProjectSwitcher } = await import('@/utils/projectSwitcher');
+            ProjectSwitcher.clearCurrentProjectData();
+          } catch (e) {
+            console.warn('Failed to clear current project data on manual sign-out', e);
+          }
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
           throw error;

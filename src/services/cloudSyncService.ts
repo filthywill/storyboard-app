@@ -102,6 +102,39 @@ export class CloudSyncService {
       const projectStore = useProjectStore.getState()
       const uiStore = useUIStore.getState()
       
+      // Check for base64 images that need migration
+      const base64Images = Object.entries(shotStore.shots).filter(([_, shot]) => 
+        shot.imageData && !shot.imageUrl
+      );
+      
+      if (base64Images.length > 0) {
+        console.log(`Found ${base64Images.length} base64 images to migrate`);
+        await this.migrateBase64Images(id, base64Images);
+      }
+
+      // Check for project logo that needs migration (only if we have a valid file)
+      if (projectStore.projectLogoFile && 
+          projectStore.projectLogoFile instanceof File && 
+          !projectStore.projectLogoUrl?.includes('supabase')) {
+        console.log('Found project logo file to migrate');
+        try {
+          await this.migrateProjectLogo(id, projectStore.projectLogoFile);
+        } catch (error) {
+          console.error('Project logo migration failed:', error);
+          // Don't let logo migration break the entire save
+        }
+      } else if (projectStore.projectLogoFile === null && projectStore.projectLogoUrl?.includes('supabase')) {
+        // Logo was removed - delete from cloud storage
+        console.log('Project logo was removed, deleting from cloud storage');
+        try {
+          const { StorageService } = await import('./storageService');
+          await StorageService.deleteProjectLogo(id);
+        } catch (error) {
+          console.error('Project logo deletion failed:', error);
+          // Don't let logo deletion break the entire save
+        }
+      }
+      
       const data: ProjectData = {
         pages: pageStore.pages,
         shots: Object.fromEntries(
@@ -109,7 +142,18 @@ export class CloudSyncService {
             id,
             {
               ...shot,
-              imageFile: null // Don't serialize File objects
+              imageFile: null, // Don't serialize File objects
+              // Ensure all image-related fields are preserved
+              imageData: shot.imageData,
+              imageUrl: shot.imageUrl,
+              imageSize: shot.imageSize,
+              imageStorageType: shot.imageStorageType,
+              imageScale: shot.imageScale,
+              imageOffsetX: shot.imageOffsetX,
+              imageOffsetY: shot.imageOffsetY,
+              cloudSyncStatus: shot.cloudSyncStatus,
+              cloudSyncRetries: shot.cloudSyncRetries,
+              lastSyncAttempt: shot.lastSyncAttempt
             }
           ])
         ),
@@ -128,13 +172,39 @@ export class CloudSyncService {
           showDeleteConfirmation: uiStore.showDeleteConfirmation
         }
       }
+
+      // CRITICAL: Validate project data before saving
+      if (!data.pages || data.pages.length === 0) {
+        console.error('❌ CRITICAL ERROR: Attempting to save project with 0 pages! Aborting save to prevent data corruption.');
+        console.error('Project data:', { projectId: id, pagesCount: data.pages?.length, shotsCount: Object.keys(data.shots).length });
+        this.isSyncing = false;
+        return;
+      }
+
+      if (!data.shots || Object.keys(data.shots).length === 0) {
+        console.error('❌ CRITICAL ERROR: Attempting to save project with 0 shots! Aborting save to prevent data corruption.');
+        console.error('Project data:', { projectId: id, pagesCount: data.pages?.length, shotsCount: Object.keys(data.shots).length });
+        this.isSyncing = false;
+        return;
+      }
+
+      if (!data.projectSettings.projectName || data.projectSettings.projectName.trim() === '') {
+        console.error('❌ CRITICAL ERROR: Attempting to save project with empty name! Aborting save to prevent data corruption.');
+        console.error('Project data:', { projectId: id, projectName: data.projectSettings.projectName });
+        this.isSyncing = false;
+        return;
+      }
       
       console.log('CloudSyncService.saveProject: Data to save:', {
         projectId: id,
         pagesCount: data.pages.length,
         shotsCount: Object.keys(data.shots).length,
         projectName: data.projectSettings.projectName,
-        isManual
+        isManual,
+        shotOrderLength: data.shotOrder.length,
+        shotsWithImages: Object.values(data.shots).filter((shot: any) => shot.imageData || shot.imageUrl).length,
+        shotsWithBase64: Object.values(data.shots).filter((shot: any) => shot.imageData).length,
+        shotsWithUrls: Object.values(data.shots).filter((shot: any) => shot.imageUrl).length
       });
       
       // VALIDATION: Check if project name matches metadata
@@ -215,6 +285,140 @@ export class CloudSyncService {
     await ProjectService.deleteProject(projectId)
   }
   
+  /**
+   * Migrate base64 images to cloud storage with improved error handling
+   */
+  private static async migrateBase64Images(projectId: string, base64Images: [string, any][]): Promise<void> {
+    const { StorageService } = await import('./storageService');
+    const { useShotStore } = await import('@/store/shotStore');
+    
+    let migratedCount = 0;
+    let failedCount = 0;
+    const failedImages: string[] = [];
+
+    for (const [shotId, shot] of base64Images) {
+      try {
+        console.log(`Migrating base64 image for shot ${shotId}...`);
+        
+        // Convert base64 to File
+        const response = await fetch(shot.imageData);
+        const blob = await response.blob();
+        const file = new File([blob], `shot-${shotId}.png`, { type: 'image/png' });
+        
+        // Upload to Supabase Storage
+        const imageUrl = await StorageService.uploadImage(projectId, shotId, file);
+        
+        // Update shot in store with new URL and remove base64
+        const shotStore = useShotStore.getState();
+        shotStore.updateShot(shotId, {
+          imageUrl,
+          imageData: undefined, // Remove base64 to save space
+          imageStorageType: 'supabase',
+          cloudSyncStatus: 'synced'
+        });
+        
+        console.log(`Successfully migrated image for shot ${shotId}`);
+        migratedCount++;
+      } catch (error) {
+        console.error(`Failed to migrate image for shot ${shotId}:`, error);
+        failedCount++;
+        failedImages.push(shotId);
+        
+        // Update shot with failed status for retry later
+        const shotStore = useShotStore.getState();
+        shotStore.updateShot(shotId, {
+          cloudSyncStatus: 'failed',
+          cloudSyncRetries: (shot.cloudSyncRetries || 0) + 1,
+          lastSyncAttempt: new Date()
+        });
+      }
+    }
+
+    if (migratedCount > 0) {
+      console.log(`Successfully migrated ${migratedCount} image(s) to cloud storage`);
+    }
+    
+    if (failedCount > 0) {
+      console.warn(`Failed to migrate ${failedCount} image(s):`, failedImages);
+    }
+  }
+
+  /**
+   * Migrate project logo to cloud storage
+   */
+  private static async migrateProjectLogo(projectId: string, logoFile: File): Promise<void> {
+    const { StorageService } = await import('./storageService');
+    const { useProjectStore } = await import('@/store/projectStore');
+    
+    try {
+      console.log('Migrating project logo to cloud storage...');
+      
+      // Upload to Supabase Storage
+      const imageUrl = await StorageService.uploadProjectLogo(projectId, logoFile);
+      
+      // Update project store with new URL and remove file
+      const projectStore = useProjectStore.getState();
+      projectStore.setProjectLogo(null); // Clear the file
+      
+      // Update the URL directly in the store
+      useProjectStore.setState(state => ({
+        ...state,
+        projectLogoUrl: imageUrl,
+        projectLogoFile: null
+      }));
+      
+      console.log('Successfully migrated project logo to cloud storage');
+    } catch (error) {
+      console.error('Failed to migrate project logo:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Manually trigger migration of base64 images to cloud storage
+   */
+  static async triggerImageMigration(projectId?: string): Promise<void> {
+    const id = projectId || this.currentProjectId;
+    if (!id) {
+      console.warn('CloudSyncService.triggerImageMigration: No project ID provided');
+      return;
+    }
+
+    const shotStore = useShotStore.getState();
+    const base64Images = Object.entries(shotStore.shots).filter(([_, shot]) => 
+      shot.imageData && !shot.imageUrl
+    );
+
+    if (base64Images.length === 0) {
+      console.log('No base64 images to migrate');
+      return;
+    }
+
+    console.log(`Manually triggering migration of ${base64Images.length} base64 images`);
+    await this.migrateBase64Images(id, base64Images);
+  }
+
+  /**
+   * Manually trigger migration of project logo to cloud storage
+   */
+  static async triggerProjectLogoMigration(projectId?: string): Promise<void> {
+    const id = projectId || this.currentProjectId;
+    if (!id) {
+      console.warn('CloudSyncService.triggerProjectLogoMigration: No project ID provided');
+      return;
+    }
+
+    const projectStore = useProjectStore.getState();
+    
+    if (!projectStore.projectLogoFile || projectStore.projectLogoUrl?.includes('supabase')) {
+      console.log('No project logo file to migrate');
+      return;
+    }
+
+    console.log('Manually triggering migration of project logo');
+    await this.migrateProjectLogo(id, projectStore.projectLogoFile);
+  }
+
   static async migrateProject(projectId: string): Promise<void> {
     // Get current project data
     const pageStore = usePageStore.getState()
@@ -244,42 +448,28 @@ export class CloudSyncService {
     await ProjectService.saveProject(projectId, data)
     
     // Migrate Base64 images to Supabase Storage
-    const failedImages: string[] = []
-    for (const [shotId, shot] of Object.entries(shotStore.shots)) {
-      if (shot.imageData && !shot.imageUrl) {
-        try {
-          // Convert Base64 to File
-          const response = await fetch(shot.imageData)
-          const blob = await response.blob()
-          const file = new File([blob], `shot-${shotId}.png`, { type: 'image/png' })
-          
-          // Upload to Supabase Storage
-          const imageUrl = await this.uploadShotImage(projectId, shotId, file)
-          
-          // Update shot with new URL
-          useShotStore.setState(state => ({
-            shots: {
-              ...state.shots,
-              [shotId]: {
-                ...shot,
-                imageUrl,
-                imageData: undefined // Remove Base64
-              }
-            }
-          }))
-        } catch (error) {
-          console.error(`Failed to migrate image for shot ${shotId}:`, error)
-          failedImages.push(shotId)
-        }
+    const base64Images = Object.entries(shotStore.shots).filter(([_, shot]) => 
+      shot.imageData && !shot.imageUrl
+    );
+    
+    if (base64Images.length > 0) {
+      await this.migrateBase64Images(projectId, base64Images);
+    }
+
+    // Migrate project logo to Supabase Storage (only if we have a valid file)
+    if (projectStore.projectLogoFile && 
+        projectStore.projectLogoFile instanceof File && 
+        !projectStore.projectLogoUrl?.includes('supabase')) {
+      try {
+        await this.migrateProjectLogo(projectId, projectStore.projectLogoFile);
+      } catch (error) {
+        console.error('Project logo migration failed:', error);
+        // Don't let logo migration break the entire migration
       }
     }
     
     // Save updated data
     await this.saveProject(projectId)
-    
-    if (failedImages.length > 0) {
-      console.warn(`Failed to migrate ${failedImages.length} images:`, failedImages)
-    }
   }
   
   static queueChange(projectId: string, data: ProjectData): void {

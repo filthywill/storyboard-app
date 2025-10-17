@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { EmptyProjectState } from '@/components/EmptyProjectState';
 import { AuthModal } from '@/components/AuthModal';
 import { ProjectPickerModal } from '@/components/ProjectPickerModal';
+import { LoggedOutElsewhereScreen } from '@/components/LoggedOutElsewhereScreen';
 
 const Index = () => {
   const { 
@@ -30,6 +31,7 @@ const Index = () => {
   } = useAppStore();
   
   const { isAuthenticated, isLoading: authLoading, initialize: initializeAuth } = useAuthStore();
+  const authStore = useAuthStore();
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoadingCloudProjects, setIsLoadingCloudProjects] = useState(false);
@@ -157,10 +159,11 @@ const Index = () => {
           const isValid = await AuthService.validateCurrentSession();
           
           if (!isValid) {
-            console.warn('Session is no longer valid, forcing logout');
-            const { signOut } = useAuthStore.getState();
-            await signOut();
-            toast.error('Your session has expired. Please log in again.');
+            console.warn('Session is no longer valid, setting expired reason');
+            const { setLogoutReason } = useAuthStore.getState();
+            setLogoutReason('expired');
+            // Don't force logout - let them continue working locally
+            // The banner will show the session expiry message
             return;
           }
           
@@ -210,7 +213,15 @@ const Index = () => {
                 }
                 
                 // Update auth store state
-                useAuthStore.setState({ user: null, isAuthenticated: false });
+                useAuthStore.setState({ user: null, isAuthenticated: false, logoutReason: 'other_session' });
+                
+                // Clear all current project data from stores
+                try {
+                  const { ProjectSwitcher } = await import('@/utils/projectSwitcher');
+                  ProjectSwitcher.clearCurrentProjectData();
+                } catch (e) {
+                  console.warn('Failed to clear current project data on forced logout', e);
+                }
                 
                 toast.error('You have been logged out from another device');
               } else if (payload.new.id !== currentSessionId) {
@@ -238,7 +249,15 @@ const Index = () => {
                 }
                 
                 // Update auth store state
-                useAuthStore.setState({ user: null, isAuthenticated: false });
+                useAuthStore.setState({ user: null, isAuthenticated: false, logoutReason: 'other_session' });
+                
+                // Clear all current project data from stores
+                try {
+                  const { ProjectSwitcher } = await import('@/utils/projectSwitcher');
+                  ProjectSwitcher.clearCurrentProjectData();
+                } catch (e) {
+                  console.warn('Failed to clear current project data on forced logout', e);
+                }
                 
                 toast.error('You have been logged out from another device');
               }
@@ -321,19 +340,25 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-white flex flex-col pt-6 relative">
       {/* Offline Banner */}
-      <OfflineBanner />
+      <OfflineBanner onSignIn={() => setShowAuthModal(true)} />
       
       {/* Header */}
       <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 py-2">
+          <div className="flex items-end justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                STORYBOARD FLOW
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Build storyboard layouts with drag-and-drop ease
-              </p>
+              <img 
+                src="/sf_logo_01.png" 
+                alt="Storyboard Flow" 
+                className="h-24 object-contain"
+                style={{
+                  imageRendering: 'auto',
+                  maxWidth: 'none',
+                  width: 'auto',
+                  height: '96px',
+                  filter: 'none'
+                }}
+              />
             </div>
             <div className="flex items-center gap-4">
               <SyncStatusIndicator />
@@ -388,8 +413,11 @@ const Index = () => {
         </div>
       </footer>
       
-      {/* Full-screen Empty State for unauthenticated users - renders outside main content */}
-      {allProjects.length === 0 && !isAuthenticated && (
+      {/* Full-screen states for unauthenticated users - renders outside main content */}
+      {!isAuthenticated && authStore.logoutReason === 'other_session' && (
+        <LoggedOutElsewhereScreen onSignIn={() => setShowAuthModal(true)} />
+      )}
+      {!isAuthenticated && authStore.logoutReason !== 'other_session' && (
         <EmptyProjectState 
           isAuthenticated={isAuthenticated}
           onCreateProject={() => setShowCreateProjectDialog(true)}

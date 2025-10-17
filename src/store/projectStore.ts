@@ -94,6 +94,14 @@ export const useProjectStore = create<ProjectStore>()(
           state.projectLogoUrl = ObjectURLManager.replaceObjectURL(state.projectLogoUrl, file);
           state.projectLogoFile = file;
         });
+        
+        // Only trigger auto-save if we have a valid file
+        if (file && file instanceof File) {
+          triggerAutoSave();
+        } else if (file === null) {
+          // Logo was removed - trigger auto-save to delete from cloud
+          triggerAutoSave();
+        }
       },
 
       setClientAgency: (name) => {

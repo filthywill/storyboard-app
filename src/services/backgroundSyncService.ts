@@ -216,6 +216,13 @@ class BackgroundSyncServiceClass {
         await CloudSyncService.uploadShotImage(item.projectId, item.shotId, item.file);
         item.status = 'synced';
         console.log(`Successfully synced image for shot ${item.shotId}`);
+        
+        // Update shot status in store
+        const shotStore = useShotStore.getState();
+        shotStore.updateShot(item.shotId, {
+          cloudSyncStatus: 'synced',
+          imageStorageType: 'supabase'
+        });
       } else if (item.type === 'batch' && item.files) {
         // Process batch uploads
         for (const file of item.files) {
@@ -241,6 +248,17 @@ class BackgroundSyncServiceClass {
       
       item.retries++;
       item.error = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Update shot status in store for failed uploads
+      if (item.type === 'image' && item.shotId) {
+        const { useShotStore } = await import('@/store/shotStore');
+        const shotStore = useShotStore.getState();
+        shotStore.updateShot(item.shotId, {
+          cloudSyncStatus: 'failed',
+          cloudSyncRetries: item.retries,
+          lastSyncAttempt: new Date()
+        });
+      }
       
       if (item.retries >= this.MAX_RETRIES) {
         item.status = 'failed';

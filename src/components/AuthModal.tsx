@@ -18,7 +18,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   
-  const { signIn, signUp } = useAuthStore()
+  const { signIn, signUp, setLogoutReason } = useAuthStore()
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,6 +32,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         await signIn(email, password)
         toast.success('Signed in successfully!')
       }
+      // Reset any previous forced-logout reason once user successfully authenticates
+      setLogoutReason('none')
       onClose()
     } catch (error: any) {
       toast.error(error.message || 'Authentication failed')

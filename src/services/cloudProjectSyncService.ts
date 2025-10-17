@@ -99,6 +99,14 @@ export class CloudProjectSyncService {
         throw new Error(`Invalid project data received for ${projectId}`);
       }
       
+      console.log('Project data validated, pre-loading images...');
+      
+      // Pre-load all images from all pages
+      await this.preloadAllImages(projectId, projectData.shots);
+      
+      // Pre-load project logo if it exists
+      await this.preloadProjectLogo(projectId, projectData.projectSettings);
+      
       console.log('Project data validated, saving locally...');
       
       // Save to local storage ONLY (don't touch stores yet!)
@@ -130,6 +138,95 @@ export class CloudProjectSyncService {
    */
   static isProjectLoadInProgress(): boolean {
     return this.isLoadingProject;
+  }
+
+  /**
+   * Pre-load all images from all shots in the project
+   */
+  private static async preloadAllImages(projectId: string, shots: Record<string, any>): Promise<void> {
+    if (!shots || Object.keys(shots).length === 0) {
+      console.log('No shots to pre-load images for');
+      return;
+    }
+
+    console.log(`Pre-loading images for ${Object.keys(shots).length} shots...`);
+    
+    const { StorageService } = await import('./storageService');
+    let loadedCount = 0;
+    let failedCount = 0;
+
+    // Process all shots in parallel for better performance
+    const imagePromises = Object.entries(shots).map(async ([shotId, shot]) => {
+      try {
+        // Only pre-load if shot has an imageUrl (cloud image)
+        if (shot.imageUrl) {
+          console.log(`Pre-loading image for shot ${shotId}...`);
+          
+          // Download image from cloud storage
+          const imageBlob = await StorageService.downloadImage(shot.imageUrl);
+          
+          // Convert blob to base64 for local storage
+          const base64Data = await this.blobToBase64(imageBlob);
+          
+          // Update shot with pre-loaded image data
+          shot.imageData = base64Data;
+          shot.imageUrl = shot.imageUrl; // Keep original URL for reference
+          
+          console.log(`Successfully pre-loaded image for shot ${shotId}`);
+          loadedCount++;
+        }
+      } catch (error) {
+        console.error(`Failed to pre-load image for shot ${shotId}:`, error);
+        failedCount++;
+      }
+    });
+
+    // Wait for all images to load
+    await Promise.all(imagePromises);
+
+    if (loadedCount > 0) {
+      console.log(`Successfully pre-loaded ${loadedCount} images`);
+    }
+    
+    if (failedCount > 0) {
+      console.warn(`Failed to pre-load ${failedCount} images`);
+    }
+  }
+
+  /**
+   * Pre-load project logo if it exists
+   */
+  private static async preloadProjectLogo(projectId: string, projectSettings: any): Promise<void> {
+    if (!projectSettings?.projectLogoUrl || !projectSettings.projectLogoUrl.includes('supabase')) {
+      console.log('No project logo to pre-load');
+      return;
+    }
+
+    try {
+      console.log('Pre-loading project logo...');
+      const { StorageService } = await import('./storageService');
+      const imageBlob = await StorageService.downloadImage(projectSettings.projectLogoUrl);
+      const base64Data = await this.blobToBase64(imageBlob);
+      
+      // Update the project settings with the base64 data
+      projectSettings.projectLogoUrl = base64Data;
+      console.log('Successfully pre-loaded project logo');
+    } catch (error) {
+      console.error('Failed to pre-load project logo:', error);
+      // Don't fail the entire project load if logo fails
+    }
+  }
+
+  /**
+   * Convert blob to base64 string
+   */
+  private static async blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   }
 }
 

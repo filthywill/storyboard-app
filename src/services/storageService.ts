@@ -74,6 +74,79 @@ export class StorageService {
     // Database tracking successful
     return publicUrl
   }
+
+  /**
+   * Upload project logo to cloud storage
+   */
+  static async uploadProjectLogo(
+    projectId: string,
+    file: File
+  ): Promise<string> {
+    const user = await supabase.auth.getUser()
+    if (!user.data.user) throw new Error('Not authenticated')
+    
+    // Check if there's an existing logo for this project and clean it up
+    const { data: existingLogo } = await supabase
+      .from('project_images')
+      .select('storage_path')
+      .eq('project_id', projectId)
+      .eq('shot_id', 'project-logo')
+      .single()
+    
+    // Create unique file path: userId/projectId/project-logo-timestamp.ext
+    const fileExt = file.name.split('.').pop()
+    const fileName = `project-logo-${Date.now()}.${fileExt}`
+    const filePath = `${user.data.user.id}/${projectId}/${fileName}`
+    
+    // Upload new file
+    const { data, error } = await supabase.storage
+      .from(this.bucketName)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+    
+    if (error) throw error
+    
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from(this.bucketName)
+      .getPublicUrl(filePath)
+    
+    // Storage upload successful
+    
+    // Update database tracking (upsert will replace existing record)
+    const { error: dbError } = await supabase.from('project_images').upsert({
+      project_id: projectId,
+      shot_id: 'project-logo', // Special shot_id for project logo
+      storage_path: filePath,
+      file_size: file.size,
+      mime_type: file.type
+    }, {
+      onConflict: 'project_id,shot_id'
+    })
+    
+    if (dbError) {
+      console.error('Failed to track project logo in database:', dbError)
+      throw dbError
+    }
+    
+    // Clean up old logo file from storage (if it existed)
+    if (existingLogo?.storage_path && existingLogo.storage_path !== filePath) {
+      console.log(`Cleaning up old project logo: ${existingLogo.storage_path}`)
+      try {
+        await supabase.storage
+          .from(this.bucketName)
+          .remove([existingLogo.storage_path])
+        console.log(`✅ Old project logo cleaned up successfully`)
+      } catch (cleanupError) {
+        // Don't fail the upload if cleanup fails, just log it
+        console.warn('Failed to cleanup old project logo:', cleanupError)
+      }
+    }
+    
+    return publicUrl
+  }
   
   static async deleteImage(storagePath: string): Promise<void> {
     const { error } = await supabase.storage
@@ -182,6 +255,56 @@ export class StorageService {
     const limit = 10 * 1024 * 1024 // 10MB
     
     return { used, limit }
+  }
+
+  /**
+   * Download an image from cloud storage by URL
+   */
+  static async downloadImage(imageUrl: string): Promise<Blob> {
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
+      }
+      return await response.blob();
+    } catch (error) {
+      console.error('Failed to download image:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete project logo from cloud storage and database
+   */
+  static async deleteProjectLogo(projectId: string): Promise<void> {
+    try {
+      // Get the existing logo record
+      const { data: existingLogo } = await supabase
+        .from('project_images')
+        .select('storage_path')
+        .eq('project_id', projectId)
+        .eq('shot_id', 'project-logo')
+        .single()
+      
+      if (existingLogo?.storage_path) {
+        // Delete from storage
+        await supabase.storage
+          .from(this.bucketName)
+          .remove([existingLogo.storage_path])
+        
+        // Delete from database
+        await supabase
+          .from('project_images')
+          .delete()
+          .eq('project_id', projectId)
+          .eq('shot_id', 'project-logo')
+        
+        console.log(`✅ Successfully deleted project logo for project ${projectId}`);
+      }
+    } catch (error) {
+      console.error(`Failed to delete project logo for project ${projectId}:`, error);
+      throw error;
+    }
   }
 }
 

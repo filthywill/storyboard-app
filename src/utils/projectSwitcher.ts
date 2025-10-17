@@ -167,6 +167,17 @@ export class ProjectSwitcher {
             {
               ...shot,
               imageFile: null, // Don't persist File objects
+              // Ensure all image-related fields are preserved
+              imageData: shot.imageData,
+              imageUrl: shot.imageUrl,
+              imageSize: shot.imageSize,
+              imageStorageType: shot.imageStorageType,
+              imageScale: shot.imageScale,
+              imageOffsetX: shot.imageOffsetX,
+              imageOffsetY: shot.imageOffsetY,
+              cloudSyncStatus: shot.cloudSyncStatus,
+              cloudSyncRetries: shot.cloudSyncRetries,
+              lastSyncAttempt: shot.lastSyncAttempt
             }
           ])
         ),
@@ -560,6 +571,60 @@ export class ProjectSwitcher {
       console.log('Emergency reset completed');
     } catch (error) {
       console.error('Emergency reset failed:', error);
+    }
+  }
+
+  /**
+   * Clear all current project data from stores (for logout scenarios)
+   */
+  static clearCurrentProjectData(): void {
+    try {
+      console.log('Clearing all current project data from stores...');
+      
+      // Clear all stores to empty/default state
+      usePageStore.setState({
+        pages: [],
+        activePageId: null,
+      });
+
+      useShotStore.setState({
+        shots: {},
+        shotOrder: [],
+      });
+
+      useProjectStore.setState({
+        projectName: 'Project Name',
+        projectInfo: 'Project Info',
+        projectLogoUrl: null,
+        projectLogoFile: null,
+        clientAgency: 'Client/Agency',
+        jobInfo: 'Job Info',
+        templateSettings: {
+          showLogo: true,
+          showProjectName: true,
+          showProjectInfo: true,
+          showClientAgency: true,
+          showJobInfo: true,
+          showActionText: true,
+          showScriptText: true,
+          showPageNumber: true,
+          shotNumberFormat: '01',
+        },
+      });
+
+      useUIStore.setState({
+        isDragging: false,
+        isExporting: false,
+        showDeleteConfirmation: true,
+      });
+
+      // Clear current project from project manager
+      const projectManager = useProjectManagerStore.getState();
+      projectManager.setCurrentProject(null);
+
+      console.log('Successfully cleared all project data from stores');
+    } catch (error) {
+      console.error('Error clearing current project data:', error);
     }
   }
 

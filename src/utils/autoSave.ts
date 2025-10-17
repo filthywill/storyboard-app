@@ -34,11 +34,13 @@ export const triggerAutoSave = () => {
   
   // Skip auto-save during batch operations to prevent performance issues
   if (isBatchMode) {
+    console.log('⚠️ Auto-save blocked: Batch mode active');
     return;
   }
   
   if (autoSaveCallback) {
     try {
+      console.log('🔄 Triggering auto-save...');
       autoSaveCallback();
     } catch (error) {
       console.error('Auto-save callback failed:', error);
@@ -64,7 +66,9 @@ export const triggerImmediateSave = async () => {
   
   if (immediateAutoSaveCallback) {
     try {
+      console.log('🔄 Triggering immediate save...');
       await immediateAutoSaveCallback();
+      console.log('✅ Immediate save completed');
     } catch (error) {
       console.error('Immediate save failed:', error);
     }

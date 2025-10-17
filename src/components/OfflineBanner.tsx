@@ -1,10 +1,18 @@
 import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 import { BackgroundSyncService, SyncStatus } from '@/services/backgroundSyncService'
+import { useAuthStore } from '@/store/authStore'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { LogIn } from 'lucide-react'
 
-export function OfflineBanner() {
+interface OfflineBannerProps {
+  onSignIn?: () => void;
+}
+
+export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
   const { isOnline, isReconnecting } = useNetworkStatus()
+  const { logoutReason, setLogoutReason } = useAuthStore()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     totalPending: 0,
     totalSyncing: 0,
@@ -37,10 +45,15 @@ export function OfflineBanner() {
     }
   }, [isOnline])
   
-  // Don't show banner if online and no queued changes
-  if (isOnline && !syncStatus.isProcessing && syncStatus.totalPending === 0 && syncStatus.totalFailed === 0) return null
+  // Don't show banner if online and no queued changes and no session issues
+  if (isOnline && !syncStatus.isProcessing && syncStatus.totalPending === 0 && syncStatus.totalFailed === 0 && logoutReason !== 'expired') return null
   
   const getStatusMessage = () => {
+    // Session expiry takes priority
+    if (logoutReason === 'expired') {
+      return '🔐 Your account has been logged out due to inactivity. Please log back in to save your changes.'
+    }
+    
     if (!isOnline) {
       return '📡 You\'re offline - changes are saving locally and will sync when you reconnect'
     }
@@ -61,6 +74,10 @@ export function OfflineBanner() {
   }
   
   const getBannerStyle = () => {
+    if (logoutReason === 'expired') {
+      return 'bg-orange-100 border-orange-200 text-orange-800'
+    }
+    
     if (!isOnline) {
       return 'bg-yellow-100 border-yellow-200 text-yellow-800'
     }
@@ -79,9 +96,28 @@ export function OfflineBanner() {
   const message = getStatusMessage()
   if (!message) return null
   
+  const handleSignIn = () => {
+    if (onSignIn) {
+      onSignIn();
+    }
+  };
+
   return (
     <div className={`fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-sm shadow-md ${getBannerStyle()}`}>
-      <span>{message}</span>
+      <div className="flex items-center justify-center gap-3">
+        <span>{message}</span>
+        {logoutReason === 'expired' && onSignIn && (
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={handleSignIn}
+            className="ml-2"
+          >
+            <LogIn className="h-4 w-4 mr-1" />
+            Sign In
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
