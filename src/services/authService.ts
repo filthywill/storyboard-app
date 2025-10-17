@@ -257,6 +257,9 @@ export class AuthService {
       // Clean up expired sessions on app start
       await this.cleanupExpiredSessions();
       
+      // Initialize current session ID if user is authenticated
+      await this.initializeCurrentSession();
+      
       // Set up periodic cleanup (every hour)
       setInterval(() => {
         this.cleanupExpiredSessions();
@@ -265,6 +268,33 @@ export class AuthService {
       console.log('Session management initialized');
     } catch (error) {
       console.error('Error initializing session management:', error);
+    }
+  }
+
+  private static async initializeCurrentSession(): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Check if we have an existing active session for this user
+        const { data: existingSessions } = await supabase
+          .from('user_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('started_at', { ascending: false })
+          .limit(1);
+        
+        if (existingSessions && existingSessions.length > 0) {
+          // Use existing session
+          this.currentSessionId = existingSessions[0].id;
+          console.log('Using existing session:', this.currentSessionId);
+        } else {
+          // Create new session
+          await this.createSessionRecord(user.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing current session:', error);
     }
   }
 }
