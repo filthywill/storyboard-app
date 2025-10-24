@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/store';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from './ui/button';
@@ -25,6 +25,10 @@ export const MasterHeader: React.FC = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const clientAgencyRef = useRef<HTMLTextAreaElement>(null);
   const jobInfoRef = useRef<HTMLTextAreaElement>(null);
+  
+  // State for dynamic logo container width
+  const [logoContainerWidth, setLogoContainerWidth] = useState<number>(96); // Default width
+  const [lastProcessedLogoUrl, setLastProcessedLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (projectNameRef.current) {
@@ -54,6 +58,45 @@ export const MasterHeader: React.FC = () => {
     }
   }, [jobInfo]);
 
+  // Handle dynamic width when projectLogoUrl changes (e.g., loading existing project)
+  useEffect(() => {
+    // Only process if this is a new/different logo URL
+    if (projectLogoUrl === lastProcessedLogoUrl) {
+      return;
+    }
+
+    if (projectLogoUrl && projectLogoUrl.startsWith('data:')) {
+      // If it's a base64 image, calculate dimensions
+      const img = new Image();
+      img.onload = () => {
+        const aspectRatio = img.width / img.height;
+        const newWidth = Math.min(60 * aspectRatio, 200); // Max 200px width
+        setLogoContainerWidth(Math.max(newWidth, 60)); // Min 60px width
+        setLastProcessedLogoUrl(projectLogoUrl);
+      };
+      img.src = projectLogoUrl;
+    } else if (projectLogoUrl && projectLogoUrl.includes('supabase')) {
+      // If it's a cloud URL, try to get dimensions from the image
+      const img = new Image();
+      img.onload = () => {
+        const aspectRatio = img.width / img.height;
+        const newWidth = Math.min(60 * aspectRatio, 200); // Max 200px width
+        setLogoContainerWidth(Math.max(newWidth, 60)); // Min 60px width
+        setLastProcessedLogoUrl(projectLogoUrl);
+      };
+      img.onerror = () => {
+        // If we can't load the image, keep current width instead of resetting
+        console.log('Could not load cloud image for dimension calculation, keeping current width');
+        setLastProcessedLogoUrl(projectLogoUrl);
+      };
+      img.src = projectLogoUrl;
+    } else if (!projectLogoUrl) {
+      // No logo, reset to default
+      setLogoContainerWidth(96);
+      setLastProcessedLogoUrl(null);
+    }
+  }, [projectLogoUrl, lastProcessedLogoUrl]);
+
   const handleLogoUploadClick = () => {
     logoInputRef.current?.click();
   };
@@ -61,11 +104,23 @@ export const MasterHeader: React.FC = () => {
   const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setProjectLogo(event.target.files[0]);
+      
+      // Calculate container width based on image aspect ratio
+      const file = event.target.files[0];
+      const img = new Image();
+      img.onload = () => {
+        const aspectRatio = img.width / img.height;
+        const newWidth = Math.min(60 * aspectRatio, 200); // Max 200px width
+        setLogoContainerWidth(Math.max(newWidth, 60)); // Min 60px width
+      };
+      img.src = URL.createObjectURL(file);
     }
   };
   
   const handleLogoRemove = () => {
     setProjectLogo(null);
+    setLogoContainerWidth(96); // Reset to default width
+    setLastProcessedLogoUrl(null); // Reset processed URL
   };
 
   return (
@@ -93,13 +148,14 @@ export const MasterHeader: React.FC = () => {
           <div 
             className={cn(
               "relative group flex-shrink-0",
-              "w-24 h-16"
+              "h-16"
             )}
             style={{
-              width: '96px',
+              width: `${logoContainerWidth}px`,
               height: '60px',
-              minWidth: '96px',
-              minHeight: '60px'
+              minWidth: '60px',
+              minHeight: '60px',
+              transition: 'width 0.3s ease-in-out'
             }}
           >
             {projectLogoUrl ? (

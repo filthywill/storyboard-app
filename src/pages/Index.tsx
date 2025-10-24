@@ -6,7 +6,6 @@ import { useAppStore } from '@/store';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
 import { useAuthStore } from '@/store/authStore';
 import { DataValidator } from '@/utils/dataValidator';
 import { toast } from 'sonner';
@@ -14,6 +13,7 @@ import { EmptyProjectState } from '@/components/EmptyProjectState';
 import { AuthModal } from '@/components/AuthModal';
 import { ProjectPickerModal } from '@/components/ProjectPickerModal';
 import { LoggedOutElsewhereScreen } from '@/components/LoggedOutElsewhereScreen';
+import { TemplateBackground } from '@/components/TemplateBackground';
 
 const Index = () => {
   const { 
@@ -49,14 +49,6 @@ const Index = () => {
         
         // Small delay to ensure everything is ready
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Initialize app content (this is the original working code)
-        initializeAppContent();
-        
-        // Pre-render reconcile from canonical shotOrder to avoid first-action swaps
-        setTimeout(() => {
-          reconcileFromShotOrder();
-        }, 50);
         
         // Initialize project system separately (non-blocking)
         setTimeout(async () => {
@@ -99,6 +91,24 @@ const Index = () => {
             // Don't block the app if session management fails
           }
         }
+        
+        // CRITICAL: Only initialize default app content for GUEST users (unauthenticated)
+        // After auth initialization completes, check if user is authenticated
+        // If not authenticated, create default project structure
+        setTimeout(() => {
+          const authState = useAuthStore.getState();
+          if (!authState.isAuthenticated && !authState.isLoading) {
+            console.log('Guest user detected - initializing default app content...');
+            initializeAppContent();
+            
+            // Pre-render reconcile from canonical shotOrder to avoid first-action swaps
+            setTimeout(() => {
+              reconcileFromShotOrder();
+            }, 50);
+          } else {
+            console.log('Authenticated user detected - skipping default app content initialization');
+          }
+        }, 300);
         
         console.log('App initialization completed');
       } catch (error) {
@@ -295,73 +305,74 @@ const Index = () => {
 
   const activePage = pages.find(p => p.id === activePageId);
 
-  // Create a fallback template page for empty state display
-  const emptyStatePage = {
-    id: 'empty-state-template',
-    name: 'Template',
-    gridRows: 2,
-    gridCols: 4,
-    shotIds: [],
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
+  // Determine what to display in the main content area
+  const shouldShowTemplate = !activePage && (allProjects.length === 0 || !isAuthenticated);
 
-  const displayPage = activePage || (allProjects.length === 0 ? emptyStatePage : null);
+  const activePageIndex = pages.findIndex(p => p.id === activePageId);
 
-  if (!activePage && allProjects.length > 0) {
+  // STEP 1: Handle forced logout (session expired or logged out from another device)
+  if (authStore.logoutReason === 'expired' || authStore.logoutReason === 'other_session') {
+    return <LoggedOutElsewhereScreen onSignIn={() => setShowAuthModal(true)} />;
+  }
+
+  // STEP 2: Handle auth loading
+  if (authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Storyboard Creator
-            </h1>
-            <p className="text-lg text-gray-600">
-              Create, organize, and export professional storyboards
-            </p>
-          </div>
-          <Card className="max-w-md mx-auto">
-            <CardContent className="p-8 text-center">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No Pages Found
-              </h3>
-              <p className="text-gray-600">
-                Start by creating your first storyboard page.
-              </p>
-            </CardContent>
-          </Card>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
   }
 
-  const activePageIndex = pages.findIndex(p => p.id === activePageId);
+  // STEP 3: Handle cloud project loading for authenticated users
+  if (isAuthenticated && isLoadingCloudProjects) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your projects...</p>
+        </div>
+      </div>
+    );
+  }
 
+  // For all other states, render the main UI layout
+  // The EmptyProjectState will show as an overlay when appropriate
   return (
-    <div className="min-h-screen bg-white flex flex-col pt-6 relative">
-      {/* Offline Banner */}
-      <OfflineBanner onSignIn={() => setShowAuthModal(true)} />
-      
-      {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-6 py-2">
+    <div className="min-h-screen flex flex-col relative" style={{ position: 'relative', zIndex: 2 }}>
+      {/* Header Section (includes banner + main header) */}
+      <div className="pt-6" style={{ 
+        backgroundColor: 'rgba(1, 1, 1, 0.2)',
+        backdropFilter: 'blur(0.5px)',
+        WebkitBackdropFilter: 'blur(0.5px)',
+        boxShadow: '0 1px 0 0 rgba(0, 0, 0, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+        fontFamily: '"BBH Sans Hegarty", sans-serif',
+        color: 'white',
+      }}>
+        {/* Offline Banner */}
+        <OfflineBanner onSignIn={() => setShowAuthModal(true)} />
+        
+        {/* Main Header */}
+        <div className="max-w-7xl mx-auto px-6 pt-4 pb-2">
           <div className="flex items-end justify-between">
             <div>
               <img 
-                src="/sf_logo_01.png" 
+                src="/storyflow-whc_01.png" 
                 alt="Storyboard Flow" 
-                className="h-24 object-contain"
+                className="h-4 object-contain"
                 style={{
                   imageRendering: 'auto',
                   maxWidth: 'none',
                   width: 'auto',
-                  height: '96px',
+                  height: '42px',
                   filter: 'none'
                 }}
               />
             </div>
-            <div className="flex items-center gap-4">
-              <SyncStatusIndicator />
+            <div className="flex items-end gap-4">
               <ProjectSelector 
                 onRequestCreate={() => setShowCreateProjectDialog(true)}
                 showCreateDialog={showCreateProjectDialog}
@@ -374,52 +385,53 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 flex-grow w-full relative">
-        {displayPage && (
-          <div className={allProjects.length === 0 && isAuthenticated && !isLoadingCloudProjects ? "opacity-30 pointer-events-none" : ""}>
-            <StoryboardPage pageId={displayPage.id} />
-          </div>
-        )}
-        
-        {/* Loading state for cloud projects */}
-        {isLoadingCloudProjects && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading your projects...</p>
+        {activePage ? (
+          <>
+            <StoryboardPage pageId={activePage.id} />
+            
+            {/* Status Footer - positioned below StoryboardPage */}
+            <div className="mt-2" style={{
+              backgroundColor: 'rgba(1, 1, 1, 0.2)',
+              backdropFilter: 'blur(0.5px)',
+              WebkitBackdropFilter: 'blur(0.5px)',
+              border: '1px solid rgba(1, 1, 1, 0.05)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              fontFamily: '"Open Sans", sans-serif',
+              color: 'black',
+              borderRadius: '8px',
+            }}>
+              <div className="px-6 py-1">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="text-white/80">
+                    {activePage && `Last updated: ${new Date(activePage.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                  </div>
+                  <div className="text-white/80">
+                    {isAuthenticated ? 'Auto-saved to cloud' : 'Auto-saved to local storage'}
+                  </div>
+                </div>
+              </div>
             </div>
+          </>
+        ) : shouldShowTemplate ? (
+          <div className={!isAuthenticated || (isAuthenticated && allProjects.length === 0) ? "opacity-30 pointer-events-none" : ""}>
+            <TemplateBackground />
           </div>
-        )}
+        ) : null}
         
-        {/* Empty State Overlay - only shows in main area for authenticated users after loading */}
-        {allProjects.length === 0 && isAuthenticated && !isLoadingCloudProjects && (
+        {/* Empty State Overlay for authenticated users with no projects */}
+        {isAuthenticated && allProjects.length === 0 && !isLoadingCloudProjects && (
           <EmptyProjectState 
-            isAuthenticated={isAuthenticated}
+            isAuthenticated={true}
             onCreateProject={() => setShowCreateProjectDialog(true)}
             onSignIn={() => setShowAuthModal(true)}
           />
         )}
       </main>
-
-      <footer className="bg-white border-t">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between text-sm text-gray-500">
-            <div>
-              {activePage && `Last updated: ${new Date(activePage.updatedAt).toLocaleString()}`}
-            </div>
-            <div>
-              {isAuthenticated ? 'Auto-saved to cloud' : 'Auto-saved to local storage'}
-            </div>
-          </div>
-        </div>
-      </footer>
       
-      {/* Full-screen states for unauthenticated users - renders outside main content */}
-      {!isAuthenticated && authStore.logoutReason === 'other_session' && (
-        <LoggedOutElsewhereScreen onSignIn={() => setShowAuthModal(true)} />
-      )}
-      {!isAuthenticated && authStore.logoutReason !== 'other_session' && (
+      {/* Full-screen EmptyProjectState overlay for unauthenticated users */}
+      {!isAuthenticated && (
         <EmptyProjectState 
-          isAuthenticated={isAuthenticated}
+          isAuthenticated={false}
           onCreateProject={() => setShowCreateProjectDialog(true)}
           onSignIn={() => setShowAuthModal(true)}
         />
@@ -473,6 +485,7 @@ const Index = () => {
           }}
         />
       )}
+      
     </div>
   );
 };

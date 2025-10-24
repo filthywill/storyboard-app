@@ -11,11 +11,21 @@ import { useShotStore } from '@/store/shotStore';
 import { useProjectStore } from '@/store/projectStore';
 import { useUIStore } from '@/store/uiStore';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
+import { useAuthStore } from '@/store/authStore';
 import { LocalStorageManager } from './localStorageManager';
 import { withOperation } from '@/utils/operations';
 import { Telemetry } from '@/utils/telemetry';
 
 export class ProjectSwitcher {
+  private static isSwitching = false;
+
+  /**
+   * Check if project switching is currently in progress
+   */
+  static isProjectSwitching(): boolean {
+    return this.isSwitching;
+  }
+
   /**
    * Save the current project data
    */
@@ -62,7 +72,7 @@ export class ProjectSwitcher {
       // Validate project exists
       const projectManager = useProjectManagerStore.getState();
       if (!projectManager.projects[projectId]) {
-        console.error(`Project ${projectId} not found`);
+        console.error(`Project ${projectId} not found in project manager. Available projects:`, Object.keys(projectManager.projects));
         Telemetry.event('project.switch.error', { projectId, reason: 'not-found' });
         endTimer.end({ projectId, success: false });
         return false;
@@ -79,7 +89,11 @@ export class ProjectSwitcher {
 
       console.log(`🔄 Starting project switch: ${currentProjectId} → ${projectId}`);
 
-      // Step 1: Save current project ONE LAST TIME before switching
+      // Set switching flag to prevent logo operations during switch
+      this.isSwitching = true;
+
+      try {
+        // Step 1: Save current project ONE LAST TIME before switching
       if (currentProjectId && !skipSaveCurrent) {
         try {
           console.log('💾 Final save before project switch...');
@@ -123,8 +137,8 @@ export class ProjectSwitcher {
       // Step 4: Update project manager
       projectManager.setCurrentProject(projectId);
       
-      // Step 5: Update project metadata
-      this.updateProjectMetadata(projectId);
+      // Step 5: Update project metadata (counts only, not timestamp - switching doesn't modify data)
+      this.updateProjectMetadata(projectId, false);
       
       // Step 7: Reconcile layout from shotOrder to prevent first-action swaps
       try {
@@ -141,6 +155,10 @@ export class ProjectSwitcher {
       Telemetry.event('project.switch.success', { projectId });
       endTimer.end({ projectId, success: true });
       return true;
+      } finally {
+        // Clear switching flag to re-enable logo operations
+        this.isSwitching = false;
+      }
     }, { name: 'project-switch', lockSwitching: true, batchSaves: true });
   }
 
@@ -326,8 +344,9 @@ export class ProjectSwitcher {
 
   /**
    * Update project metadata with current state
+   * @param updateTimestamp - Whether to update lastModified (only on actual data changes)
    */
-  private static updateProjectMetadata(projectId: string): void {
+  private static updateProjectMetadata(projectId: string, updateTimestamp: boolean = true): void {
     try {
       const pageStore = usePageStore.getState();
       const shotStore = useShotStore.getState();
@@ -336,11 +355,17 @@ export class ProjectSwitcher {
       const shotCount = Object.keys(shotStore.shots).length;
       const pageCount = pageStore.pages.length;
 
-      projectManager.updateProjectMetadata(projectId, {
+      const updates: any = {
         shotCount,
         pageCount,
-        lastModified: new Date(),
-      });
+      };
+
+      // Only update lastModified when data actually changes
+      if (updateTimestamp) {
+        updates.lastModified = new Date();
+      }
+
+      projectManager.updateProjectMetadata(projectId, updates);
     } catch (error) {
       console.error('Error updating project metadata:', error);
     }
@@ -470,7 +495,7 @@ export class ProjectSwitcher {
             const switchSuccess = this.loadProjectData(fallbackProjectId);
             if (switchSuccess) {
               projectManager.setCurrentProject(fallbackProjectId);
-              this.updateProjectMetadata(fallbackProjectId);
+              this.updateProjectMetadata(fallbackProjectId, false); // Switching only, not modifying
             } else {
               console.warn('Failed to load fallback project, creating new one');
               const newProjectId = await this.createFallbackProject();
@@ -618,9 +643,14 @@ export class ProjectSwitcher {
         showDeleteConfirmation: true,
       });
 
-      // Clear current project from project manager
-      const projectManager = useProjectManagerStore.getState();
-      projectManager.setCurrentProject(null);
+      // Clear current project AND all projects from project manager
+      // This ensures that after sign-out, allProjects.length === 0
+      // which triggers the correct UI state (EmptyProjectState welcome screen)
+      useProjectManagerStore.setState({
+        currentProjectId: null,
+        projects: {},
+        isInitialized: false,
+      });
 
       console.log('Successfully cleared all project data from stores');
     } catch (error) {
@@ -785,14 +815,20 @@ export class ProjectSwitcher {
         projectManager.setInitialized(true);
       }
       
-      // Ensure we have a current project if projects exist
-      const currentProjectId = projectManager.currentProjectId;
-      if (!currentProjectId) {
-        const allProjects = projectManager.getAllProjects();
-        if (allProjects.length > 0) {
-          projectManager.setCurrentProject(allProjects[0].id);
+      // For authenticated users, don't auto-select a project - let the project picker handle it
+      // For unauthenticated users, auto-select the first project if available
+      const { isAuthenticated } = useAuthStore.getState();
+      
+      if (!isAuthenticated) {
+        // Only auto-select for unauthenticated users
+        const currentProjectId = projectManager.currentProjectId;
+        if (!currentProjectId) {
+          const allProjects = projectManager.getAllProjects();
+          if (allProjects.length > 0) {
+            projectManager.setCurrentProject(allProjects[0].id);
+          }
+          // If no projects exist, don't create one - let empty state show
         }
-        // If no projects exist, don't create one - let empty state show
       }
     } catch (error) {
       console.error('Error initializing project system:', error);

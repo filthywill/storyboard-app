@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { SecurityNotificationService } from './securityNotificationService'
+import { authRateLimiter } from '@/utils/rateLimiter'
 
 export class AuthService {
   private static currentSessionId: string | null = null;
@@ -28,6 +30,13 @@ export class AuthService {
   }
   
   static async signIn(email: string, password: string) {
+    // Check rate limit before authentication
+    const canProceed = await SecurityNotificationService.checkRateLimitBeforeCall(authRateLimiter, 'signIn')
+    
+    if (!canProceed) {
+      throw new Error('Too many authentication attempts. Please try again later.')
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -52,6 +61,47 @@ export class AuthService {
     
     const { error } = await supabase.auth.signOut()
     if (error) throw error
+  }
+
+  // Social login methods
+  static async signInWithGoogle() {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent'
+        }
+      }
+    })
+    
+    if (error) throw error
+    return data
+  }
+
+  static async signInWithGitHub() {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`
+      }
+    })
+    
+    if (error) throw error
+    return data
+  }
+
+  static async signInWithApple() {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`
+      }
+    })
+    
+    if (error) throw error
+    return data
   }
   
   static async getCurrentUser() {
@@ -136,7 +186,7 @@ export class AuthService {
       console.log(`Sending broadcast notification for ${sessions.length} invalidated sessions`);
       
       // Send a real-time notification to force logout other sessions
-      const { error } = await supabase
+      const response = await supabase
         .channel('session-updates')
         .send({
           type: 'broadcast',
@@ -147,8 +197,8 @@ export class AuthService {
           }
         });
         
-      if (error) {
-        console.error('Failed to send broadcast notification:', error);
+      if (response === 'error') {
+        console.error('Failed to send broadcast notification');
       } else {
         console.log('Broadcast notification sent successfully');
       }

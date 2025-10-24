@@ -44,7 +44,7 @@ class MemoryMonitor {
 
   constructor() {
     // Only enable in development
-    this.isMonitoring = process.env.NODE_ENV === 'development';
+    this.isMonitoring = import.meta.env.DEV;
     
     // Register as global memory monitor if in development
     if (this.isMonitoring && typeof window !== 'undefined') {

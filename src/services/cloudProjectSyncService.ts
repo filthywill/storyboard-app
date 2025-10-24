@@ -42,7 +42,7 @@ export class CloudProjectSyncService {
           id: cloudProject.id,
           name: cloudProject.name,
           shotCount: cloudProject.shot_count || 0,
-          lastModified: cloudProject.last_accessed_at || cloudProject.created_at
+          lastModified: cloudProject.data_updated_at || cloudProject.last_accessed_at || cloudProject.created_at
         });
       });
       
@@ -62,6 +62,19 @@ export class CloudProjectSyncService {
     if (this.isLoadingProject) {
       console.log('Project load already in progress');
       return;
+    }
+
+    // Check if offline queue is being processed (prevent conflicts)
+    try {
+      const { BackgroundSyncService } = await import('@/services/backgroundSyncService');
+      if (BackgroundSyncService.isProcessingOfflineQueue()) {
+        console.log('⏳ Offline queue is being processed, delaying cloud project load...');
+        // Wait for offline queue processing to complete
+        await new Promise(resolve => setTimeout(resolve, 6000)); // 6 seconds to be safe
+        console.log('✅ Offline queue processing complete, proceeding with cloud project load');
+      }
+    } catch (error) {
+      console.warn('Could not check offline queue status:', error);
     }
 
     // Check if project is already local (prevents redundant cloud downloads)
@@ -91,7 +104,7 @@ export class CloudProjectSyncService {
         projectId,
         pagesCount: projectData.pages?.length || 0,
         shotsCount: Object.keys(projectData.shots || {}).length,
-        projectName: projectData.projectSettings?.projectName || 'Unknown'
+        projectName: projectData.projectSettings?.projectName || `Project ${projectId.slice(0, 8)}`
       });
       
       // Validate that we got the right project data
@@ -115,6 +128,18 @@ export class CloudProjectSyncService {
       
       // Mark project as local (so it's no longer "cloud only")
       const projectManager = useProjectManagerStore.getState();
+      
+      // Ensure project exists in project manager before marking as local
+      if (!projectManager.projects[projectId]) {
+        console.log(`Project ${projectId} not found in project manager, adding it...`);
+        projectManager.addCloudProject({
+          id: projectId,
+          name: projectData.projectSettings?.projectName || `Project ${projectId.slice(0, 8)}`,
+          shotCount: Object.keys(projectData.shots || {}).length,
+          lastModified: new Date().toISOString()
+        });
+      }
+      
       projectManager.markProjectAsLocal(projectId);
       
       console.log('Full project saved to localStorage (ready for switchToProject to load)');

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
+import { Github, Chrome, Apple } from 'lucide-react'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -18,7 +19,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   
-  const { signIn, signUp, setLogoutReason } = useAuthStore()
+  const { signIn, signUp, signInWithGoogle, signInWithGitHub, signInWithApple, setLogoutReason } = useAuthStore()
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,6 +42,26 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setLoading(false)
     }
   }
+
+  const handleSocialLogin = async (provider: 'google' | 'github' | 'apple') => {
+    setLoading(true)
+    
+    try {
+      if (provider === 'google') {
+        await signInWithGoogle()
+      } else if (provider === 'github') {
+        await signInWithGitHub()
+      } else if (provider === 'apple') {
+        await signInWithApple()
+      }
+      // Reset any previous forced-logout reason
+      setLogoutReason('none')
+      // Note: User will be redirected, so we don't close the modal here
+    } catch (error: any) {
+      toast.error(error.message || `${provider} authentication failed`)
+      setLoading(false)
+    }
+  }
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -55,6 +76,53 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </DialogDescription>
         </DialogHeader>
         
+        {/* Social Login Buttons */}
+        <div className="space-y-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => handleSocialLogin('google')}
+            disabled={loading}
+          >
+            <Chrome className="w-4 h-4 mr-2" />
+            Continue with Google
+          </Button>
+          
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => handleSocialLogin('github')}
+            disabled={loading}
+          >
+            <Github className="w-4 h-4 mr-2" />
+            Continue with GitHub
+          </Button>
+          
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => handleSocialLogin('apple')}
+            disabled={loading}
+          >
+            <Apple className="w-4 h-4 mr-2" />
+            Continue with Apple
+          </Button>
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">
+              Or continue with email
+            </span>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (
             <div>

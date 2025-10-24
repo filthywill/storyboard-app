@@ -199,7 +199,7 @@ class PerformanceMonitor {
    * Log performance metrics to console (development only)
    */
   logMetrics(): void {
-    if (process.env.NODE_ENV !== 'development') return;
+    if (!import.meta.env.DEV) return;
   }
 }
 

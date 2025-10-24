@@ -24,6 +24,9 @@ interface AuthState {
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithGitHub: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   initialize: () => Promise<void>;
   clearError: () => void;
 }
@@ -86,6 +89,39 @@ export const useAuthStore = create<AuthState>()(
           } catch (e) {
             console.warn('Failed to clear current project data on manual sign-out', e);
           }
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+          throw error;
+        }
+      },
+
+      signInWithGoogle: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          await AuthService.signInWithGoogle();
+          // Note: User will be redirected, so we don't set user state here
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+          throw error;
+        }
+      },
+
+      signInWithGitHub: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          await AuthService.signInWithGitHub();
+          // Note: User will be redirected, so we don't set user state here
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+          throw error;
+        }
+      },
+
+      signInWithApple: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          await AuthService.signInWithApple();
+          // Note: User will be redirected, so we don't set user state here
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
           throw error;

@@ -61,35 +61,120 @@ export class GuestProjectSyncService {
       let syncedCount = 0;
       let skippedCount = 0;
 
-      for (const localProject of localProjects) {
+      const CLOCK_SKEW_TOLERANCE_MS = 5000; // 5 seconds
+
+      for (let i = 0; i < localProjects.length; i++) {
+        const localProject = localProjects[i];
         try {
           const cloudProject = cloudProjectMap.get(localProject.id);
 
-          // Safety check: Compare timestamps if project exists in cloud
+          // Step 1: Timestamp comparison (PRIMARY DECISION)
           if (cloudProject) {
-            const cloudLastModified = new Date(cloudProject.last_accessed_at || cloudProject.created_at);
-            const localLastModified = localProject.lastModified;
+            const cloudTimestamp = new Date(cloudProject.data_updated_at || cloudProject.updated_at);
+            const localTimestamp = new Date(localProject.lastModified);
+            
+            const timeDiff = localTimestamp.getTime() - cloudTimestamp.getTime();
+            
+            console.log(`Timestamp comparison for ${localProject.name}:`, {
+              local: localTimestamp.toISOString(),
+              cloud: cloudTimestamp.toISOString(),
+              diff: `${timeDiff}ms`,
+              localIsNewer: timeDiff > CLOCK_SKEW_TOLERANCE_MS
+            });
 
-            if (cloudLastModified > localLastModified) {
-              console.warn(`Skipping sync for ${localProject.name}: Cloud version is newer`);
+            // Cloud is definitively newer - skip sync
+            if (timeDiff < -CLOCK_SKEW_TOLERANCE_MS) {
+              console.log(`✅ Cloud is newer for ${localProject.name}, skipping sync`);
               skippedCount++;
               continue;
             }
           }
 
-          // Safe to sync - either new project or local is newer
+          // Step 2: Fetch local data for validation
           const projectData = LocalStorageManager.getProjectData(localProject.id);
           
           if (!projectData) {
-            console.warn(`No data found for local project ${localProject.id}`);
+            console.error(`❌ CRITICAL: No localStorage data found for project ${localProject.id} (${localProject.name})`);
+            skippedCount++;
             continue;
           }
 
-          console.log(`Syncing project ${localProject.id} (${localProject.name}):`, {
-            pages: projectData.pages?.length || 0,
-            shots: Object.keys(projectData.shots || {}).length,
-            existsInCloud: !!cloudProject
+          const actualShotCount = Object.keys(projectData.shots || {}).length;
+          const actualPageCount = projectData.pages?.length || 0;
+          const expectedShotCount = localProject.shotCount;
+          
+          console.log(`Data validation for ${localProject.name}:`, {
+            expectedShots: expectedShotCount,
+            actualShots: actualShotCount,
+            pages: actualPageCount
           });
+
+          // Step 3: Corruption detection (SAFETY NET)
+          
+          // Check 1: Completely empty when expecting data
+          if (expectedShotCount > 0 && actualShotCount === 0) {
+            console.error(`❌ LOCAL DATA CORRUPTED: ${localProject.name} expects ${expectedShotCount} shots but has 0`);
+            
+            if (cloudProject && cloudProject.shot_count > 0) {
+              console.warn(`Cloud has ${cloudProject.shot_count} shots. Preserving cloud data.`);
+              // Use a unique toast ID to prevent conflicts
+              toast.warning(`Local data for "${localProject.name}" is corrupted. Cloud data preserved (${cloudProject.shot_count} shots).`, {
+                duration: 10000,
+                id: `corruption-${localProject.id}` // Unique ID for each project
+              });
+            }
+            skippedCount++;
+            continue;
+          }
+
+          // Check 2: Significant data loss (>50% reduction)
+          if (cloudProject && expectedShotCount > 0 && actualShotCount < expectedShotCount * 0.5) {
+            const cloudShotCount = cloudProject.shot_count || 0;
+            
+            // If cloud also has more shots, this looks like corruption
+            if (cloudShotCount > actualShotCount) {
+              console.warn(`⚠️ AMBIGUOUS CONFLICT: ${localProject.name} local=${actualShotCount} shots vs cloud=${cloudShotCount} shots`);
+              
+              // TODO: Show user choice modal (Phase 2)
+              // For now, preserve cloud data
+              toast.warning(`Conflict detected for "${localProject.name}": Local has ${actualShotCount} shots, cloud has ${cloudShotCount}. Preserving cloud data for safety.`, {
+                duration: 15000,
+                id: `conflict-${localProject.id}` // Unique ID for each project
+              });
+              skippedCount++;
+              continue;
+            }
+          }
+
+          // Check 3: Cloud has more shots than local
+          if (cloudProject) {
+            const cloudShotCount = cloudProject.shot_count || 0;
+            
+            if (cloudShotCount > actualShotCount && cloudShotCount > 0) {
+              console.warn(`⚠️ CLOUD HAS MORE DATA: ${localProject.name} local=${actualShotCount} shots vs cloud=${cloudShotCount} shots`);
+              
+              // Check timestamp again - if local is clearly newer, user likely deleted shots intentionally
+              const localTimestamp = new Date(localProject.lastModified);
+              const cloudTimestamp = new Date(cloudProject.data_updated_at || cloudProject.updated_at);
+              const timeDiff = localTimestamp.getTime() - cloudTimestamp.getTime();
+              
+              if (timeDiff > CLOCK_SKEW_TOLERANCE_MS) {
+                console.log(`Local is newer by ${timeDiff}ms - treating as intentional deletion`);
+                // Fall through to sync
+              } else {
+          // Ambiguous - preserve cloud
+          toast.warning(`Cloud has more data for "${localProject.name}" (${cloudShotCount} vs ${actualShotCount} shots). Preserving cloud data.`, {
+            duration: 15000,
+            id: `cloud-more-${localProject.id}` // Unique ID for each project
+          });
+                skippedCount++;
+                continue;
+              }
+            }
+          }
+
+          // Step 4: All checks passed - proceed with sync
+          console.log(`✅ All validation passed for ${localProject.name}. Syncing to cloud.`);
 
           // Create or update cloud project
           if (cloudProject) {
@@ -145,17 +230,31 @@ export class GuestProjectSyncService {
         } catch (error) {
           console.error(`Failed to sync project ${localProject.name}:`, error);
         }
+        
+        // Small delay between projects to prevent toast conflicts
+        if (i < localProjects.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
 
       if (syncedCount > 0) {
-        toast.success(`Synced ${syncedCount} project${syncedCount > 1 ? 's' : ''} to cloud`);
+        toast.success(`✅ Synced ${syncedCount} project${syncedCount > 1 ? 's' : ''} to cloud`);
       }
       
       if (skippedCount > 0) {
-        toast.info(`${skippedCount} project${skippedCount > 1 ? 's were' : ' was'} skipped (cloud version newer)`);
+        console.log(`${skippedCount} project${skippedCount > 1 ? 's were' : ' was'} skipped during sync`);
+        // Note: Individual skip reasons are already toasted above with specific messages
+        toast.warning(`${skippedCount} project${skippedCount > 1 ? 's' : ''} skipped due to data corruption or conflicts. Check console for details.`, {
+          duration: 8000,
+          id: 'sync-summary'
+        });
       }
 
-      console.log(`Guest project sync completed: ${syncedCount} synced, ${skippedCount} skipped`);
+      console.log(`✅ Guest project sync completed:`, {
+        synced: syncedCount,
+        skipped: skippedCount,
+        reasons: skippedCount > 0 ? 'Check logs above for specific skip reasons' : 'none'
+      });
     } catch (error) {
       console.error('Failed to sync guest projects:', error);
       toast.error('Some projects could not be synced to cloud');

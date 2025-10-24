@@ -66,6 +66,9 @@ export interface ExportShot {
   actionText: string;
   scriptText: string;
   bounds: Rectangle;
+  imageScale?: number;
+  imageOffsetX?: number;
+  imageOffsetY?: number;
   templateSettings?: {
     showLogo: boolean;
     showProjectName: boolean;

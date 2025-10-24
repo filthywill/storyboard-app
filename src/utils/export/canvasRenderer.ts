@@ -182,10 +182,16 @@ export class CanvasRenderer {
     
     // Logo section (if enabled and available)
     if (header.templateSettings.showLogo && header.logoImageData) {
-      const logoWidth = 88 * scale; // Preview mode logo width - increased for better proportion
-      const logoHeight = 55 * scale; // Preview mode logo height - increased for better proportion
+      // Dynamic logo sizing - EXACT same logic as MasterHeader.tsx
+      const logoHeight = 60 * scale; // Fixed height (h-16 = 64px, but actual container is 60px)
       
-      // Render actual logo image using the same method as shot images
+      // Calculate dynamic width based on aspect ratio (same as MasterHeader)
+      const logoAspectRatio = header.logoImageData.naturalWidth / header.logoImageData.naturalHeight;
+      const calculatedWidth = 60 * logoAspectRatio; // Base calculation
+      const constrainedWidth = Math.max(60, Math.min(calculatedWidth, 200)); // Min 60px, Max 200px
+      const logoWidth = constrainedWidth * scale;
+      
+      // Render actual logo image with rounded corners (rounded-md = 6px)
       const logoBounds = {
         x: leftX,
         y: currentY,
@@ -193,7 +199,8 @@ export class CanvasRenderer {
         height: logoHeight
       };
       
-      await this.renderShotImage(header.logoImageData, logoBounds);
+      // Use object-contain behavior for logo (not object-cover)
+      await this.renderImageWithObjectContain(header.logoImageData, logoBounds, 6 * scale);
       
       leftX += logoWidth + (16 * scale); // Add gap after logo
     }
@@ -338,7 +345,13 @@ export class CanvasRenderer {
     };
     
     if (shot.imageData) {
-      await this.renderShotImage(shot.imageData, imageBounds);
+      await this.renderShotImage(
+        shot.imageData, 
+        imageBounds, 
+        shot.imageScale, 
+        shot.imageOffsetX, 
+        shot.imageOffsetY
+      );
     } else {
       // Empty shot placeholder - clean background only for export
       this.ctx.fillStyle = '#f9fafb'; // Very light background
@@ -433,16 +446,128 @@ export class CanvasRenderer {
   }
   
   /**
-   * Render shot image
+   * Render shot image with rounded corners (uses object-cover)
    */
   private async renderShotImage(
     imageData: ImageData | HTMLImageElement,
-    bounds: Rectangle
+    bounds: Rectangle,
+    imageScale: number = 1.0,
+    imageOffsetX: number = 0,
+    imageOffsetY: number = 0
+  ): Promise<void> {
+    // Shot images use rounded-md (6px) in ShotImage component
+    const borderRadius = 6;
+    await this.renderImageWithRoundedCorners(
+      imageData, 
+      bounds, 
+      borderRadius,
+      imageScale,
+      imageOffsetX,
+      imageOffsetY
+    );
+  }
+
+  /**
+   * Render image with object-contain behavior (shows full image, no cropping)
+   */
+  private async renderImageWithObjectContain(
+    imageData: ImageData | HTMLImageElement,
+    bounds: Rectangle,
+    borderRadius: number
+  ): Promise<void> {
+    if (imageData instanceof HTMLImageElement) {
+      // Fill background
+      this.ctx.fillStyle = '#f3f4f6';
+      this.ctx.save();
+      this.ctx.beginPath();
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      this.ctx.fill();
+      this.ctx.restore();
+      
+      // Calculate dimensions to fit entire image (object-contain)
+      const imgAspect = imageData.naturalWidth / imageData.naturalHeight;
+      const boundsAspect = bounds.width / bounds.height;
+      
+      let drawWidth = bounds.width;
+      let drawHeight = bounds.height;
+      let drawX = bounds.x;
+      let drawY = bounds.y;
+      
+      if (imgAspect > boundsAspect) {
+        // Image is wider - fit to width (letterbox top/bottom)
+        drawHeight = bounds.width / imgAspect;
+        drawY = bounds.y + (bounds.height - drawHeight) / 2;
+      } else {
+        // Image is taller - fit to height (pillarbox left/right)
+        drawWidth = bounds.height * imgAspect;
+        drawX = bounds.x + (bounds.width - drawWidth) / 2;
+      }
+      
+      // Draw the image with rounded corners (no clipping needed, shows full image)
+      this.ctx.save();
+      this.ctx.beginPath();
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      this.ctx.clip();
+      this.ctx.drawImage(imageData, drawX, drawY, drawWidth, drawHeight);
+      this.ctx.restore();
+      
+      // Add border
+      this.ctx.strokeStyle = '#e5e7eb';
+      this.ctx.lineWidth = 1;
+      this.ctx.save();
+      this.ctx.beginPath();
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      this.ctx.stroke();
+      this.ctx.restore();
+      
+    } else if (imageData instanceof ImageData) {
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) return;
+      
+      tempCanvas.width = imageData.width;
+      tempCanvas.height = imageData.height;
+      tempCtx.putImageData(imageData, 0, 0);
+      
+      await this.renderImageWithObjectContain(tempCanvas as any, bounds, borderRadius);
+    }
+  }
+
+  /**
+   * Render image with rounded corners and border (uses object-cover with CSS-like transforms)
+   */
+  private async renderImageWithRoundedCorners(
+    imageData: ImageData | HTMLImageElement,
+    bounds: Rectangle,
+    borderRadius: number,
+    imageScale: number = 1.0,
+    imageOffsetX: number = 0,
+    imageOffsetY: number = 0
   ): Promise<void> {
     if (imageData instanceof HTMLImageElement) {
       // First, fill the container background - matches ShotCard bg-gray-100
       this.ctx.fillStyle = '#f3f4f6';
-      this.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      this.ctx.save();
+      this.ctx.beginPath();
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      this.ctx.fill();
+      this.ctx.restore();
       
       // Calculate aspect ratio preserving fit (object-cover behavior)
       const imgAspect = imageData.naturalWidth / imageData.naturalHeight;
@@ -463,18 +588,60 @@ export class CanvasRenderer {
         drawY = bounds.y + (bounds.height - drawHeight) / 2;
       }
       
-      // Draw the image (this will crop to fit the bounds)
+      // Draw the image with rounded corners and CSS-like transforms
       this.ctx.save();
+      
+      // Set up clipping region
       this.ctx.beginPath();
-      this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
       this.ctx.clip();
-      this.ctx.drawImage(imageData, drawX, drawY, drawWidth, drawHeight);
+      
+      // Apply CSS-like transforms: scale() translate()
+      // CSS: transform: scale(X) translate(Ypx, Zpx)
+      // Transform origin is center of the bounds (transformOrigin: 'center center')
+      const centerX = bounds.x + bounds.width / 2;
+      const centerY = bounds.y + bounds.height / 2;
+      
+      // 1. Translate to transform origin (center)
+      this.ctx.translate(centerX, centerY);
+      
+      // 2. Apply scale
+      this.ctx.scale(imageScale, imageScale);
+      
+      // 3. Apply translate (in scaled space - CSS translate is applied AFTER scale)
+      this.ctx.translate(imageOffsetX, imageOffsetY);
+      
+      // 4. Translate back so the image center is at origin, then draw
+      // The image needs to be centered relative to the transform origin
+      const imageCenterOffsetX = (drawX + drawWidth / 2) - centerX;
+      const imageCenterOffsetY = (drawY + drawHeight / 2) - centerY;
+      
+      this.ctx.drawImage(
+        imageData,
+        imageCenterOffsetX - drawWidth / 2,
+        imageCenterOffsetY - drawHeight / 2,
+        drawWidth,
+        drawHeight
+      );
+      
       this.ctx.restore();
       
       // Add border around image container - matches ShotCard border-gray-200
       this.ctx.strokeStyle = '#e5e7eb';
       this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      this.ctx.save();
+      this.ctx.beginPath();
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      this.ctx.stroke();
+      this.ctx.restore();
       
     } else if (imageData instanceof ImageData) {
       // Create temporary canvas to draw ImageData
@@ -487,7 +654,14 @@ export class CanvasRenderer {
       tempCtx.putImageData(imageData, 0, 0);
       
       // Draw as if it were an image element
-      await this.renderShotImage(tempCanvas as any, bounds);
+      await this.renderImageWithRoundedCorners(
+        tempCanvas as any, 
+        bounds, 
+        borderRadius,
+        imageScale,
+        imageOffsetX,
+        imageOffsetY
+      );
     }
   }
   

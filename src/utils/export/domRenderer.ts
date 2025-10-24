@@ -25,7 +25,7 @@ export class DOMRenderer {
    */
   async renderFromDOMCapture(captureResult: DOMCaptureResult): Promise<void> {
     try {
-      const { layout, header, grid, backgroundColor } = captureResult;
+      const { layout, header, grid, footer, backgroundColor } = captureResult;
       
       // Set canvas dimensions
       this.canvas.width = layout.canvas.width;
@@ -40,6 +40,11 @@ export class DOMRenderer {
       
       // Render grid using DOM-captured layout
       await this.renderGridFromDOM(grid, layout.canvas.scale);
+      
+      // Render footer (page number) if present
+      if (footer && footer.text) {
+        this.renderFooterFromDOM(footer.bounds, footer.text, footer.justify, layout.canvas.scale);
+      }
       
     } catch (error) {
       throw new ExportError(
@@ -107,7 +112,8 @@ export class DOMRenderer {
       height: logoHeight
     };
     
-    await this.renderImage(header.logoImageData, logoBounds);
+    // Logo uses object-contain (not object-cover)
+    await this.renderImage(header.logoImageData, logoBounds, 1.0, 0, 0, 'contain');
   }
   
   /**
@@ -139,18 +145,25 @@ export class DOMRenderer {
       const contentWidth = (rect.width - paddingLeft - paddingRight) * scale;
       
       // Extract styling from DOM
+      const rawFontSize = parseFloat(computedStyle.fontSize);
       const style: TextStyle = {
         family: computedStyle.fontFamily,
-        size: parseFloat(computedStyle.fontSize) * scale,
+        size: rawFontSize * scale,
         weight: computedStyle.fontWeight as any,
         color: computedStyle.color,
-        lineHeight: parseFloat(computedStyle.lineHeight) / parseFloat(computedStyle.fontSize) || 1.2,
+        lineHeight: parseFloat(computedStyle.lineHeight) / rawFontSize || 1.2,
         textAlign: computedStyle.textAlign as any
       };
       
       // Render text
       const text = textElement.value || textElement.placeholder || '';
       if (text) {
+        console.log('🔍 Header text DEBUG:', {
+          rawFontSize,
+          scale,
+          finalSize: style.size,
+          textContent: text.substring(0, 20)
+        });
         this.renderTextFromDOM(text, contentX, contentY, contentWidth, style);
       }
     });
@@ -240,8 +253,27 @@ export class DOMRenderer {
       height: imageHeight
     };
     
+    // Get transform data directly from shot (percentage values from store)
+    // We MUST use store values, not inline style, because inline style contains
+    // pixels calculated for the SCALED view, but PDF captures at UNSCALED size
+    const imageScale = shot.imageScale || 1.0;
+    const imageOffsetXPercent = shot.imageOffsetX || 0; // Percentage (0.0 to 1.0)
+    const imageOffsetYPercent = shot.imageOffsetY || 0; // Percentage (0.0 to 1.0)
+    
+    // Convert percentage offsets to pixels based on ACTUAL captured container size
+    // imageBounds already reflects the correct container size after transform removal
+    // CRITICAL: The image container has left/right borders (2px total) but NO top/bottom borders
+    // So we subtract 2px from width but NOT from height
+    const borderLeftRight = 2; // 1px border on left + 1px on right
+    const containerWidth = (imageWidth / scale) - borderLeftRight; // Unscale and remove left/right borders
+    const containerHeight = (imageHeight / scale); // No top/bottom borders to subtract!
+    
+    const imageOffsetX = imageOffsetXPercent * containerWidth;
+    const imageOffsetY = imageOffsetYPercent * containerHeight;
+    
+    
     if (shot.imageData) {
-      await this.renderImage(shot.imageData, imageBounds);
+      await this.renderImage(shot.imageData, imageBounds, imageScale, imageOffsetX, imageOffsetY);
     } else {
       // Render placeholder
       this.renderPlaceholder(imageBounds, scale);
@@ -286,10 +318,20 @@ export class DOMRenderer {
     }
     
     // Render text
+    const rawFontSize = parseFloat(computedStyle.fontSize);
     this.ctx.fillStyle = computedStyle.color || '#374151';
-    this.ctx.font = `${computedStyle.fontWeight} ${parseFloat(computedStyle.fontSize) * scale}px ${computedStyle.fontFamily}`;
+    this.ctx.font = `${computedStyle.fontWeight} ${rawFontSize * scale}px ${computedStyle.fontFamily}`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
+    
+    console.log('🔍 Shot number DEBUG:', {
+      shotNumber: shot.number,
+      rawFontSize,
+      scale,
+      finalSize: rawFontSize * scale,
+      numberWidth,
+      numberHeight
+    });
     
     const textX = numberX + (numberWidth / 2);
     const textY = numberY + (numberHeight / 2);
@@ -324,62 +366,127 @@ export class DOMRenderer {
       const contentWidth = (rect.width - paddingLeft - paddingRight) * scale;
       
       // Extract styling from DOM
+      const rawFontSize = parseFloat(computedStyle.fontSize);
       const style: TextStyle = {
         family: computedStyle.fontFamily,
-        size: parseFloat(computedStyle.fontSize) * scale,
+        size: rawFontSize * scale,
         weight: computedStyle.fontWeight as any,
         color: computedStyle.color,
-        lineHeight: parseFloat(computedStyle.lineHeight) / parseFloat(computedStyle.fontSize) || 1.2,
+        lineHeight: parseFloat(computedStyle.lineHeight) / rawFontSize || 1.2,
         textAlign: computedStyle.textAlign as any
       };
       
       // Render text
       const text = textElement.value || '';
       if (text) {
+        console.log('🔍 Shot text DEBUG:', {
+          shotId: shot.id,
+          rawFontSize,
+          scale,
+          finalSize: style.size,
+          textContent: text.substring(0, 20)
+        });
         this.renderTextFromDOM(text, contentX, contentY, contentWidth, style);
       }
     });
   }
   
   /**
-   * Render image with proper aspect ratio preservation
+   * Render image with proper aspect ratio preservation and CSS transforms
    */
   private async renderImage(
     imageData: ImageData | HTMLImageElement,
-    bounds: Rectangle
+    bounds: Rectangle,
+    imageScale: number = 1.0,
+    imageOffsetX: number = 0,
+    imageOffsetY: number = 0,
+    objectFit: 'cover' | 'contain' = 'cover'
   ): Promise<void> {
     if (imageData instanceof HTMLImageElement) {
-      // Calculate aspect ratio preserving fit (object-cover behavior)
+      // Calculate aspect ratio preserving fit
       const imgAspect = imageData.naturalWidth / imageData.naturalHeight;
       const boundsAspect = bounds.width / bounds.height;
       
       let drawWidth = bounds.width;
       let drawHeight = bounds.height;
-      let drawX = bounds.x;
-      let drawY = bounds.y;
       
-      if (imgAspect > boundsAspect) {
-        // Image is wider - fit to height (crop sides)
-        drawWidth = bounds.height * imgAspect;
-        drawX = bounds.x + (bounds.width - drawWidth) / 2;
+      if (objectFit === 'cover') {
+        // object-cover: fill container, crop overflow
+        if (imgAspect > boundsAspect) {
+          // Image is wider - fit to height (crop sides)
+          drawWidth = bounds.height * imgAspect;
+        } else {
+          // Image is taller - fit to width (crop top/bottom)
+          drawHeight = bounds.width / imgAspect;
+        }
       } else {
-        // Image is taller - fit to width (crop top/bottom)
-        drawHeight = bounds.width / imgAspect;
-        drawY = bounds.y + (bounds.height - drawHeight) / 2;
+        // object-contain: show full image, add letterboxing
+        if (imgAspect > boundsAspect) {
+          // Image is wider - fit to width (letterbox top/bottom)
+          drawHeight = bounds.width / imgAspect;
+        } else {
+          // Image is taller - fit to height (letterbox sides)
+          drawWidth = bounds.height * imgAspect;
+        }
       }
       
-      // Draw the image (this will crop to fit the bounds)
+      // Draw the image with CSS-like transforms applied
       this.ctx.save();
+      
+      // Set up clipping region for container bounds with rounded corners (3px radius = rounded-sm in Tailwind)
+      const borderRadius = 3 * (bounds.width / 100); // Scale radius proportionally
       this.ctx.beginPath();
-      this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        // Fallback for browsers without roundRect support
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
       this.ctx.clip();
-      this.ctx.drawImage(imageData, drawX, drawY, drawWidth, drawHeight);
+      
+      // Apply CSS-like transforms: scale() translate()
+      // CSS: transform: scale(X) translate(Ypx, Zpx)
+      // Transform origin is center of the bounds (transformOrigin: 'center center')
+      const centerX = bounds.x + bounds.width / 2;
+      const centerY = bounds.y + bounds.height / 2;
+      
+      
+      // 1. Translate to transform origin (center)
+      this.ctx.translate(centerX, centerY);
+      
+      // 2. Apply scale
+      this.ctx.scale(imageScale, imageScale);
+      
+      // 3. Apply translate
+      // SIMPLIFIED APPROACH: Don't divide or multiply - just use the values directly
+      // The offsets are already calculated correctly as pixels in the container
+      // CSS transform order: scale() translate() applies in the SCALED coordinate system
+      // Canvas: after scale(), translate() ALSO applies in the scaled coordinate system
+      // So they should match if we use the same values!
+      this.ctx.translate(imageOffsetX, imageOffsetY);
+      
+      // 4. Draw image centered at origin (since object-cover centers by default)
+      // The image is drawn such that its center is at the current transform origin
+      this.ctx.drawImage(
+        imageData,
+        -drawWidth / 2,
+        -drawHeight / 2,
+        drawWidth,
+        drawHeight
+      );
+      
       this.ctx.restore();
       
-      // Add border around image container
+      // Add border around image container with rounded corners
       this.ctx.strokeStyle = '#e5e7eb';
       this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      this.ctx.beginPath();
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      this.ctx.stroke();
     }
   }
   
@@ -425,7 +532,47 @@ export class DOMRenderer {
   }
   
   /**
-   * Render text with DOM-captured styling
+   * Render footer (page number) using DOM-captured positioning
+   */
+  private renderFooterFromDOM(
+    bounds: Rectangle,
+    text: string,
+    justify: 'start' | 'center' | 'end',
+    scale: number
+  ): void {
+    // Set font for page number (match the styling from ShotGrid footer)
+    this.ctx.font = `400 ${10 * scale}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    this.ctx.fillStyle = '#6b7280'; // text-gray-500
+    this.ctx.textBaseline = 'top';
+    
+    // Calculate text position and alignment based on flex justify
+    let textX = bounds.x;
+    if (justify === 'end') {
+      this.ctx.textAlign = 'right';
+      textX = bounds.x + bounds.width;
+    } else if (justify === 'center') {
+      this.ctx.textAlign = 'center';
+      textX = bounds.x + (bounds.width / 2);
+    } else {
+      this.ctx.textAlign = 'left';
+      textX = bounds.x;
+    }
+    
+    console.log('🔍 Rendering footer:', {
+      text,
+      justify,
+      textX,
+      boundsX: bounds.x,
+      boundsWidth: bounds.width,
+      textAlign: this.ctx.textAlign
+    });
+    
+    // Render the page number text
+    this.ctx.fillText(text, textX, bounds.y);
+  }
+  
+  /**
+   * Render text with DOM-captured styling and proper word wrapping
    */
   private renderTextFromDOM(
     text: string,
@@ -440,15 +587,45 @@ export class DOMRenderer {
     this.ctx.textAlign = style.textAlign;
     this.ctx.textBaseline = 'top';
     
-    // Handle line breaks
-    const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-    
     // Calculate line height
     const lineHeight = style.size * style.lineHeight;
     
+    // Split by explicit line breaks first
+    const paragraphs = text.split(/\r?\n/);
+    const wrappedLines: string[] = [];
+    
+    // Word wrap each paragraph
+    for (const paragraph of paragraphs) {
+      if (paragraph.trim() === '') {
+        wrappedLines.push(''); // Preserve empty lines
+        continue;
+      }
+      
+      // Word wrap logic
+      const words = paragraph.split(' ');
+      let currentLine = '';
+      
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const metrics = this.ctx.measureText(testLine);
+        
+        if (metrics.width > maxWidth && currentLine) {
+          // Line is too long, push current line and start new one
+          wrappedLines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      
+      if (currentLine) {
+        wrappedLines.push(currentLine);
+      }
+    }
+    
     // Render each line
     let currentY = y;
-    for (const line of lines) {
+    for (const line of wrappedLines) {
       let lineX = x;
       
       if (style.textAlign === 'center') {

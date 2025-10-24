@@ -34,6 +34,7 @@ class BackgroundSyncServiceClass {
   private readonly BATCH_SIZE = 5;
   private readonly RETRY_DELAYS = [1000, 2000, 4000]; // 1s, 2s, 4s
   private deletedShots: Set<string> = new Set();
+  private isProcessingOfflineQueue = false;
 
   constructor() {
     this.loadQueueFromStorage();
@@ -94,9 +95,31 @@ class BackgroundSyncServiceClass {
 
   private setupEventListeners(): void {
     // Resume processing when coming online
-    window.addEventListener('online', () => {
+    window.addEventListener('online', async () => {
       console.log('Network online, resuming sync queue');
       this.startProcessing();
+      
+      // Also process any queued project data changes
+      try {
+        const { CloudSyncService } = await import('@/services/cloudSyncService');
+        if (CloudSyncService.hasQueuedChanges()) {
+          console.log('Processing queued project data changes...');
+          this.isProcessingOfflineQueue = true;
+          
+          await CloudSyncService.replayQueue();
+          console.log('✅ Queued project data changes synced to cloud');
+          
+          // Add a delay to prevent immediate auto-save and cloud loading from overwriting the queued changes
+          console.log('⏳ Waiting 5 seconds to prevent auto-save and cloud loading conflicts...');
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          console.log('✅ Auto-save and cloud loading conflict prevention complete');
+          
+          this.isProcessingOfflineQueue = false;
+        }
+      } catch (error) {
+        console.error('Failed to process queued project data changes:', error);
+        this.isProcessingOfflineQueue = false;
+      }
     });
 
     // Pause processing when going offline
@@ -358,6 +381,13 @@ class BackgroundSyncServiceClass {
     return this.queue.some(item => 
       item.status === 'pending' || item.status === 'syncing' || item.status === 'failed'
     );
+  }
+
+  /**
+   * Check if offline queue is being processed
+   */
+  public isProcessingOfflineQueue(): boolean {
+    return this.isProcessing;
   }
 
   public retryFailed(): void {

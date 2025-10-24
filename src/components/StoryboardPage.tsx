@@ -6,15 +6,35 @@ import { StartNumberSelector } from './StartNumberSelector';
 import { useAppStore, Shot } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, FileImage, FileText, FolderOpen } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Download, FileImage, FileText, FolderOpen, ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { PageTabs } from './PageTabs';
 import { MasterHeader } from './MasterHeader';
 import { TemplateSettings } from './TemplateSettings';
+import { ProjectDropdown } from './ProjectDropdown';
 import { PDFExportModal } from './PDFExportModal';
 import { BatchLoadModal } from './BatchLoadModal';
 import { ShotListLoadModal } from './ShotListLoadModal';
+import { ImageEditorModal } from './ImageEditorModal';
 import { exportManager } from '@/utils/export/exportManager';
 import ErrorBoundary from './ErrorBoundary';
 import {
@@ -65,7 +85,9 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     setIsDragging,
     insertShotIntoSubGroup,
     removeFromSubGroup,
-    jobInfo
+    jobInfo,
+    canCreateProject,
+    createProject
   } = useAppStore();
   
   const page = getPageById(pageId);
@@ -76,6 +98,11 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [showBatchLoadModal, setShowBatchLoadModal] = useState(false);
   const [showShotListLoadModal, setShowShotListLoadModal] = useState(false);
+  const [showImageEditorModal, setShowImageEditorModal] = useState(false);
+  const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [editingShot, setEditingShot] = useState<Shot | null>(null);
   const [batchInsertPosition, setBatchInsertPosition] = useState<number | null>(null);
   
   // Drag and drop state
@@ -94,8 +121,15 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         const availableWidth = wrapperWidth - wrapperPadding;
         const newScale = Math.max(availableWidth / 1000, 0.2);
         setScale(newScale);
+        
+        // Get the unscaled heights of both elements
+        const pageTabsElement = wrapper.querySelector('[data-page-tabs]');
+        const pageTabsHeight = pageTabsElement ? pageTabsElement.scrollHeight : 0;
         const contentHeight = content.scrollHeight;
-        const newHeight = contentHeight * newScale + wrapperPadding;
+        
+        // Calculate total height with scaling applied to BOTH together
+        const totalContentHeight = pageTabsHeight + contentHeight;
+        const newHeight = totalContentHeight * newScale + wrapperPadding;
         wrapper.style.height = `${newHeight}px`;
       }
     };
@@ -341,6 +375,28 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     setShowPDFModal(true);
   };
 
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) {
+      toast.error('Project name is required');
+      return;
+    }
+
+    try {
+      const projectId = await createProject(newProjectName.trim(), newProjectDescription.trim() || undefined);
+      if (projectId) {
+        toast.success(`Created project: ${newProjectName}`);
+        setNewProjectName('');
+        setNewProjectDescription('');
+        setShowCreateProjectDialog(false);
+      } else {
+        toast.error('Failed to create project');
+      }
+    } catch (error) {
+      console.error('Error creating project:', error);
+      toast.error('Failed to create project');
+    }
+  };
+
   const handleBatchLoad = () => {
     setBatchInsertPosition(null);
     setShowBatchLoadModal(true);
@@ -349,6 +405,17 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const handleShotListLoad = () => {
     setBatchInsertPosition(null);
     setShowShotListLoadModal(true);
+  };
+
+  const handleEditImage = (shot: Shot) => {
+    setEditingShot(shot);
+    setShowImageEditorModal(true);
+  };
+
+  const handleApplyImageEdit = (updates: { imageScale?: number; imageOffsetX?: number; imageOffsetY?: number }) => {
+    if (editingShot) {
+      updateShot(editingShot.id, updates);
+    }
   };
 
   const handleInsertBatch = (shotId: string) => {
@@ -425,7 +492,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   };
 
   return (
-    <div className={cn('w-full', className)}>
+    <div className={cn("flex flex-col flex-grow", className)}>
       <div className="mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -437,46 +504,59 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         </div>
         
         <div className="flex gap-2">
+          <ProjectDropdown 
+            compact 
+            onRequestCreate={() => setShowCreateProjectDialog(true)}
+          />
           <Button
             variant="outline"
+            size="compact"
             onClick={handleBatchLoad}
             disabled={isExporting}
-            className="hover:bg-purple-50"
+            className="px-2"
+            style={getToolbarContainerStyles()}
           >
-            <FolderOpen size={16} className="mr-2" />
+            <FolderOpen size={16} className={`mr-1 ${TOOLBAR_STYLES.iconClasses}`} />
             Batch Load
           </Button>
           <Button
             variant="outline"
+            size="compact"
             onClick={handleShotListLoad}
             disabled={isExporting}
-            className="hover:bg-orange-50"
+            className="px-2"
+            style={getToolbarContainerStyles()}
           >
-            <FileText size={16} className="mr-2" />
+            <FileText size={16} className={`mr-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
             Load Shot List
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportPNG}
-            disabled={isExporting}
-            className="hover:bg-blue-50"
-          >
-            <FileImage size={16} className="mr-2" />
-            Export PNG
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportPDF}
-            disabled={isExporting}
-            className="hover:bg-green-50"
-          >
-            <FileText size={16} className="mr-2" />
-            Export PDF
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="compact"
+                disabled={isExporting}
+                className="px-2"
+                style={getToolbarContainerStyles()}
+              >
+                <Download size={16} className={`mr-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
+                Export
+                <ChevronDown size={14} className={`ml-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportPNG} disabled={isExporting}>
+                <FileImage size={16} className="mr-2" />
+                Export as PNG
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPDF} disabled={isExporting}>
+                <FileText size={16} className="mr-2" />
+                Export as PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-      
-      <PageTabs />
 
       <ErrorBoundary>
       <DndContext
@@ -488,22 +568,45 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
       <div 
         ref={wrapperRef}
         className={cn(
-          "w-full flex justify-center bg-gray-100 p-4 rounded-lg"
+          "w-full flex flex-col items-start p-4 rounded-lg"
         )}
-        style={{ transition: 'height 0.2s ease-out' }}
+        style={{ 
+          transition: 'height 0.2s ease-out',
+          backgroundColor: 'rgba(1, 1, 1, 0.2)',
+          backdropFilter: 'blur(0.5px)',
+          WebkitBackdropFilter: 'blur(0.5px)',
+          border: '1px solid rgba(0, 0, 0, 0.1)',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        }}
       >
+        {/* Single scaling parent container for both PageTabs and StoryboardContent */}
         <div 
-          ref={contentRef}
-          id={`storyboard-page-${pageId}`}
-          className={cn(
-            "bg-white rounded-md shadow-lg border border-gray-200 overflow-visible"
-          )}
+          className="w-full flex flex-col items-center"
           style={{
-            height: 'min-content',
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
           }}
         >
+          {/* Single centered 1000px container holding BOTH PageTabs and StoryboardContent */}
+          <div className="w-full flex justify-center">
+            <div style={{ width: '1000px' }}>
+              
+              {/* PageTabs - sibling of StoryboardContent within shared container */}
+              <div className="relative z-10 -mb-1" data-page-tabs>
+                <PageTabs />
+              </div>
+              
+              {/* StoryboardContent - sibling of PageTabs within shared container */}
+              <div 
+                ref={contentRef}
+                id={`storyboard-page-${pageId}`}
+                className={cn(
+                  "bg-white rounded-md shadow-lg overflow-visible relative z-20"
+                )}
+                style={{
+                  height: 'min-content',
+                }}
+              >
           <MasterHeader />
           <div className='p-1'>
           <SortableContext items={pageShots.map(s => s.id)} strategy={rectSortingStrategy}>
@@ -515,47 +618,107 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
               onAddShot={addShot}
               onAddSubShot={addSubShot}
               onInsertBatch={handleInsertBatch}
+              onEditImage={handleEditImage}
             />
           </SortableContext>
           </div>
+          </div>
+          </div>
+          </div>
         </div>
-      </div>
-      <DragOverlay>
-        {activeShot ? (
-          <ShotCard
-            shot={activeShot}
-            onUpdate={() => {}}
-            onDelete={() => {}}
-            onAddSubShot={() => {}}
-            onInsertShot={() => {}}
-            isOverlay
-            aspectRatio={page?.aspectRatio || '16/9'}
-            previewDimensions={previewDimensions}
-          />
-        ) : null}
-      </DragOverlay>
-      </DndContext>
-      </ErrorBoundary>
+        </div>
+        
+        <DragOverlay>
+          {activeShot ? (
+            <ShotCard
+              shot={activeShot}
+              onUpdate={() => {}}
+              onDelete={() => {}}
+              onAddSubShot={() => {}}
+              onInsertShot={() => {}}
+              isOverlay
+              aspectRatio={page?.aspectRatio || '16/9'}
+              previewDimensions={previewDimensions}
+            />
+          ) : null}
+        </DragOverlay>
+        </DndContext>
+        </ErrorBoundary>
 
-      <PDFExportModal
-        isOpen={showPDFModal}
-        onClose={() => setShowPDFModal(false)}
-        currentPageIndex={pageIndex}
-      />
+        <PDFExportModal
+          isOpen={showPDFModal}
+          onClose={() => setShowPDFModal(false)}
+          currentPageIndex={pageIndex}
+        />
 
-      <BatchLoadModal
-        isOpen={showBatchLoadModal}
-        onClose={() => setShowBatchLoadModal(false)}
-        pageId={pageId}
-        initialPosition={batchInsertPosition}
-      />
+        <BatchLoadModal
+          isOpen={showBatchLoadModal}
+          onClose={() => setShowBatchLoadModal(false)}
+          pageId={pageId}
+          initialPosition={batchInsertPosition}
+        />
 
-      <ShotListLoadModal
-        isOpen={showShotListLoadModal}
-        onClose={() => setShowShotListLoadModal(false)}
-        pageId={pageId}
-        initialPosition={batchInsertPosition}
-      />
+        <ShotListLoadModal
+          isOpen={showShotListLoadModal}
+          onClose={() => setShowShotListLoadModal(false)}
+          pageId={pageId}
+          initialPosition={batchInsertPosition}
+        />
+
+        <ImageEditorModal
+          isOpen={showImageEditorModal}
+          onClose={() => {
+            setShowImageEditorModal(false);
+            setEditingShot(null);
+          }}
+          shot={editingShot}
+          aspectRatio={page?.aspectRatio || '16/9'}
+          gridCols={page?.gridCols || 3}
+          onApply={handleApplyImageEdit}
+        />
+
+        {/* Create Project Dialog */}
+        <Dialog open={showCreateProjectDialog} onOpenChange={setShowCreateProjectDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Project</DialogTitle>
+              <DialogDescription>
+                Create a new storyboard project with a custom name and description.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="project-name">Project Name</Label>
+                <Input
+                  id="project-name"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Enter project name"
+                  maxLength={50}
+                />
+              </div>
+              <div>
+                <Label htmlFor="project-description">Description (Optional)</Label>
+                <Textarea
+                  id="project-description"
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  placeholder="Enter project description"
+                  maxLength={200}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateProjectDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateProject}>
+                Create Project
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 };

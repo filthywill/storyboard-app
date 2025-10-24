@@ -79,21 +79,26 @@ export const PageTabs: React.FC = () => {
 
   return (
     <>
-      <div className="flex items-center gap-1 mb-1">
+      <div className="flex items-start gap-0.5 mb-0">
         <div className="overflow-x-auto">
           <Tabs value={activePageId} onValueChange={setActivePage}>
-            <TabsList className="h-auto p-0 bg-transparent gap-2">
+            <TabsList className="h-auto p-0 bg-transparent gap-1">
               {pages.map((page) => (
                 <div
                   key={page.id}
                   className={cn(
-                    "flex items-center group rounded-md",
-                    activePageId === page.id ? "bg-white shadow-sm" : "bg-muted"
+                    "flex items-center group rounded-t-md h-8",
+                    activePageId === page.id ? "bg-white" : "bg-muted opacity-50"
                   )}
                 >
                   <TabsTrigger
                     value={page.id}
-                    className="bg-transparent shadow-none px-3 py-2 text-sm font-medium"
+                    className="bg-transparent shadow-none border-none outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 px-2 pt-0.5 pb-2 text-xs font-medium data-[state=active]:bg-transparent data-[state=inactive]:bg-transparent hover:bg-transparent data-[state=active]:shadow-none data-[state=inactive]:shadow-none data-[state=active]:border-none data-[state=inactive]:border-none"
+                    style={{
+                      boxShadow: 'none',
+                      outline: 'none',
+                      border: 'none'
+                    }}
                   >
                     {page.name}
                   </TabsTrigger>
@@ -103,7 +108,7 @@ export const PageTabs: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 transition-opacity mr-1 text-muted-foreground hover:text-foreground"
+                        className="h-7 w-6 p-0 transition-opacity mr-0 text-muted-foreground hover:text-foreground"
                       >
                         <MoreHorizontal size={14} />
                       </Button>
@@ -135,11 +140,10 @@ export const PageTabs: React.FC = () => {
         <Button
           onClick={handleCreatePage}
           size="sm"
-          className="shrink-0"
+          className="shrink-0 ml-0.3 px-1.5 py-0.5 h-6 text-xs mt-0.5 bg-purple-500/20 hover:bg-purple-500/30 border-none border-purple-400/30 text-purple-200 hover:text-purple-100 transition-all duration-200"
         >
-          <Plus size={16} className="mr-2" />
-          New Page
-        </Button>
+          <Plus size={14} strokeWidth={3} className="mr-0" />
+          </Button>
       </div>
 
 

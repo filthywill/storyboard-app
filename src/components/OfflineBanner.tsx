@@ -4,7 +4,8 @@ import { useAuthStore } from '@/store/authStore'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { LogIn } from 'lucide-react'
+import { LogIn, Shield, AlertTriangle } from 'lucide-react'
+import { sessionSecurity, sessionHelpers } from '@/utils/sessionSecurity'
 
 interface OfflineBannerProps {
   onSignIn?: () => void;
@@ -22,6 +23,8 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
     isProcessing: false
   })
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [sessionTimeout, setSessionTimeout] = useState<number | null>(null)
+  const [securityWarning, setSecurityWarning] = useState<string | null>(null)
   
   // Check sync status periodically
   useEffect(() => {
@@ -44,14 +47,62 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
       console.log('Network online, BackgroundSyncService will process queue automatically')
     }
   }, [isOnline])
+
+  // Session security monitoring
+  useEffect(() => {
+    const checkSessionTimeout = () => {
+      const timeUntilTimeout = sessionHelpers.getTimeUntilTimeout()
+      if (timeUntilTimeout > 0 && timeUntilTimeout <= 5 * 60 * 1000) { // 5 minutes
+        setSessionTimeout(timeUntilTimeout)
+      } else {
+        setSessionTimeout(null)
+      }
+    }
+
+    // Check every 30 seconds
+    const interval = setInterval(checkSessionTimeout, 30000)
+    checkSessionTimeout() // Check immediately
+
+    return () => clearInterval(interval)
+  }, [])
+
+  // Set up session timeout callbacks
+  useEffect(() => {
+    const handleTimeoutWarning = (timeRemaining: number) => {
+      setSessionTimeout(timeRemaining)
+    }
+
+    const handleTimeout = () => {
+      setLogoutReason('expired')
+      setSessionTimeout(null)
+    }
+
+    sessionSecurity.onTimeoutWarning(handleTimeoutWarning)
+    sessionSecurity.onTimeout(handleTimeout)
+
+    return () => {
+      // Cleanup is handled by sessionSecurity itself
+    }
+  }, [setLogoutReason])
   
-  // Don't show banner if online and no queued changes and no session issues
-  if (isOnline && !syncStatus.isProcessing && syncStatus.totalPending === 0 && syncStatus.totalFailed === 0 && logoutReason !== 'expired') return null
+  // Don't show banner if online and no queued changes and no session issues and no security warnings
+  if (isOnline && !syncStatus.isProcessing && syncStatus.totalPending === 0 && syncStatus.totalFailed === 0 && logoutReason !== 'expired' && !sessionTimeout && !securityWarning) return null
   
   const getStatusMessage = () => {
     // Session expiry takes priority
     if (logoutReason === 'expired') {
       return '🔐 Your account has been logged out due to inactivity. Please log back in to save your changes.'
+    }
+    
+    // Session timeout warning
+    if (sessionTimeout) {
+      const minutes = Math.ceil(sessionTimeout / (60 * 1000))
+      return `⏰ Your session will expire in ${minutes} minute${minutes !== 1 ? 's' : ''}. Save your work to prevent data loss.`
+    }
+    
+    // Security warning
+    if (securityWarning) {
+      return `🛡️ ${securityWarning}`
     }
     
     if (!isOnline) {
@@ -78,6 +129,14 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
       return 'bg-orange-100 border-orange-200 text-orange-800'
     }
     
+    if (sessionTimeout) {
+      return 'bg-amber-100 border-amber-200 text-amber-800'
+    }
+    
+    if (securityWarning) {
+      return 'bg-red-100 border-red-200 text-red-800'
+    }
+    
     if (!isOnline) {
       return 'bg-yellow-100 border-yellow-200 text-yellow-800'
     }
@@ -102,8 +161,14 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
     }
   };
 
+  const handleExtendSession = () => {
+    sessionHelpers.extendSession();
+    setSessionTimeout(null);
+    toast.success('Session extended successfully');
+  };
+
   return (
-    <div className={`fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-sm shadow-md ${getBannerStyle()}`}>
+    <div className={`fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-sm shadow-md ${getBannerStyle()}`} style={{ fontFamily: '"Open Sans", sans-serif' }}>
       <div className="flex items-center justify-center gap-3">
         <span>{message}</span>
         {logoutReason === 'expired' && onSignIn && (
@@ -115,6 +180,17 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
           >
             <LogIn className="h-4 w-4 mr-1" />
             Sign In
+          </Button>
+        )}
+        {sessionTimeout && (
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={handleExtendSession}
+            className="ml-2"
+          >
+            <Shield className="h-4 w-4 mr-1" />
+            Extend Session
           </Button>
         )}
       </div>

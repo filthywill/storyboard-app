@@ -1,3 +1,7 @@
+// ⚠️ DEPRECATED: This file uses legacy programmatic layout calculations and will be removed in a future version.
+// PDF export now uses DOM capture (DOMCapture + DOMRenderer) for WYSIWYG reliability.
+// TODO: Remove this file after validating DOM-based export works for all use cases.
+
 import { 
   StoryboardPage, 
   Shot,
@@ -14,6 +18,8 @@ import {
   ExportError
 } from '@/utils/types/exportTypes';
 import { LayoutCalculator } from './layoutCalculator';
+
+console.warn('⚠️ DEPRECATED: DataTransformer uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
 
 export class DataTransformer {
   /**
@@ -147,7 +153,11 @@ export class DataTransformer {
   ): Promise<ExportShot> {
     let imageData: ImageData | HTMLImageElement | undefined;
     
-    // Load shot image if available
+    // Load shot image from available sources (priority order)
+    // 1. imageFile (active session - highest priority)
+    // 2. imageData (base64 - local/current work)
+    // 3. imageUrl (Supabase cloud storage - older version)
+    
     if (shot.imageFile) {
       try {
         const url = URL.createObjectURL(shot.imageFile);
@@ -155,7 +165,22 @@ export class DataTransformer {
         imageData = img;
         URL.revokeObjectURL(url);
       } catch (error) {
-        console.warn(`Failed to load image for shot ${shot.number}:`, error);
+        console.warn(`Failed to load image from imageFile for shot ${shot.number}:`, error);
+      }
+    } else if (shot.imageData) {
+      try {
+        // imageData is base64 string - prioritize local work over cloud
+        const img = await this.loadImageElement(shot.imageData);
+        imageData = img;
+      } catch (error) {
+        console.warn(`Failed to load image from imageData for shot ${shot.number}:`, error);
+      }
+    } else if (shot.imageUrl) {
+      try {
+        const img = await this.loadImageElement(shot.imageUrl);
+        imageData = img;
+      } catch (error) {
+        console.warn(`Failed to load image from imageUrl for shot ${shot.number}:`, error);
       }
     }
     
@@ -166,6 +191,9 @@ export class DataTransformer {
       actionText: shot.actionText,
       scriptText: shot.scriptText,
       bounds,
+      imageScale: shot.imageScale,
+      imageOffsetX: shot.imageOffsetX,
+      imageOffsetY: shot.imageOffsetY,
       templateSettings // Pass template settings to renderer
     };
   }

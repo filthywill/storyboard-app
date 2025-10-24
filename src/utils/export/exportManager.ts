@@ -67,14 +67,15 @@ export class ExportManager {
   async exportPageAsPDF(
     pages: StoryboardPage[],
     storyboardState: StoryboardState,
-    pdfOptions: PDFExportOptions
+    pdfOptions: PDFExportOptions,
+    onProgress?: (current: number, total: number, pageName: string) => void
   ): Promise<Blob> {
     try {
       // Create PDF renderer with user options
       const pdfRenderer = new PDFRenderer(pdfOptions);
       
-      // Export the pages
-      const pdfBlob = await pdfRenderer.exportPages(pages, storyboardState);
+      // Export the pages with progress callback
+      const pdfBlob = await pdfRenderer.exportPages(pages, storyboardState, onProgress);
       
       return pdfBlob;
       
@@ -93,10 +94,11 @@ export class ExportManager {
     pages: StoryboardPage[],
     storyboardState: StoryboardState,
     filename: string,
-    pdfOptions: PDFExportOptions
+    pdfOptions: PDFExportOptions,
+    onProgress?: (current: number, total: number, pageName: string) => void
   ): Promise<void> {
     try {
-      const pdfBlob = await this.exportPageAsPDF(pages, storyboardState, pdfOptions);
+      const pdfBlob = await this.exportPageAsPDF(pages, storyboardState, pdfOptions, onProgress);
       
       // Create download link
       const url = URL.createObjectURL(pdfBlob);

@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 
 export const TemplateSettings: React.FC = () => {
   const {
@@ -43,8 +44,13 @@ export const TemplateSettings: React.FC = () => {
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-10 w-10 p-0 flex items-center justify-center">
-              <Settings size={24} />
+            <Button 
+              variant="outline" 
+              size="compact" 
+              className="py-1.5 flex items-center justify-center"
+              style={getToolbarContainerStyles()}
+            >
+              <Settings size={16} className={TOOLBAR_STYLES.iconClasses} />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>

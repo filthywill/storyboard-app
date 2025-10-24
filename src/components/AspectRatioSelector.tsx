@@ -4,6 +4,7 @@ import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { buttonVariants } from './ui/button';
 import { cn } from '@/lib/utils';
+import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 
 interface AspectRatioSelectorProps {
   pageId: string;
@@ -33,11 +34,10 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={cn(
-            'flex items-center justify-between p-2 gap-2 h-10 border border-input bg-background rounded-md'
-          )}
+          className={cn(TOOLBAR_STYLES.containerClasses)}
+          style={getToolbarContainerStyles()}
         >
-          <RectangleHorizontal size={16} />
+          <RectangleHorizontal size={16} className={TOOLBAR_STYLES.iconClasses} />
           <ToggleGroup
             type="single"
             value={currentAspectRatio} 
@@ -50,7 +50,7 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
                 key={ratio.value}
                 value={ratio.value}
                 aria-label={ratio.label}
-                className="h-7 px-2 border-none hover:bg-accent hover:text-accent-foreground transition-colors"
+                className={`h-5 px-1.5 border-none hover:bg-white/10 ${TOOLBAR_STYLES.textClasses} transition-colors`}
                 >
                   {ratio.label}
               </ToggleGroupItem>

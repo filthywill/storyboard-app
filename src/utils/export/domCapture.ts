@@ -16,6 +16,7 @@ export interface DOMCaptureResult {
   layout: LayoutConfig;
   header: ExportHeader;
   grid: ExportGrid;
+  footer: { bounds: Rectangle; text: string | null; justify: 'start' | 'center' | 'end' } | null;
   backgroundColor: string;
 }
 
@@ -38,6 +39,13 @@ export class DOMCapture {
       // Get the page's bounding rect
       const pageRect = pageElement.getBoundingClientRect();
       
+      console.log('🔍 DOM Capture DEBUG:', {
+        pageWidth: pageRect.width,
+        pageHeight: pageRect.height,
+        scale,
+        devicePixelRatio: window.devicePixelRatio
+      });
+      
       // Calculate canvas dimensions
       const canvasDimensions: ExportDimensions = {
         width: Math.round(pageRect.width * scale),
@@ -52,6 +60,39 @@ export class DOMCapture {
       // Capture grid layout
       const { grid, gridBounds } = await this.captureGrid(pageElement, storyboardState, scale, pageRect);
 
+      // Capture footer layout (page number)
+      let footerBounds: Rectangle | null = null;
+      let footerText: string | null = null;
+      let footerJustify: 'start' | 'center' | 'end' = 'end'; // Default to right-aligned
+      
+      if (storyboardState.templateSettings.showPageNumber) {
+        // Find the footer element - look for the flex container with justify-end
+        const flexContainer = Array.from(pageElement.querySelectorAll('.flex.justify-end, .flex.justify-center, .flex.justify-start'));
+        const footerParent = flexContainer.find(el => el.textContent?.trim().startsWith('Page '));
+        
+        if (footerParent) {
+          footerBounds = this.getElementBounds(footerParent, pageRect, scale);
+          footerText = footerParent.textContent?.trim() || null;
+          
+          // Determine alignment from classes
+          const classes = footerParent.className;
+          if (classes.includes('justify-end')) {
+            footerJustify = 'end';
+          } else if (classes.includes('justify-center')) {
+            footerJustify = 'center';
+          } else if (classes.includes('justify-start')) {
+            footerJustify = 'start';
+          }
+          
+          console.log('🔍 Footer DEBUG:', {
+            text: footerText,
+            justify: footerJustify,
+            classes,
+            bounds: footerBounds
+          });
+        }
+      }
+
       // Create layout config
       const layout: LayoutConfig = {
         canvas: canvasDimensions,
@@ -64,6 +105,7 @@ export class DOMCapture {
         layout,
         header,
         grid,
+        footer: footerBounds ? { bounds: footerBounds, text: footerText, justify: footerJustify } : null,
         backgroundColor: '#ffffff'
       };
 
@@ -190,7 +232,10 @@ export class DOMCapture {
         return null;
       }
 
-      // Load shot image if available
+      // Load shot image from available sources (priority order)
+      // 1. imageFile (active session)
+      // 2. imageData (base64 - local work)
+      // 3. imageUrl (Supabase - older cloud version)
       let imageData: HTMLImageElement | undefined;
       if (shotData.imageFile) {
         try {
@@ -199,6 +244,18 @@ export class DOMCapture {
           URL.revokeObjectURL(url);
         } catch (error) {
           console.warn('Failed to load shot image from imageFile:', error);
+        }
+      } else if (shotData.imageData) {
+        try {
+          imageData = await DataTransformer.loadImageElement(shotData.imageData);
+        } catch (error) {
+          console.warn('Failed to load shot image from imageData:', error);
+        }
+      } else if (shotData.imageUrl) {
+        try {
+          imageData = await DataTransformer.loadImageElement(shotData.imageUrl);
+        } catch (error) {
+          console.warn('Failed to load shot image from imageUrl:', error);
         }
       }
 
@@ -209,6 +266,10 @@ export class DOMCapture {
         actionText: shotData.actionText,
         scriptText: shotData.scriptText,
         bounds: bounds,
+        // Pass transform data directly from store (percentage values)
+        imageScale: shotData.imageScale,
+        imageOffsetX: shotData.imageOffsetX,
+        imageOffsetY: shotData.imageOffsetY,
         templateSettings: storyboardState.templateSettings
       };
     } catch (error) {

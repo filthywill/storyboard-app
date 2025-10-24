@@ -1,8 +1,11 @@
 import { supabase } from '@/lib/supabase';
+import { SecurityNotificationService } from './securityNotificationService';
+import { DataValidator } from '@/utils/dataValidator';
 
 export interface ProjectData {
   pages: any[];
   shots: Record<string, any>;
+  shotOrder?: string[];
   projectSettings: {
     projectName: string;
     projectInfo: any;
@@ -75,6 +78,65 @@ export class ProjectService {
   }
 
   static async saveProject(projectId: string, data: ProjectData): Promise<void> {
+    // Security validation before saving
+    const validation = DataValidator.validateBeforeSave(data, projectId, '');
+    
+    if (!validation.valid) {
+      // Show security notifications for validation errors
+      SecurityNotificationService.showDataValidationWarning(validation.errors, validation.warnings);
+      throw new Error(`Data validation failed: ${validation.errors.join(', ')}`);
+    }
+
+    // Show warnings if any
+    if (validation.warnings.length > 0) {
+      SecurityNotificationService.showDataValidationWarning([], validation.warnings);
+    }
+
+    // Additional size validation
+    if (!SecurityNotificationService.validateProjectData(data)) {
+      throw new Error('Project data exceeds size limits');
+    }
+
+    // CRITICAL VALIDATION: Prevent saving corrupted/empty data
+    const shotCount = Object.keys(data.shots || {}).length;
+    const pageCount = data.pages?.length || 0;
+
+    // Enhanced validation with timestamp context
+    if (pageCount === 0 || shotCount === 0) {
+      console.warn(`⚠️ Attempting to save project ${projectId} with potentially empty data:`, {
+        pages: pageCount,
+        shots: shotCount,
+        timestamp: new Date().toISOString()
+      });
+
+      try {
+        // Fetch existing cloud data to compare
+        const existingData = await this.getProject(projectId);
+        const existingShotCount = Object.keys(existingData.shots || {}).length;
+        const existingPageCount = existingData.pages?.length || 0;
+
+        // If cloud has data but we're trying to save empty data, ABORT!
+        if (existingShotCount > 0 && shotCount === 0) {
+          console.error(`❌ CRITICAL: Prevented data loss! Cloud has ${existingShotCount} shots, refusing to overwrite with 0 shots.`);
+          throw new Error(`Data validation failed: Cannot overwrite ${existingShotCount} shots with empty data.`);
+        }
+
+        if (existingPageCount > 0 && pageCount === 0) {
+          console.error(`❌ CRITICAL: Prevented data loss! Cloud has ${existingPageCount} pages, refusing to overwrite with 0 pages.`);
+          throw new Error(`Data validation failed: Cannot overwrite ${existingPageCount} pages with empty data.`);
+        }
+
+        console.log(`✅ Validation passed: Empty project save allowed (cloud is also empty or new project)`);
+      } catch (error: any) {
+        // If it's our validation error, re-throw it
+        if (error.message?.includes('Data validation failed')) {
+          throw error;
+        }
+        // If project doesn't exist in cloud yet (404), that's fine - new project
+        console.log(`Project doesn't exist in cloud yet, allowing save of new project`);
+      }
+    }
+
     const { error } = await supabase
       .from('project_data')
       .upsert({
@@ -84,7 +146,7 @@ export class ProjectService {
         shot_order: data.shotOrder || [],
         project_settings: data.projectSettings,
         ui_settings: data.uiSettings,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString() // This sets the authoritative timestamp
       }, {
         onConflict: 'project_id'
       });
@@ -92,6 +154,12 @@ export class ProjectService {
     if (error) {
       throw error;
     }
+
+    console.log(`✅ Successfully saved project ${projectId} to cloud:`, {
+      pages: pageCount,
+      shots: shotCount,
+      timestamp: new Date().toISOString()
+    });
   }
 
   static async deleteProject(projectId: string): Promise<void> {
@@ -121,7 +189,8 @@ export class ProjectService {
       .select(`
         *,
         project_data (
-          shots
+          shots,
+          updated_at
         )
       `)
       .eq('user_id', user.id)
@@ -131,10 +200,11 @@ export class ProjectService {
       throw error;
     }
 
-    // Calculate shot count for each project
+    // Calculate shot count for each project and include data timestamp
     const projectsWithShotCount = (data || []).map(project => ({
       ...project,
-      shot_count: project.project_data?.shots ? Object.keys(project.project_data.shots).length : 0
+      shot_count: project.project_data?.shots ? Object.keys(project.project_data.shots).length : 0,
+      data_updated_at: project.project_data?.updated_at // Actual data timestamp
     }));
 
     return projectsWithShotCount;

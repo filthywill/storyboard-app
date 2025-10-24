@@ -19,11 +19,7 @@ import { toast } from '@/hooks/use-toast';
 import { exportManager } from '@/utils/export/exportManager';
 
 export interface PDFExportOptions {
-  paperSize: 'letter' | 'a4' | 'a3' | 'tabloid' | 'canvas';
-  orientation: 'portrait' | 'landscape';
-  quality: 'standard' | 'high' | 'print';
-  margin: 'none' | 'small' | 'medium' | 'large';
-  fitToPage: boolean;
+  paperSize: 'letter' | 'canvas';
   pages: 'all' | 'current' | 'range';
   pageRange?: { start: number; end: number };
 }
@@ -49,13 +45,10 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
     getPageShots
   } = useAppStore();
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{current: number; total: number; pageName: string} | null>(null);
   
   const [options, setOptions] = useState<PDFExportOptions>({
     paperSize: 'letter',
-    orientation: 'landscape',
-    quality: 'high',
-    margin: 'medium',
-    fitToPage: true,
     pages: 'all',
     pageRange: { start: 1, end: pages.length }
   });
@@ -112,8 +105,16 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
       const filename = `storyboard_${timestamp}.pdf`;
 
-      // Export PDF
-      await exportManager.downloadPDF(legacyPages, storyboardState, filename, options);
+      // Export PDF using DOM capture system with progress tracking
+      await exportManager.downloadPDF(
+        legacyPages,
+        storyboardState,
+        filename,
+        options,
+        (current, total, pageName) => {
+          setExportProgress({ current, total, pageName });
+        }
+      );
       
       toast({
         title: 'PDF Export Successful',
@@ -131,6 +132,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
       });
     } finally {
       setIsExporting(false);
+      setExportProgress(null);
     }
   };
 
@@ -148,8 +150,6 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
     }));
   };
 
-  // Helper to check if we're in canvas mode
-  const isCanvasMode = options.paperSize === 'canvas';
 
   const getSelectedPageCount = () => {
     if (options.pages === 'all') return pages.length;
@@ -231,95 +231,19 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
 
           {/* Paper Settings */}
           <div className="space-y-3">
-            <Label className="text-base font-medium">Paper Settings</Label>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="paper-size">Paper Size</Label>
-                <Select
-                  value={options.paperSize}
-                  onValueChange={(value) => updateOptions('paperSize', value)}
-                >
-                  <SelectTrigger id="paper-size">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="letter">Letter (8.5" × 11")</SelectItem>
-                    <SelectItem value="a4">A4 (210 × 297mm)</SelectItem>
-                    <SelectItem value="a3">A3 (297 × 420mm)</SelectItem>
-                    <SelectItem value="tabloid">Tabloid (11" × 17")</SelectItem>
-                    <SelectItem value="canvas">Canvas (Custom)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="orientation">Orientation</Label>
-                <Select
-                  value={options.orientation}
-                  onValueChange={(value) => updateOptions('orientation', value)}
-                >
-                  <SelectTrigger id="orientation">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="portrait">Portrait</SelectItem>
-                    <SelectItem value="landscape">Landscape</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          {/* Quality Settings */}
-          <div className="space-y-3">
-            <Label className="text-base font-medium">Quality Settings</Label>
-            <RadioGroup
-              value={options.quality}
-              onValueChange={(value) => updateOptions('quality', value)}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="standard" id="quality-standard" />
-                <Label htmlFor="quality-standard">Standard (Fast)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="high" id="quality-high" />
-                <Label htmlFor="quality-high">High Quality</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="print" id="quality-print" />
-                <Label htmlFor="quality-print">Print Ready</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Layout Options */}
-          <div className="space-y-3">
-            <Label className="text-base font-medium">Layout Options</Label>
+            <Label className="text-base font-medium">Export Settings</Label>
             <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="fit-to-page"
-                  checked={options.fitToPage}
-                  onCheckedChange={(checked) => updateOptions('fitToPage', checked)}
-                />
-                <Label htmlFor="fit-to-page">Fit to page</Label>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="margin">Margin</Label>
+              <Label htmlFor="paper-size">Paper Size</Label>
               <Select
-                value={options.margin}
-                onValueChange={(value) => updateOptions('margin', value)}
+                value={options.paperSize}
+                onValueChange={(value) => updateOptions('paperSize', value)}
               >
-                <SelectTrigger id="margin">
+                <SelectTrigger id="paper-size">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Margin</SelectItem>
-                  <SelectItem value="small">Small (0.25")</SelectItem>
-                  <SelectItem value="medium">Medium (0.5")</SelectItem>
-                  <SelectItem value="large">Large (1")</SelectItem>
+                  <SelectItem value="letter">8.5" × 11" (Standard)</SelectItem>
+                  <SelectItem value="canvas">Canvas (Exact Layout)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -329,10 +253,15 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              Exporting {getSelectedPageCount()} page(s) as PDF with {options.quality} quality.
-              {isCanvasMode && (
+              Exporting {getSelectedPageCount()} page(s) as PDF.
+              {options.paperSize === 'canvas' && (
                 <div className="mt-1 text-amber-600">
-                  Canvas mode will preserve exact layout and scaling.
+                  Canvas mode preserves exact layout and scaling.
+                </div>
+              )}
+              {options.paperSize === 'letter' && (
+                <div className="mt-1 text-blue-600">
+                  Standard 8.5" × 11" format with optimized quality.
                 </div>
               )}
             </AlertDescription>
@@ -371,6 +300,51 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
           </Button>
         </DialogFooter>
       </DialogContent>
+      
+      {/* Export Progress Overlay - Fullscreen to hide page switching */}
+      {exportProgress && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-2xl p-8 max-w-md w-full mx-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                <div>
+                  <h3 className="font-semibold text-lg">Exporting PDF...</h3>
+                  <p className="text-sm text-gray-600">
+                    Page {exportProgress.current} of {exportProgress.total}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Current page:</span>
+                  <span className="font-medium">{exportProgress.pageName}</span>
+                </div>
+                
+                {/* Progress bar */}
+                <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
+                  />
+                </div>
+                
+                <p className="text-xs text-gray-500 text-center">
+                  {Math.round((exportProgress.current / exportProgress.total) * 100)}% complete
+                </p>
+              </div>
+              
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Please wait while we export your storyboard. This may take a moment for multi-page exports.
+                </AlertDescription>
+              </Alert>
+            </div>
+          </div>
+        </div>
+      )}
     </Dialog>
   );
 } 

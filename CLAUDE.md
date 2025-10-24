@@ -95,10 +95,26 @@ The `useAppStore()` hook combines all modular stores into a single interface, pr
 - **StoryboardPage**: Main page container with export functionality
 - **ShotGrid**: Draggable grid of shots with DnD support
 - **ShotCard**: Individual shot with image, action text, and script
-- **PageTabs**: Tab navigation between multiple pages
+- **PageTabs**: Tab navigation between multiple pages with glassmorphism styling
 - **MasterHeader**: Project-wide header with logo and metadata
 - **TemplateSettings**: Configurable template options
 - **PDFExportModal**: Advanced export configuration
+
+### PageTabs Component (`src/components/PageTabs.tsx`)
+**Features**: Multi-page navigation with glassmorphism styling and perfect alignment
+- **Tab Management**: Create, duplicate, delete pages with confirmation dialogs
+- **Visual Hierarchy**: Active tabs (full opacity) vs inactive tabs (50% opacity)
+- **Asymmetric Padding**: More bottom space than top for visual balance
+- **Glassmorphism Styling**: Purple/pink theme matching app palette
+- **Perfect Alignment**: Single-container scaling pattern for drift-free positioning
+- **Icon Styling**: Bold Lucide icons with proper strokeWidth props
+
+**Key Styling Patterns**:
+- Container height: `h-8` for consistent sizing
+- Asymmetric padding: `pt-0.5 pb-2` (2px top, 8px bottom)
+- Inactive opacity: `opacity-50` for visual hierarchy
+- Glassmorphism: `bg-purple-500/20 hover:bg-purple-500/30`
+- Icon boldness: `strokeWidth={3}` for Plus icon
 
 ### Export System (`src/utils/export/`)
 **Architecture**: Strategy pattern with automatic fallback system
@@ -254,6 +270,53 @@ npm run dev
 - Canvas operations include automatic cleanup
 - Use React.memo for expensive re-renders
 - Leverage built-in optimization utilities in `src/utils/`
+
+---
+
+## 📚 Critical Documentation References
+
+**MUST READ before making changes:**
+
+### Core Principles & Rules
+- **`../.cursorrules`** - Mandatory rules for AI assistants (auto-loaded by Cursor)
+  - Never show 404 to users
+  - State-driven UI patterns
+  - Auth/project state handling
+  - Offline/online behavior
+  - Critical "never do" rules
+
+- **`../ARCHITECTURE_PRINCIPLES.md`** - Design philosophy and patterns
+  - State-first architecture
+  - No user-facing errors without context
+  - Graceful degradation
+  - File responsibilities
+  - Critical paths to protect
+
+- **`../UI_STATE_HANDLING.md`** - Complete state matrix
+  - Every UI state combination
+  - State transition flows
+  - Common mistakes and fixes
+  - Testing checklist
+  - Debugging guide
+
+### Historical Context
+- **`../CRITICAL-BUG-REPORT.md`** - Data corruption issues and fixes
+- **`../TIMESTAMP_SYNC_IMPLEMENTATION.md`** - Conflict resolution
+- **`../DATA_LOSS_FIX_SUMMARY.md`** - Validation layers
+
+### UI Patterns & Styling
+- **`../SCALING_ALIGNMENT_PATTERNS.md`** - Scaling and alignment patterns
+  - Single container scaling pattern
+  - Asymmetric padding techniques
+  - Lucide icon styling
+  - Glassmorphism implementation
+
+### Before Making Changes:
+1. ✅ Review `.cursorrules` for critical rules
+2. ✅ Check `UI_STATE_HANDLING.md` for affected states
+3. ✅ Verify changes don't violate architecture principles
+4. ✅ Test all authentication and project states
+5. ✅ Ensure users never see 404 during normal operation
 
 ---
 

@@ -48,7 +48,7 @@ class ErrorBoundary extends Component<Props, State> {
               <p className="text-muted-foreground mb-4">
                 An unexpected error occurred. You can try to recover by clicking the button below.
               </p>
-              {process.env.NODE_ENV === 'development' && this.state.error && (
+              {import.meta.env.DEV && this.state.error && (
                 <details className="bg-muted p-3 rounded-lg text-left mb-4">
                   <summary className="cursor-pointer font-medium text-sm">
                     Error Details

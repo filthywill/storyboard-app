@@ -112,8 +112,42 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Static Aurora Background - Enhanced with more color spots and contrast */
+    background: 
+      /* Aurora lights - more concentrated with shorter transitions */
+      radial-gradient(ellipse at 20% 30%, rgba(255, 107, 197, 0.25) 0%, rgba(255, 107, 197, 0.12) 25%, transparent 40%),
+      radial-gradient(ellipse at 80% 20%, rgba(169, 132, 255, 0.22) 0%, rgba(169, 132, 255, 0.1) 20%, transparent 35%),
+      radial-gradient(ellipse at 60% 80%, rgba(94, 92, 230, 0.28) 0%, rgba(94, 92, 230, 0.14) 25%, transparent 40%),
+      radial-gradient(ellipse at 30% 70%, rgba(255, 107, 197, 0.18) 0%, rgba(255, 107, 197, 0.08) 20%, transparent 38%),
+      radial-gradient(ellipse at 85% 75%, rgba(169, 132, 255, 0.16) 0%, rgba(169, 132, 255, 0.06) 22%, transparent 40%),
+      /* Additional color spots for more variety */
+      radial-gradient(circle at 45% 15%, rgba(147, 51, 234, 0.2) 0%, transparent 28%),
+      radial-gradient(circle at 15% 85%, rgba(219, 39, 119, 0.15) 0%, transparent 32%),
+      radial-gradient(circle at 70% 50%, rgba(124, 58, 237, 0.12) 0%, transparent 25%),
+      radial-gradient(circle at 90% 45%, rgba(236, 72, 153, 0.14) 0%, transparent 30%),
+      radial-gradient(circle at 10% 55%, rgba(139, 92, 246, 0.16) 0%, transparent 28%),
+      /* Deep base gradient with more contrast */
+      linear-gradient(135deg, #0a0911 0%, #1a1825 40%, #0f0e1f 70%, #151428 100%);
+    background-size: 100% 100%;
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  
+  /* Grainy noise texture overlay for pixelated color transitions */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='5 0 0 0 -2 0 5 0 0 -2 0 0 5 0 -2 0 0 0 1 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='discrete' tableValues='0 1'/%3E%3CfeFuncG type='discrete' tableValues='0 1'/%3E%3CfeFuncB type='discrete' tableValues='0 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1;
+    opacity: 1;
+    mix-blend-mode: overlay;
   }
 }
 

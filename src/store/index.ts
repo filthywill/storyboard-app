@@ -516,9 +516,22 @@ export const useAppStore = () => {
         
         // Safety checks
         if (!pages || !Array.isArray(pages) || pages.length === 0) {
-          console.warn('No pages available for initialization');
-          return;
+          console.warn('No pages available for initialization - creating default page');
+          
+          // Create a default page if none exist
+          const pageStore = getPageStore();
+          const defaultPageId = pageStore.createPage('Page 1');
+          
+          if (!defaultPageId) {
+            console.error('Failed to create default page');
+            return;
+          }
+          
+          console.log('Default page created:', defaultPageId);
         }
+        
+        // Get pages again in case we just created a default page
+        const currentPages = getPageStore().pages;
         
         if (!shotOrder || !Array.isArray(shotOrder)) {
           console.warn('Shot order not properly initialized');
@@ -527,7 +540,7 @@ export const useAppStore = () => {
         
         // If we have no shots at all, create some initial ones
         if (shotOrder.length === 0) {
-          const firstPage = pages[0];
+          const firstPage = currentPages[0];
           if (!firstPage || !firstPage.gridRows || !firstPage.gridCols) {
             console.warn('First page not properly initialized');
             return;

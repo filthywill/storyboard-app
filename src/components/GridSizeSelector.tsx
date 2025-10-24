@@ -4,6 +4,7 @@ import { Grid3X3 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { buttonVariants } from './ui/button';
 import { cn } from '@/lib/utils';
+import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 
 interface GridSizeSelectorProps {
   pageId: string;
@@ -29,28 +30,27 @@ export const GridSizeSelector: React.FC<GridSizeSelectorProps> = ({ pageId }) =>
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={cn(
-            'flex items-center justify-between p-2 gap-2 h-10 border border-input bg-background rounded-md'
-          )}
+          className={cn(TOOLBAR_STYLES.containerClasses)}
+          style={getToolbarContainerStyles()}
         >
-          <Grid3X3 size={16} />
+          <Grid3X3 size={16} className={TOOLBAR_STYLES.iconClasses} />
           <div className="flex items-center gap-1">
             <Select value={gridCols.toString()} onValueChange={handleColsChange}>
-              <SelectTrigger className="h-7 w-[50px] border-none shadow-none bg-transparent focus:ring-0 hover:bg-accent hover:text-accent-foreground rounded-sm transition-colors">
+              <SelectTrigger className={TOOLBAR_STYLES.selectTriggerClasses}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={TOOLBAR_STYLES.selectContentClasses}>
                   {Array.from({ length: 8 }, (_, i) => i + 1).map(num => (
                   <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            <span className="text-sm text-muted-foreground">×</span>
+            <span className={`text-sm ${TOOLBAR_STYLES.mutedTextClasses}`}>×</span>
             <Select value={gridRows.toString()} onValueChange={handleRowsChange}>
-              <SelectTrigger className="h-7 w-[50px] border-none shadow-none bg-transparent focus:ring-0 hover:bg-accent hover:text-accent-foreground rounded-sm transition-colors">
+              <SelectTrigger className={TOOLBAR_STYLES.selectTriggerClasses}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={TOOLBAR_STYLES.selectContentClasses}>
                   {Array.from({ length: 8 }, (_, i) => i + 1).map(num => (
                   <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
                   ))}

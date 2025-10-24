@@ -274,6 +274,25 @@ export class StorageService {
   }
 
   /**
+   * Get project logo information from database
+   */
+  static async getProjectLogo(projectId: string): Promise<string | null> {
+    try {
+      const { data: existingLogo } = await supabase
+        .from('project_images')
+        .select('storage_path')
+        .eq('project_id', projectId)
+        .eq('shot_id', 'project-logo')
+        .single()
+      
+      return existingLogo?.storage_path || null;
+    } catch (error) {
+      console.error(`Failed to get project logo for project ${projectId}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Delete project logo from cloud storage and database
    */
   static async deleteProjectLogo(projectId: string): Promise<void> {

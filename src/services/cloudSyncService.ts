@@ -5,6 +5,7 @@ import { useShotStore } from '@/store/shotStore'
 import { useProjectStore } from '@/store/projectStore'
 import { useUIStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
+import { useProjectManagerStore } from '@/store/projectManagerStore'
 
 export class CloudSyncService {
   private static currentProjectId: string | null = null
@@ -113,25 +114,44 @@ export class CloudSyncService {
       }
 
       // Check for project logo that needs migration (only if we have a valid file)
-      if (projectStore.projectLogoFile && 
-          projectStore.projectLogoFile instanceof File && 
-          !projectStore.projectLogoUrl?.includes('supabase')) {
-        console.log('Found project logo file to migrate');
-        try {
-          await this.migrateProjectLogo(id, projectStore.projectLogoFile);
-        } catch (error) {
-          console.error('Project logo migration failed:', error);
-          // Don't let logo migration break the entire save
+      // Only process logo operations if this is the current active project and not switching
+      const currentProjectId = useProjectManagerStore.getState().currentProjectId;
+      
+      // Check if project switching is in progress
+      const { ProjectSwitcher } = await import('@/utils/projectSwitcher');
+      const isProjectSwitching = ProjectSwitcher.isProjectSwitching();
+      
+      if (id === currentProjectId && !isProjectSwitching) {
+        if (projectStore.projectLogoFile && 
+            projectStore.projectLogoFile instanceof File && 
+            !projectStore.projectLogoUrl?.includes('supabase')) {
+          console.log('Found project logo file to migrate');
+          try {
+            await this.migrateProjectLogo(id, projectStore.projectLogoFile);
+          } catch (error) {
+            console.error('Project logo migration failed:', error);
+            // Don't let logo migration break the entire save
+          }
+        } else if (projectStore.projectLogoFile === null && projectStore.projectLogoUrl === null) {
+          // Check if this project previously had a logo that needs to be cleaned up
+          // Only delete if we can confirm this project had a logo before
+          try {
+            const { StorageService } = await import('./storageService');
+            const existingLogo = await StorageService.getProjectLogo(id);
+            if (existingLogo) {
+              console.log('Project logo was removed, deleting from cloud storage');
+              await StorageService.deleteProjectLogo(id);
+            }
+          } catch (error) {
+            console.error('Project logo deletion failed:', error);
+            // Don't let logo deletion break the entire save
+          }
         }
-      } else if (projectStore.projectLogoFile === null && projectStore.projectLogoUrl?.includes('supabase')) {
-        // Logo was removed - delete from cloud storage
-        console.log('Project logo was removed, deleting from cloud storage');
-        try {
-          const { StorageService } = await import('./storageService');
-          await StorageService.deleteProjectLogo(id);
-        } catch (error) {
-          console.error('Project logo deletion failed:', error);
-          // Don't let logo deletion break the entire save
+      } else {
+        if (isProjectSwitching) {
+          console.log(`⏭️ Skipping logo operations for project ${id} - project switching in progress`);
+        } else {
+          console.log(`Skipping logo operations for project ${id} - not the current active project (${currentProjectId})`);
         }
       }
       
@@ -208,7 +228,6 @@ export class CloudSyncService {
       });
       
       // VALIDATION: Check if project name matches metadata
-      const { useProjectManagerStore } = await import('@/store/projectManagerStore');
       const projectManager = useProjectManagerStore.getState();
       const projectMetadata = projectManager.projects[id];
       
@@ -534,8 +553,14 @@ export class CloudSyncService {
       
       // Save project settings (wrapped in state object)
       if (data.projectSettings) {
+        // Ensure project has a name - use project ID as fallback if empty
+        const projectSettings = {
+          ...data.projectSettings,
+          projectName: data.projectSettings.projectName || `Project ${projectId.slice(0, 8)}`
+        };
+        
         const projectStoreData = {
-          state: data.projectSettings
+          state: projectSettings
         };
         LocalStorageManager.setItem(`project-storage-project-${projectId}`, JSON.stringify(projectStoreData));
       }

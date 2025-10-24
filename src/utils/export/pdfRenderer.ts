@@ -3,7 +3,10 @@ import { StoryboardPage, StoryboardState } from '@/store/storyboardStore';
 import { PDFExportOptions } from '@/components/PDFExportModal';
 import { DataTransformer } from './dataTransformer';
 import { CanvasRenderer } from './canvasRenderer';
+import { DOMCapture } from './domCapture';
+import { DOMRenderer } from './domRenderer';
 import { ExportError } from '@/utils/types/exportTypes';
+import { usePageStore } from '@/store/pageStore';
 
 export interface PDFPageDimensions {
   width: number;
@@ -23,7 +26,7 @@ export class PDFRenderer {
     // Initialize jsPDF with the specified options
     const { width, height } = this.getPaperDimensions();
     this.doc = new jsPDF({
-      orientation: options.orientation,
+      orientation: 'landscape', // Default to landscape for storyboards
       unit: 'pt',
       format: [width, height],
       compress: true
@@ -35,7 +38,8 @@ export class PDFRenderer {
    */
   async exportPages(
     pages: StoryboardPage[],
-    storyboardState: StoryboardState
+    storyboardState: StoryboardState,
+    onProgress?: (current: number, total: number, pageName: string) => void
   ): Promise<Blob> {
     try {
       if (pages.length === 0) {
@@ -47,6 +51,11 @@ export class PDFRenderer {
       
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
+        
+        // Report progress before rendering this page
+        if (onProgress) {
+          onProgress(i + 1, pages.length, page.name);
+        }
         
         // Add new page if not the first one
         if (i > 0) {
@@ -68,7 +77,7 @@ export class PDFRenderer {
   }
 
   /**
-   * Render a single storyboard page to PDF
+   * Render a single storyboard page to PDF using DOM capture
    */
   private async renderPageToPDF(
     page: StoryboardPage,
@@ -80,29 +89,96 @@ export class PDFRenderer {
     try {
       // Get the scale factor based on quality setting
       const scale = this.getQualityScale();
+      console.log('🔍 PDF Export scale:', scale);
       
-      // 1. Transform page data into a renderable format. This is DOM-independent.
-      const exportPageData = await DataTransformer.transformStoryboardPage(
-        page,
-        storyboardState,
-        1000, // Fixed width
-        scale
-      );
-
-      // 2. Create a fresh, temporary canvas for this page to prevent state leakage.
-      const tempCanvas = document.createElement('canvas');
-      const renderer = new CanvasRenderer(tempCanvas);
-
-      // 3. Render the data to the temporary canvas.
-      await renderer.renderStoryboardPage(exportPageData, pageNumber);
-
-      // 4. Get the result as a data URL.
-      const dataUrl = renderer.exportAsDataURL('image/png', 0.95);
+      // Get the page store for page switching
+      const pageStore = usePageStore.getState();
+      const originalPageId = pageStore.activePageId;
+      const needsSwitch = page.id !== originalPageId;
       
-      // 5. Use the dimensions from the transformation, which are the source of truth.
-      const canvasWidth = exportPageData.layout.canvas.width / scale;
-      const canvasHeight = exportPageData.layout.canvas.height / scale;
-      const canvasAspectRatio = canvasWidth / canvasHeight;
+      try {
+        // Switch to the page if needed to ensure DOM is rendered
+        if (needsSwitch) {
+          console.log(`Switching to page ${page.id} for export...`);
+          pageStore.setActivePage(page.id);
+          
+          // Wait for React to render the page and retry with exponential backoff
+          let retries = 0;
+          const maxRetries = 3;
+          const baseDelay = 300;
+          
+          while (retries < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, baseDelay * Math.pow(2, retries)));
+            
+            // Verify DOM element exists
+            const pageElement = document.getElementById(`storyboard-page-${page.id}`);
+            if (pageElement) {
+              console.log(`Page ${page.id} DOM found after ${retries + 1} attempt(s)`);
+              break;
+            }
+            
+            retries++;
+            if (retries >= maxRetries) {
+              throw new ExportError(
+                `Failed to render page "${page.name}" - DOM not available after ${maxRetries} retries`,
+                'DOM_NOT_READY'
+              );
+            }
+            console.warn(`Page ${page.id} DOM not found, retrying... (${retries}/${maxRetries})`);
+          }
+        }
+        
+        // Get page element for transform manipulation
+        console.log(`Capturing DOM layout for page ${page.id}...`);
+        const pageElement = document.getElementById(`storyboard-page-${page.id}`) as HTMLElement;
+        if (!pageElement) {
+          throw new ExportError('Page element not found for export', 'DOM_NOT_FOUND');
+        }
+        
+        // Save original transform and temporarily remove it to capture at native design size (1000px)
+        const originalTransform = pageElement.style.transform;
+        pageElement.style.transform = 'none';
+        
+        // Wait for browser layout to complete using RAF (more reliable than setTimeout)
+        await new Promise<void>(resolve => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve());
+          });
+        });
+        
+        console.log('🔍 Removed CSS transform - capturing at native design size (1000px)');
+        
+        try {
+          // Use DOMCapture to get the exact layout from rendered page (now at native size)
+          const captureResult = await DOMCapture.captureStoryboardLayout(
+            page.id,
+            storyboardState,
+            scale
+          );
+          
+          // Create a fresh, temporary canvas for this page
+          const tempCanvas = document.createElement('canvas');
+          const renderer = new DOMRenderer(tempCanvas);
+          
+          // Render using DOM-captured layout
+          console.log(`Rendering page ${page.id} to canvas...`);
+          await renderer.renderFromDOMCapture(captureResult);
+        
+        // Get the result as a data URL
+        const dataUrl = renderer.exportAsDataURL('image/png', 0.95);
+        
+        // Get canvas dimensions from the captured layout
+        const canvasWidth = captureResult.layout.canvas.width / scale;
+        const canvasHeight = captureResult.layout.canvas.height / scale;
+        const canvasAspectRatio = canvasWidth / canvasHeight;
+        
+        console.log('🔍 PDF Dimensions DEBUG:', {
+          canvasWidth,
+          canvasHeight,
+          scale,
+          rawCanvasWidth: captureResult.layout.canvas.width,
+          rawCanvasHeight: captureResult.layout.canvas.height
+        });
       
       let imageWidth: number;
       let imageHeight: number;
@@ -110,10 +186,16 @@ export class PDFRenderer {
       let y: number;
       
       if (this.options.paperSize === 'canvas') {
-        // Canvas mode: PDF page size matches canvas exactly
-        // Convert pixels to points (72 DPI: 1 point = 1 pixel at 72 DPI)
-        const pointsWidth = canvasWidth * 72 / 96; // Convert from 96 DPI to 72 DPI
-        const pointsHeight = canvasHeight * 72 / 96;
+        // Canvas mode: PDF page size matches canvas exactly (1:1 mapping)
+        // In jsPDF, 1 point at default settings = 1 CSS pixel
+        const pointsWidth = canvasWidth;
+        const pointsHeight = canvasHeight;
+        
+        console.log('🔍 PDF Page Size:', {
+          pointsWidth,
+          pointsHeight,
+          ratio: '1:1 (no DPI conversion)'
+        });
         
         // For canvas mode, we need to set the page size correctly
         if (pageNumber === 1) {
@@ -141,23 +223,21 @@ export class PDFRenderer {
         pageDimensions.contentHeight = pointsHeight;
         
       } else {
-        // Standard mode: fit to paper size
+        // Standard mode: always fit to paper size
         imageWidth = pageDimensions.contentWidth;
         imageHeight = pageDimensions.contentHeight;
         
-        if (this.options.fitToPage) {
-          // Calculate dimensions to fit while maintaining aspect ratio
-          const pageAspectRatio = pageDimensions.contentWidth / pageDimensions.contentHeight;
-          
-          if (canvasAspectRatio > pageAspectRatio) {
-            // Canvas is wider relative to page - fit to width
-            imageWidth = pageDimensions.contentWidth;
-            imageHeight = imageWidth / canvasAspectRatio;
-          } else {
-            // Canvas is taller relative to page - fit to height
-            imageHeight = pageDimensions.contentHeight;
-            imageWidth = imageHeight * canvasAspectRatio;
-          }
+        // Calculate dimensions to fit while maintaining aspect ratio
+        const pageAspectRatio = pageDimensions.contentWidth / pageDimensions.contentHeight;
+        
+        if (canvasAspectRatio > pageAspectRatio) {
+          // Canvas is wider relative to page - fit to width
+          imageWidth = pageDimensions.contentWidth;
+          imageHeight = imageWidth / canvasAspectRatio;
+        } else {
+          // Canvas is taller relative to page - fit to height
+          imageHeight = pageDimensions.contentHeight;
+          imageWidth = imageHeight * canvasAspectRatio;
         }
 
         // Center the image on the page
@@ -165,17 +245,38 @@ export class PDFRenderer {
         y = pageDimensions.margin + (pageDimensions.contentHeight - imageHeight) / 2;
       }
 
-      // Add the storyboard image to PDF
-      this.doc.addImage(
-        dataUrl,
-        'PNG',
-        x,
-        y,
-        imageWidth,
-        imageHeight,
-        undefined,
-        'FAST' // Use fast compression for better performance
-      );
+        // Add the storyboard image to PDF
+        console.log('🔍 addImage params:', {
+          canvasPixelSize: `${captureResult.layout.canvas.width}x${captureResult.layout.canvas.height}`,
+          pdfPointSize: `${imageWidth}x${imageHeight}`,
+          position: `${x},${y}`,
+          scale: captureResult.layout.canvas.scale
+        });
+        
+        this.doc.addImage(
+          dataUrl,
+          'PNG',
+          x,
+          y,
+          imageWidth,
+          imageHeight,
+          undefined,
+          'FAST' // Use fast compression for better performance
+        );
+        
+        } finally {
+          // ALWAYS restore the original transform (guaranteed execution)
+          pageElement.style.transform = originalTransform;
+          console.log('🔍 Restored original CSS transform');
+        }
+        
+      } finally {
+        // Always restore the original page if we switched
+        if (needsSwitch && originalPageId) {
+          console.log(`Restoring original page ${originalPageId}...`);
+          pageStore.setActivePage(originalPageId);
+        }
+      }
 
     } catch (error) {
       throw new ExportError(
@@ -212,10 +313,7 @@ export class PDFRenderer {
    */
   private getPaperDimensions(): { width: number; height: number } {
     const dimensions = {
-      letter: { width: 612, height: 792 },
-      a4: { width: 595, height: 842 },
-      a3: { width: 842, height: 1191 },
-      tabloid: { width: 792, height: 1224 }
+      letter: { width: 612, height: 792 }
     };
 
     // Handle canvas size separately - it will be calculated dynamically
@@ -226,10 +324,8 @@ export class PDFRenderer {
 
     let { width, height } = dimensions[this.options.paperSize];
 
-    // Swap dimensions for landscape
-    if (this.options.orientation === 'landscape') {
-      [width, height] = [height, width];
-    }
+    // Always use landscape for storyboards
+    [width, height] = [height, width];
 
     return { width, height };
   }
@@ -252,22 +348,15 @@ export class PDFRenderer {
 
     const { width, height } = this.getPaperDimensions();
     
-    // Convert margin setting to points
-    const marginMap = {
-      none: 0,
-      small: 18, // 0.25 inch
-      medium: 36, // 0.5 inch
-      large: 72  // 1 inch
-    };
-    
-    const margin = marginMap[this.options.margin];
+    // Use no margins for storyboards (margins are built into the template)
+    const margin = 0;
     
     return {
       width,
       height,
       margin,
-      contentWidth: width - (margin * 2),
-      contentHeight: height - (margin * 2)
+      contentWidth: width,
+      contentHeight: height
     };
   }
 
@@ -275,13 +364,8 @@ export class PDFRenderer {
    * Get scale factor based on quality setting
    */
   private getQualityScale(): number {
-    const scaleMap = {
-      standard: 1,    // 72 DPI equivalent
-      high: 2,        // 150 DPI equivalent  
-      print: 4        // 300 DPI equivalent
-    };
-    
-    return scaleMap[this.options.quality];
+    // Use high quality (2x scale) for optimal results
+    return 2;
   }
 
   /**

@@ -1,3 +1,7 @@
+// ⚠️ DEPRECATED: This file uses legacy programmatic layout calculations and will be removed in a future version.
+// PDF export now uses DOM capture (DOMCapture + DOMRenderer) for WYSIWYG reliability.
+// TODO: Remove this file after validating DOM-based export works for all use cases.
+
 import { 
   Rectangle, 
   ExportDimensions, 
@@ -6,6 +10,8 @@ import {
   FontConfig,
   TextStyle 
 } from '@/utils/types/exportTypes';
+
+console.warn('⚠️ DEPRECATED: LayoutCalculator uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
 
 export class LayoutCalculator {
   /**
@@ -43,8 +49,15 @@ export class LayoutCalculator {
     // Calculate the correct image height based on aspect ratio using the actual image container width
     const imageHeight = Math.floor((imageContainerWidth * h) / w);
     
-    // Total shot height = image height + space for text (more generous to allow for multi-line text)
-    const shotHeight = imageHeight + 120; // Image height + more generous space for text
+    // Total shot height = image height + space for text
+    // Text areas: mt-1 (4px) + textarea padding (2px top/bottom per field) + text height (~14px per line, 2 lines max)
+    // CardContent padding: p-2 (8px) = 16px total vertical
+    const textAreaTopMargin = 4; // mt-1
+    const textAreaPadding = 4; // py-0.5 * 2 textareas = ~4px total
+    const textHeight = 28; // Approximate 2 lines of text-xs (~14px each)
+    const textSpace = textAreaTopMargin + textAreaPadding + textHeight;
+    const cardVerticalPadding = 8 * 2; // p-2 = 8px top + 8px bottom
+    const shotHeight = imageHeight + textSpace + cardVerticalPadding; // More accurate calculation
     
     // Calculate header and footer heights - EXACT same as UI components
     const headerTopPadding = 32; // pt-8 from MasterHeader
