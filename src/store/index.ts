@@ -632,6 +632,8 @@ export const useAppStore = () => {
         clearTimeout(window.autoSaveTimeout);
       }
       window.autoSaveTimeout = setTimeout(() => {
+        const { currentProjectId } = getProjectManagerStore();
+        if (!currentProjectId) return; // Skip auto-save when no project is selected
         ProjectSwitcher.saveCurrentProject();
       }, 2000); // Save 2 seconds after last change
     },
@@ -652,6 +654,8 @@ registerAutoSave(
       clearTimeout(window.autoSaveTimeout);
     }
     window.autoSaveTimeout = setTimeout(async () => {
+      const { currentProjectId } = getProjectManagerStore();
+      if (!currentProjectId) return; // Skip auto-save when no project is selected
       await ProjectSwitcher.saveCurrentProject();
     }, 2000);
   },

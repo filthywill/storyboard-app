@@ -11,7 +11,9 @@ import {
   TextStyle 
 } from '@/utils/types/exportTypes';
 
-console.warn('⚠️ DEPRECATED: LayoutCalculator uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
+if (import.meta && import.meta.env && import.meta.env.DEV) {
+  console.warn('⚠️ DEPRECATED: LayoutCalculator uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
+}
 
 export class LayoutCalculator {
   /**

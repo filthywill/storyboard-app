@@ -35,7 +35,7 @@ export class ProjectSwitcher {
       const currentProjectId = projectManager.currentProjectId;
       
       if (!currentProjectId) {
-        console.warn('No current project to save');
+        // Silently skip saves when no project is selected (guest init state)
         return false;
       }
 

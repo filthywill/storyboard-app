@@ -19,7 +19,9 @@ import {
 } from '@/utils/types/exportTypes';
 import { LayoutCalculator } from './layoutCalculator';
 
-console.warn('⚠️ DEPRECATED: DataTransformer uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
+if (import.meta && import.meta.env && import.meta.env.DEV) {
+  console.warn('⚠️ DEPRECATED: DataTransformer uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
+}
 
 export class DataTransformer {
   /**
