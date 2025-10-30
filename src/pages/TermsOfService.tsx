@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles'
 
 export default function TermsOfService() {
   useEffect(() => {
@@ -9,14 +10,7 @@ export default function TermsOfService() {
   return (
     <div className="min-h-screen flex flex-col relative" style={{ position: 'relative', zIndex: 2 }}>
       {/* Header Section */}
-      <div className="pt-6" style={{ 
-        backgroundColor: 'rgba(1, 1, 1, 0.2)',
-        backdropFilter: 'blur(0.5px)',
-        WebkitBackdropFilter: 'blur(0.5px)',
-        boxShadow: '0 1px 0 0 rgba(0, 0, 0, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-        fontFamily: '"BBH Sans Hegarty", sans-serif',
-        color: 'white',
-      }}>
+      <div className="pt-6" style={getGlassmorphismStyles('header')}>
         <div className="max-w-7xl mx-auto px-6 pt-4 pb-2">
           <div className="flex items-center justify-between">
             <div>
@@ -51,14 +45,7 @@ export default function TermsOfService() {
       <div className="flex-1 max-w-4xl mx-auto px-6 py-12 w-full">
         <div 
           className="p-8 rounded-lg"
-          style={{
-            backgroundColor: 'rgba(1, 1, 1, 0.2)',
-            backdropFilter: 'blur(0.5px)',
-            WebkitBackdropFilter: 'blur(0.5px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-            color: 'white'
-          }}
+          style={getGlassmorphismStyles('content')}
         >
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-white mb-4">Terms of Service</h1>

@@ -60,7 +60,7 @@ export const GridSizeSelector: React.FC<GridSizeSelectorProps> = ({ pageId }) =>
         </div>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Grid Layout (All Pages)</p>
+        <p>Grid Layout</p>
       </TooltipContent>
     </Tooltip>
   );

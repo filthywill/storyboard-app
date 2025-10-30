@@ -21,6 +21,7 @@ import { UserAccountDropdown } from '@/components/UserAccountDropdown';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { AuthModal } from '@/components/AuthModal';
+import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 
 export interface ProjectSelectorProps {
   onRequestCreate?: () => void;
@@ -40,6 +41,7 @@ export const ProjectSelector = ({
   
   const { isAuthenticated, user, signOut } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
 
   // Use external control if provided, otherwise use local state
   const [internalShowCreateDialog, setInternalShowCreateDialog] = useState(false);
@@ -47,6 +49,17 @@ export const ProjectSelector = ({
   const setShowCreateDialog = onCloseCreateDialog ? 
     (value: boolean) => { 
       if (value) {
+        // Check if user can create a project
+        if (!canCreateProject()) {
+          // If not authenticated and at limit, show encouraging dialog
+          if (!isAuthenticated) {
+            setShowLimitDialog(true);
+            return;
+          }
+          // For authenticated users, just show error
+          toast.error('Maximum number of projects reached');
+          return;
+        }
         // When opening dialog, we need to notify the parent
         onRequestCreate?.();
       } else {
@@ -54,7 +67,17 @@ export const ProjectSelector = ({
         onCloseCreateDialog();
       }
     } : 
-    setInternalShowCreateDialog;
+    (value: boolean) => {
+      if (value && !canCreateProject()) {
+        if (!isAuthenticated) {
+          setShowLimitDialog(true);
+          return;
+        }
+        toast.error('Maximum number of projects reached');
+        return;
+      }
+      setInternalShowCreateDialog(value);
+    };
 
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
@@ -88,15 +111,14 @@ export const ProjectSelector = ({
       {import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true' && (
         <>
           {!isAuthenticated ? (
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <button
               onClick={() => setShowAuthModal(true)}
-              className="flex items-center gap-2"
+              className="text-base text-white hover:bg-white/20 hover:text-white px-2 py-1 rounded transition-colors flex items-center gap-2"
+              style={{ fontFamily: '"BBH Sans Hegarty", sans-serif' }}
             >
               <LogIn className="h-4 w-4" />
               Sign In
-            </Button>
+            </button>
           ) : (
             <UserAccountDropdown />
           )}
@@ -156,6 +178,13 @@ export const ProjectSelector = ({
       <AuthModal 
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
+      />
+      
+      {/* Project Limit Dialog */}
+      <ProjectLimitDialog
+        isOpen={showLimitDialog}
+        onClose={() => setShowLimitDialog(false)}
+        onSignIn={() => setShowAuthModal(true)}
       />
     </div>
   );

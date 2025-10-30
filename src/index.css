@@ -32,8 +32,8 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 0 0% 0%;
+    --input: 0 0% 0%;
     --ring: 221.2 83.2% 53.3%;
 
     --radius: 0.5rem;
@@ -86,8 +86,8 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 0 0% 0%;
+    --input: 0 0% 0%;
     --ring: 224.3 76.3% 94.1%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -216,4 +216,240 @@
   background-color: #ffffff !important;
   backdrop-filter: none !important;
   border: 1px solid #e5e7eb !important;
+}
+
+/* Remove focus rings from all interactive elements */
+*:focus,
+*:focus-visible,
+*:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit !important;
+}
+
+/* Remove focus rings from specific components */
+button:focus,
+button:focus-visible,
+select:focus,
+select:focus-visible,
+[role="button"]:focus,
+[role="button"]:focus-visible,
+[role="menuitem"]:focus,
+[role="menuitem"]:focus-visible,
+[data-radix-collection-item]:focus,
+[data-radix-collection-item]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit !important;
+}
+
+/* Remove focus rings from dropdown triggers and buttons */
+[data-radix-dropdown-menu-trigger]:focus,
+[data-radix-dropdown-menu-trigger]:focus-visible,
+[data-radix-select-trigger]:focus,
+[data-radix-select-trigger]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit !important;
+}
+
+/* UNIFIED COLOR SYSTEM - No universal overrides */
+/* All styling now handled through the unified system in glassmorphism-styles.ts */
+
+/* TARGETED WHITE BORDER REMOVAL - Only for specific problematic classes */
+[class*="border-white"],
+[class*="border-gray-200"],
+[class*="border-gray-300"],
+[class*="border-slate-200"],
+[class*="border-slate-300"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove white borders from all dropdown and modal containers */
+[data-radix-dropdown-menu-content],
+[data-radix-select-content],
+[data-radix-dialog-content],
+[data-radix-alert-dialog-content],
+[role="dialog"],
+[role="menu"],
+[role="listbox"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  border-width: 1px !important;
+}
+
+/* Override Tailwind border utilities */
+.border,
+.border-1,
+.border-2,
+.border-4,
+.border-8 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove white borders from all UI components */
+.border-input,
+.border-border,
+.border-ring {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove white borders from ALL button states and triggers */
+button,
+[role="button"],
+[data-radix-dropdown-menu-trigger],
+[data-radix-select-trigger],
+[data-radix-dialog-trigger],
+[data-radix-alert-dialog-trigger] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove white borders from button focus, active, and hover states */
+button:focus,
+button:active,
+button:hover,
+button:focus-visible,
+button:focus-within,
+[role="button"]:focus,
+[role="button"]:active,
+[role="button"]:hover,
+[role="button"]:focus-visible,
+[role="button"]:focus-within,
+[data-radix-dropdown-menu-trigger]:focus,
+[data-radix-dropdown-menu-trigger]:active,
+[data-radix-dropdown-menu-trigger]:hover,
+[data-radix-dropdown-menu-trigger]:focus-visible,
+[data-radix-dropdown-menu-trigger]:focus-within,
+[data-radix-select-trigger]:focus,
+[data-radix-select-trigger]:active,
+[data-radix-select-trigger]:hover,
+[data-radix-select-trigger]:focus-visible,
+[data-radix-select-trigger]:focus-within {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove white borders from all interactive elements */
+[data-state="open"],
+[data-state="closed"],
+[data-state="checked"],
+[data-state="unchecked"],
+[aria-expanded="true"],
+[aria-expanded="false"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Aggressive white border removal for all possible states */
+*:focus,
+*:active,
+*:hover,
+*:focus-visible,
+*:focus-within,
+*:visited,
+*:target {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove white borders from all Radix UI components */
+[data-radix-collection-item],
+[data-radix-dropdown-menu-item],
+[data-radix-select-item],
+[data-radix-dialog-title],
+[data-radix-dialog-description],
+[data-radix-alert-dialog-title],
+[data-radix-alert-dialog-description] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove white borders from all form elements */
+input,
+select,
+textarea,
+[type="button"],
+[type="submit"],
+[type="reset"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove white borders from all form element states */
+input:focus,
+input:active,
+input:hover,
+select:focus,
+select:active,
+select:hover,
+textarea:focus,
+textarea:active,
+textarea:hover {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Override any remaining white border utilities */
+.border-white,
+.border-white\/10,
+.border-white\/20,
+.border-white\/30,
+.border-white\/40,
+.border-white\/50,
+.border-gray-200,
+.border-gray-300,
+.border-slate-200,
+.border-slate-300,
+.border-zinc-200,
+.border-zinc-300 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Specific targeting for Button component outline variant */
+button[data-variant="outline"],
+button.variant-outline,
+button[class*="variant-outline"],
+button[class*="outline"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Target all button states specifically */
+button:focus,
+button:active,
+button:hover,
+button:focus-visible,
+button:focus-within,
+button[data-state="open"],
+button[data-state="closed"],
+button[aria-expanded="true"],
+button[aria-expanded="false"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Override any Tailwind border utilities on buttons */
+button.border,
+button.border-1,
+button.border-2,
+button.border-4,
+button.border-8 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* GLASSMORPHISM OVERRIDES - Allow glassmorphism styles to work */
+/* These rules ensure glassmorphism styles aren't overridden by universal selectors */
+[style*="backdrop-filter"],
+[style*="backdropFilter"],
+[style*="WebkitBackdropFilter"] {
+  /* Don't override glassmorphism styles - let them work naturally */
+  /* Remove any conflicting overrides */
+}
+
+/* Specific targeting for elements with glassmorphism styles applied */
+div[style*="backdrop-filter"],
+div[style*="backdropFilter"],
+div[style*="WebkitBackdropFilter"],
+[data-radix-dropdown-menu-content][style*="backdrop-filter"],
+[data-radix-select-content][style*="backdrop-filter"],
+[data-radix-dialog-content][style*="backdrop-filter"] {
+  /* Don't override glassmorphism styles - let them work naturally */
+  /* Remove any conflicting overrides */
 }

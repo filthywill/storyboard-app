@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { LogIn, Shield, AlertTriangle } from 'lucide-react'
 import { sessionSecurity, sessionHelpers } from '@/utils/sessionSecurity'
+import { getColor } from '@/styles/glassmorphism-styles'
 
 interface OfflineBannerProps {
   onSignIn?: () => void;
@@ -124,32 +125,32 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
     return null
   }
   
-  const getBannerStyle = () => {
+  const getBannerColors = () => {
+    // Base palette
+    const textPrimary = getColor('text', 'primary') as string
+    const textSecondary = getColor('text', 'secondary') as string
+    const border = getColor('border', 'primary') as string
+
+    // Status backgrounds (subtle tints)
     if (logoutReason === 'expired') {
-      return 'bg-orange-100 border-orange-200 text-orange-800'
+      return { bg: 'rgba(245, 158, 11, 0.15)', border, text: textPrimary }
     }
-    
     if (sessionTimeout) {
-      return 'bg-amber-100 border-amber-200 text-amber-800'
+      return { bg: 'rgba(251, 191, 36, 0.15)', border, text: textPrimary }
     }
-    
     if (securityWarning) {
-      return 'bg-red-100 border-red-200 text-red-800'
+      return { bg: 'rgba(239, 68, 68, 0.15)', border, text: textPrimary }
     }
-    
     if (!isOnline) {
-      return 'bg-yellow-100 border-yellow-200 text-yellow-800'
+      return { bg: 'rgba(156, 163, 175, 0.2)', border, text: textPrimary }
     }
-    
     if (syncStatus.totalFailed > 0) {
-      return 'bg-red-100 border-red-200 text-red-800'
+      return { bg: 'rgba(239, 68, 68, 0.15)', border, text: textPrimary }
     }
-    
     if (syncStatus.isProcessing || syncStatus.totalPending > 0) {
-      return 'bg-blue-100 border-blue-200 text-blue-800'
+      return { bg: 'rgba(59, 130, 246, 0.15)', border, text: textPrimary }
     }
-    
-    return 'bg-green-100 border-green-200 text-green-800'
+    return { bg: 'rgba(34, 197, 94, 0.15)', border, text: textPrimary }
   }
   
   const message = getStatusMessage()
@@ -167,8 +168,18 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
     toast.success('Session extended successfully');
   };
 
+  const colors = getBannerColors()
+
   return (
-    <div className={`fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-sm shadow-md ${getBannerStyle()}`} style={{ fontFamily: '"Open Sans", sans-serif' }}>
+    <div
+      className={`fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-sm shadow-md`}
+      style={{
+        fontFamily: '"Open Sans", sans-serif',
+        backgroundColor: colors.bg,
+        borderBottom: `1px solid ${colors.border}`,
+        color: colors.text
+      }}
+    >
       <div className="flex items-center justify-center gap-3">
         <span>{message}</span>
         {logoutReason === 'expired' && onSignIn && (

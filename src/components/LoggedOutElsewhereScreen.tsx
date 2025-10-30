@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LogIn } from 'lucide-react';
+import { getGlassmorphismStyles, getColor, MODAL_OVERLAY_STYLES } from '@/styles/glassmorphism-styles';
 
 interface LoggedOutElsewhereScreenProps {
   onSignIn: () => void;
@@ -9,11 +10,11 @@ interface LoggedOutElsewhereScreenProps {
 
 export const LoggedOutElsewhereScreen: React.FC<LoggedOutElsewhereScreenProps> = ({ onSignIn }) => {
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
-      <Card className="w-96 shadow-2xl">
+    <div className="fixed inset-0 flex items-center justify-center z-50" style={MODAL_OVERLAY_STYLES}>
+      <Card className="w-96 shadow-2xl" style={getGlassmorphismStyles('dark')}>
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">You’ve logged in elsewhere</CardTitle>
-          <CardDescription className="text-base mt-2">
+          <CardTitle className="text-2xl" style={{ color: getColor('text', 'primary') as string }}>You’ve logged in elsewhere</CardTitle>
+          <CardDescription className="text-base mt-2" style={{ color: getColor('text', 'secondary') as string }}>
             Your current session was closed because you signed in on another device.
           </CardDescription>
         </CardHeader>

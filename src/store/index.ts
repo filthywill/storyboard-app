@@ -591,7 +591,8 @@ export const useAppStore = () => {
       const bTime = b.lastModified instanceof Date ? b.lastModified.getTime() : new Date(b.lastModified).getTime();
       return bTime - aTime;
     }),
-    canCreateProject: projectManagerStore.canCreateProject(),
+    // Call as function to compute dynamically based on current auth state
+    canCreateProject: projectManagerStore.canCreateProject,
     
     // Project operations
     createProject: async (name: string, description?: string) => {

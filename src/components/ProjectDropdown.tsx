@@ -9,6 +9,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { AuthModal } from '@/components/AuthModal';
+import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 import { 
   FolderOpen, 
   Plus, 
@@ -25,6 +27,7 @@ import { toast } from 'sonner';
 import { StorageManager } from '@/utils/storageManager';
 import { LoadingModal } from '@/components/LoadingModal';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { useAuthStore } from '@/store/authStore';
 
 export interface ProjectDropdownProps {
   /** Whether to use compact styling (for toolbars) */
@@ -42,12 +45,16 @@ export const ProjectDropdown = ({
     allProjects,
     switchToProject,
     deleteProject,
+    canCreateProject,
   } = useAppStore();
   
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [loadingProjectName, setLoadingProjectName] = useState('');
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const { isOnline } = useNetworkStatus();
+  const { isAuthenticated } = useAuthStore();
 
   // Get sorted projects
   const { getProjectsSortedBy } = useAppStore();
@@ -186,25 +193,14 @@ export const ProjectDropdown = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
-          <div className="px-2 py-1 text-sm font-semibold text-white">
-            Projects ({sortedProjects.length}/15)
-          </div>
-          {storageSummary.warning && (
-            <div className="px-2 py-1 text-xs text-orange-400">
-              Storage: {storageSummary.totalUsed.toFixed(1)}MB used
-              {storageSummary.largestProject && (
-                <div>Largest: {storageSummary.largestProject.name} ({storageSummary.largestProject.size.toFixed(1)}MB)</div>
-              )}
-            </div>
-          )}
-          
-          {/* Sort controls */}
-          <div className="px-2 py-2 border-b">
+          <div className="px-2 py-1 text-sm font-semibold text-white flex items-center justify-between">
+            <span>Projects ({sortedProjects.length}/{isAuthenticated ? '15' : '1'})</span>
+            {/* Sort controls - moved to top right */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full justify-start text-white hover:bg-white/10">
-                  <ArrowUpDown className="h-3 w-3 mr-2 text-white" />
-                  Sort by: {sortBy === 'name' ? 'Name' : 'Date'}
+                <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 px-1 py-0.5">
+                  <ArrowUpDown className="h-3 w-3 mr-1 text-white" />
+                  {sortBy === 'name' ? 'Name' : 'Date'}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="right">
@@ -217,8 +213,14 @@ export const ProjectDropdown = ({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          
-          <DropdownMenuSeparator />
+          {storageSummary.warning && (
+            <div className="px-2 py-1 text-xs text-orange-400">
+              Storage: {storageSummary.totalUsed.toFixed(1)}MB used
+              {storageSummary.largestProject && (
+                <div>Largest: {storageSummary.largestProject.name} ({storageSummary.largestProject.size.toFixed(1)}MB)</div>
+              )}
+            </div>
+          )}
           
           {/* Project list */}
           {sortedProjects.map((project) => (
@@ -277,7 +279,20 @@ export const ProjectDropdown = ({
           
           <DropdownMenuSeparator />
           <DropdownMenuItem 
-            onClick={() => onRequestCreate?.()}
+            onClick={() => {
+              // Check if user can create a project
+              if (!canCreateProject()) {
+                // If not authenticated and at limit, show encouraging dialog
+                if (!isAuthenticated) {
+                  setShowLimitDialog(true);
+                  return;
+                }
+                // For authenticated users, show error
+                toast.error('Maximum number of projects reached');
+                return;
+              }
+              onRequestCreate?.();
+            }}
             className="text-blue-400 py-1.5"
           >
             <Plus className="h-3 w-3 mr-2 text-blue-400" />
@@ -290,6 +305,19 @@ export const ProjectDropdown = ({
       <LoadingModal 
         isVisible={isLoadingProject} 
         message={`Loading ${loadingProjectName}...`}
+      />
+      
+      {/* Project Limit Dialog */}
+      <ProjectLimitDialog
+        isOpen={showLimitDialog}
+        onClose={() => setShowLimitDialog(false)}
+        onSignIn={() => setShowAuthModal(true)}
+      />
+      
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
       />
     </>
   );

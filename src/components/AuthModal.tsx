@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
 import { Github, Chrome, Apple } from 'lucide-react'
+import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -65,10 +66,10 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent style={getGlassmorphismStyles('dark')}>
         <DialogHeader>
-          <DialogTitle>{isSignUp ? 'Create Account' : 'Sign In'}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle style={{ color: getColor('text', 'primary') as string }}>{isSignUp ? 'Create Account' : 'Sign In'}</DialogTitle>
+          <DialogDescription style={{ color: getColor('text', 'secondary') as string }}>
             {isSignUp 
               ? 'Create a new account to start using Storyboard Flow' 
               : 'Sign in to your account to continue'
@@ -81,7 +82,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <Button
             type="button"
             variant="outline"
-            className="w-full"
+            className="w-full text-white"
+            style={getGlassmorphismStyles('button')}
             onClick={() => handleSocialLogin('google')}
             disabled={loading}
           >
@@ -92,7 +94,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <Button
             type="button"
             variant="outline"
-            className="w-full"
+            className="w-full text-white"
+            style={getGlassmorphismStyles('button')}
             onClick={() => handleSocialLogin('github')}
             disabled={loading}
           >
@@ -103,7 +106,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <Button
             type="button"
             variant="outline"
-            className="w-full"
+            className="w-full text-white"
+            style={getGlassmorphismStyles('button')}
             onClick={() => handleSocialLogin('apple')}
             disabled={loading}
           >
@@ -117,7 +121,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
+            <span className="px-2" style={{ color: getColor('text', 'muted') as string }}>
               Or continue with email
             </span>
           </div>
@@ -126,18 +130,20 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (
             <div>
-              <Label htmlFor="displayName">Display Name</Label>
+              <Label htmlFor="displayName" style={{ color: getColor('text', 'secondary') as string }}>Display Name</Label>
               <Input
                 id="displayName"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Your name"
+                className="text-white placeholder:text-white/50"
+                style={{ backgroundColor: getColor('input', 'background') as string, border: `1px solid ${getColor('input', 'border') as string}` }}
               />
             </div>
           )}
           
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" style={{ color: getColor('text', 'secondary') as string }}>Email</Label>
             <Input
               id="email"
               type="email"
@@ -145,11 +151,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               required
+              className="text-white placeholder:text-white/50"
+              style={{ backgroundColor: getColor('input', 'background') as string, border: `1px solid ${getColor('input', 'border') as string}` }}
             />
           </div>
           
           <div>
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" style={{ color: getColor('text', 'secondary') as string }}>Password</Label>
             <Input
               id="password"
               type="password"
@@ -158,6 +166,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               placeholder="••••••••"
               required
               minLength={6}
+              className="text-white placeholder:text-white/50"
+              style={{ backgroundColor: getColor('input', 'background') as string, border: `1px solid ${getColor('input', 'border') as string}` }}
             />
           </div>
           

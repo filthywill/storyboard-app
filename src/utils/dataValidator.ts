@@ -315,7 +315,17 @@ export class DataValidator {
         const data = localStorage.getItem(key)
         if (data) {
           const parsed = JSON.parse(data)
-          const validation = this.validateProjectData(parsed)
+          
+          // Zustand persist stores have a 'state' property that contains the actual data
+          // We need to extract the state before validating
+          const stateData = parsed.state || parsed
+          
+          // Skip validation if the state is empty/default
+          if (key === 'page-storage' && (!stateData.pages || stateData.pages.length === 0)) {
+            return // Empty state is valid
+          }
+          
+          const validation = this.validateProjectData(stateData)
           
           if (!validation.valid) {
             console.error(`Corrupted data in ${key}:`, validation.errors)
@@ -323,7 +333,13 @@ export class DataValidator {
             // Attempt auto-repair
             if (validation.data) {
               const repaired = this.autoRepair(validation.data)
-              localStorage.setItem(key, JSON.stringify(repaired))
+              // Preserve the zustand persist structure
+              if (parsed.state) {
+                parsed.state = repaired
+                localStorage.setItem(key, JSON.stringify(parsed))
+              } else {
+                localStorage.setItem(key, JSON.stringify(repaired))
+              }
               console.log(`Auto-repaired data in ${key}`)
             }
           }

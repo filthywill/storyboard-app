@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { LogOut } from 'lucide-react';
+import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 
 export const UserAccountDropdown: React.FC = () => {
   const { user, signOut } = useAuthStore();
@@ -34,12 +35,7 @@ export const UserAccountDropdown: React.FC = () => {
       <DropdownMenuContent 
         align="end" 
         className="w-80 p-0"
-        style={{
-          backgroundColor: 'rgba(15, 15, 15, 1)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)',
-          color: 'white'
-        }}
+        style={getGlassmorphismStyles('dark')}
       >
         {/* User Info Section */}
         <div className="p-6 text-center">
@@ -63,7 +59,7 @@ export const UserAccountDropdown: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={signOut}
-            className="w-full mb-4 text-white border-black/20 hover:bg-white/20 hover:text-white"
+            className="w-full mb-4 text-white hover:bg-white/20 hover:text-white"
             style={{
               backgroundColor: 'rgba(1, 1, 1, 0.2)',
               backdropFilter: 'blur(0.5px)',

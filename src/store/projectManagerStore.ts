@@ -176,7 +176,35 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
 
       // Utility
       canCreateProject: () => {
-        return Object.keys(get().projects).length < get().maxProjects;
+        const projectCount = Object.keys(get().projects).length;
+        const maxProjects = get().maxProjects;
+        
+        // Check if user is authenticated
+        // We need to access authStore directly to avoid circular dependencies
+        // Since this is synchronous, we'll check if authStore exists in the global state
+        try {
+          // Access the Zustand store state directly from localStorage
+          const authStoreState = localStorage.getItem('auth-storage');
+          if (authStoreState) {
+            const parsed = JSON.parse(authStoreState);
+            const isAuthenticated = parsed.state?.isAuthenticated || false;
+            
+            // Unauthenticated users: max 1 test project
+            if (!isAuthenticated) {
+              return projectCount < 1;
+            }
+          } else {
+            // No auth state found, assume unauthenticated
+            return projectCount < 1;
+          }
+        } catch (error) {
+          console.warn('Could not check auth status for project limit', error);
+          // If we can't determine auth status, default to unauthenticated limit
+          return projectCount < 1;
+        }
+        
+        // Authenticated users: max 15 projects
+        return projectCount < maxProjects;
       },
 
       getCurrentProject: () => {

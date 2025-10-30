@@ -59,7 +59,7 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
         </div>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Shot Aspect Ratio (All Pages)</p>
+        <p>Shot Aspect Ratio</p>
       </TooltipContent>
     </Tooltip>
   );

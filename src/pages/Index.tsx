@@ -14,6 +14,8 @@ import { AuthModal } from '@/components/AuthModal';
 import { ProjectPickerModal } from '@/components/ProjectPickerModal';
 import { LoggedOutElsewhereScreen } from '@/components/LoggedOutElsewhereScreen';
 import { TemplateBackground } from '@/components/TemplateBackground';
+import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
+import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 
 const Index = () => {
   const { 
@@ -27,7 +29,8 @@ const Index = () => {
     allProjects,
     currentProject,
     switchToProject,
-    reconcileFromShotOrder
+    reconcileFromShotOrder,
+    canCreateProject
   } = useAppStore();
   
   const { isAuthenticated, isLoading: authLoading, initialize: initializeAuth } = useAuthStore();
@@ -36,6 +39,7 @@ const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoadingCloudProjects, setIsLoadingCloudProjects] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
   
   // Initialize app with robust error handling
   useEffect(() => {
@@ -306,7 +310,7 @@ const Index = () => {
   const activePage = pages.find(p => p.id === activePageId);
 
   // Determine what to display in the main content area
-  const shouldShowTemplate = !activePage && (allProjects.length === 0 || !isAuthenticated);
+  const shouldShowTemplate = !activePage && (!currentProject || (isAuthenticated && allProjects.length === 0));
 
   const activePageIndex = pages.findIndex(p => p.id === activePageId);
 
@@ -344,14 +348,7 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col relative" style={{ position: 'relative', zIndex: 2 }}>
       {/* Header Section (includes banner + main header) */}
-      <div className="pt-6" style={{ 
-        backgroundColor: 'rgba(1, 1, 1, 0.2)',
-        backdropFilter: 'blur(0.5px)',
-        WebkitBackdropFilter: 'blur(0.5px)',
-        boxShadow: '0 1px 0 0 rgba(0, 0, 0, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-        fontFamily: '"BBH Sans Hegarty", sans-serif',
-        color: 'white',
-      }}>
+      <div className="pt-6" style={getGlassmorphismStyles('header')}>
         {/* Offline Banner */}
         <OfflineBanner onSignIn={() => setShowAuthModal(true)} />
         
@@ -413,7 +410,7 @@ const Index = () => {
             </div>
           </>
         ) : shouldShowTemplate ? (
-          <div className={!isAuthenticated || (isAuthenticated && allProjects.length === 0) ? "opacity-30 pointer-events-none" : ""}>
+          <div className={!currentProject ? "opacity-30 pointer-events-none" : ""}>
             <TemplateBackground />
           </div>
         ) : null}
@@ -422,17 +419,31 @@ const Index = () => {
         {isAuthenticated && allProjects.length === 0 && !isLoadingCloudProjects && (
           <EmptyProjectState 
             isAuthenticated={true}
-            onCreateProject={() => setShowCreateProjectDialog(true)}
+            onCreateProject={() => {
+              // Check if user can create a project
+              if (!canCreateProject()) {
+                toast.error('Maximum number of projects reached');
+                return;
+              }
+              setShowCreateProjectDialog(true);
+            }}
             onSignIn={() => setShowAuthModal(true)}
           />
         )}
       </main>
       
-      {/* Full-screen EmptyProjectState overlay for unauthenticated users */}
-      {!isAuthenticated && (
+      {/* Full-screen EmptyProjectState overlay for unauthenticated users with no current project */}
+      {!isAuthenticated && !currentProject && (
         <EmptyProjectState 
           isAuthenticated={false}
-          onCreateProject={() => setShowCreateProjectDialog(true)}
+          onCreateProject={() => {
+            // Check if user can create a project
+            if (!canCreateProject()) {
+              setShowLimitDialog(true);
+              return;
+            }
+            setShowCreateProjectDialog(true);
+          }}
           onSignIn={() => setShowAuthModal(true)}
         />
       )}
@@ -480,11 +491,33 @@ const Index = () => {
             }
           }}
           onCreateNew={() => {
+            // Check if user can create a project
+            if (!canCreateProject()) {
+              // If not authenticated and at limit, show encouraging dialog
+              if (!isAuthenticated) {
+                setShowProjectPicker(false);
+                setShowLimitDialog(true);
+                return;
+              }
+              // For authenticated users, show error
+              toast.error('Maximum number of projects reached');
+              return;
+            }
             setShowProjectPicker(false);
             setShowCreateProjectDialog(true);
           }}
         />
       )}
+      
+      {/* Project Limit Dialog - for unauthenticated users hitting project limit */}
+      <ProjectLimitDialog
+        isOpen={showLimitDialog}
+        onClose={() => setShowLimitDialog(false)}
+        onSignIn={() => {
+          setShowLimitDialog(false);
+          setShowAuthModal(true);
+        }}
+      />
       
     </div>
   );

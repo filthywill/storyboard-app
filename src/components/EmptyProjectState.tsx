@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { FolderPlus, LogIn } from 'lucide-react';
+import { getGlassmorphismStyles, getColor, MODAL_OVERLAY_STYLES } from '@/styles/glassmorphism-styles';
 
 interface EmptyProjectStateProps {
   isAuthenticated: boolean;
@@ -27,7 +28,10 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
             <FolderPlus className="h-5 w-5 mr-2" />
             Create New Project
           </Button>
-          <p className="text-sm text-gray-500 mt-4">
+          <p
+            className="text-sm mt-4"
+            style={{ color: getColor('text', 'muted') as string }}
+          >
             Or select an existing project from the menu above
           </p>
         </div>
@@ -37,16 +41,19 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
 
   // Unauthenticated users: Full-screen modal overlay
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
-      <Card className="w-96 shadow-2xl">
+    <div className="fixed inset-0 flex items-center justify-center z-50" style={MODAL_OVERLAY_STYLES}>
+      <Card className="w-96 shadow-2xl" style={getGlassmorphismStyles('dark')}>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center">
-              <FolderPlus className="h-8 w-8 text-blue-600" />
+            <div
+              className="h-16 w-16 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: getColor('background', 'accent') as string }}
+            >
+              <FolderPlus className="h-8 w-8" style={{ color: getColor('text', 'primary') as string }} />
             </div>
           </div>
-          <CardTitle className="text-2xl">Welcome to Storyboard Flow</CardTitle>
-          <CardDescription className="text-base mt-2">
+          <CardTitle className="text-2xl" style={{ color: getColor('text', 'primary') as string }}>Welcome to Storyboard Flow</CardTitle>
+          <CardDescription className="text-base mt-2" style={{ color: getColor('text', 'secondary') as string }}>
             Create professional storyboards with ease
           </CardDescription>
         </CardHeader>
@@ -54,8 +61,9 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
           <Button 
             onClick={onSignIn}
             size="lg"
-            className="w-full"
+            className="w-full text-white"
             variant="default"
+            style={getGlassmorphismStyles('buttonSecondary')}
           >
             <LogIn className="h-5 w-5 mr-2" />
             Sign In / Sign Up
@@ -63,13 +71,17 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
           <Button 
             onClick={onCreateProject}
             size="lg"
-            className="w-full"
+            className="w-full text-white"
             variant="outline"
+            style={getGlassmorphismStyles('button')}
           >
             <FolderPlus className="h-5 w-5 mr-2" />
             Create a Test Project
           </Button>
-          <p className="text-xs text-gray-500 text-center pt-2">
+          <p
+            className="text-xs text-center pt-2"
+            style={{ color: getColor('text', 'muted') as string }}
+          >
             Test projects are saved locally. Sign in to sync to the cloud.
           </p>
         </CardContent>

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 import {
   Dialog,
   DialogContent,
@@ -572,11 +573,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         )}
         style={{ 
           transition: 'height 0.2s ease-out',
-          backgroundColor: 'rgba(1, 1, 1, 0.2)',
-          backdropFilter: 'blur(0.5px)',
-          WebkitBackdropFilter: 'blur(0.5px)',
-          border: '1px solid rgba(0, 0, 0, 0.1)',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          ...getGlassmorphismStyles('background')
         }}
       >
         {/* Single scaling parent container for both PageTabs and StoryboardContent */}
