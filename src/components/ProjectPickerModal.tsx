@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { getGlassmorphismStyles, MODAL_OVERLAY_STYLES } from '@/styles/glassmorphism-styles';
+import { getGlassmorphismStyles, getColor, MODAL_OVERLAY_STYLES } from '@/styles/glassmorphism-styles';
 
 interface ProjectPickerModalProps {
   projects: Array<{
@@ -40,7 +40,7 @@ export const ProjectPickerModal: React.FC<ProjectPickerModalProps> = ({
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50" style={MODAL_OVERLAY_STYLES}>
       <Card className="w-[500px] max-h-[600px] shadow-2xl flex flex-col" style={getGlassmorphismStyles('dark')}>
-        <CardHeader className="text-center border-b flex items-center justify-between" style={{ borderColor: 'rgba(0, 0, 0, 0.2)' }}>
+        <CardHeader className="text-center border-b flex items-center justify-between" style={{ borderColor: getColor('border', 'primary') as string }}>
           <div className="flex-1">
             <CardTitle className="text-2xl text-white">Select a Project</CardTitle>
             <CardDescription className="text-base mt-2 text-white/70">
@@ -86,7 +86,7 @@ export const ProjectPickerModal: React.FC<ProjectPickerModalProps> = ({
                   onClick={() => onSelectProject(project.id)}
                   className="w-full p-3 rounded-lg hover:bg-white/5 transition-colors text-left group"
                   style={{
-                    backgroundColor: 'rgba(1, 1, 1, 0.2)',
+                    backgroundColor: getColor('background', 'subtle') as string,
                     backdropFilter: 'blur(0.5px)',
                     WebkitBackdropFilter: 'blur(0.5px)'
                   }}
@@ -109,7 +109,7 @@ export const ProjectPickerModal: React.FC<ProjectPickerModalProps> = ({
           </div>
 
           {/* Create New Button */}
-          <div className="pt-3 border-t" style={{ borderColor: 'rgba(0, 0, 0, 0.2)' }}>
+          <div className="pt-3 border-t" style={{ borderColor: getColor('border', 'primary') as string }}>
             <Button 
               onClick={onCreateNew}
               className="w-full text-white"

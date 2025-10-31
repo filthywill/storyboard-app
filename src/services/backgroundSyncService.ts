@@ -225,6 +225,20 @@ class BackgroundSyncServiceClass {
       this.saveQueueToStorage();
 
       if (item.type === 'image' && item.shotId && item.file) {
+        // Gate uploads until cloud is available and project record exists
+        if (!CloudSyncService.isCloudAvailable()) {
+          item.status = 'pending';
+          this.saveQueueToStorage();
+          return;
+        }
+        try {
+          await CloudSyncService.ensureCloudProjectRecord(item.projectId);
+        } catch {
+          // Leave as pending to retry later
+          item.status = 'pending';
+          this.saveQueueToStorage();
+          return;
+        }
         // Validate shot still exists before upload
         const { useShotStore } = await import('@/store/shotStore');
         const shot = useShotStore.getState().getShotById(item.shotId);
@@ -247,6 +261,18 @@ class BackgroundSyncServiceClass {
           imageStorageType: 'supabase'
         });
       } else if (item.type === 'batch' && item.files) {
+        if (!CloudSyncService.isCloudAvailable()) {
+          item.status = 'pending';
+          this.saveQueueToStorage();
+          return;
+        }
+        try {
+          await CloudSyncService.ensureCloudProjectRecord(item.projectId);
+        } catch {
+          item.status = 'pending';
+          this.saveQueueToStorage();
+          return;
+        }
         // Process batch uploads
         for (const file of item.files) {
           // For batch uploads, we need the shot ID from the file name or metadata

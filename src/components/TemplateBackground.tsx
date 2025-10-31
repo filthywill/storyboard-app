@@ -11,6 +11,13 @@ export const TemplateBackground: React.FC<TemplateBackgroundProps> = ({ classNam
   const textSecondary = getColor('text', 'secondary') as string;
   const textMuted = getColor('text', 'muted') as string;
   const bgPrimary = getColor('background', 'primary') as string;
+  
+  // Template-specific colors from centralized system
+  const templateCardBg = getColor('template', 'cardBackground') as string;
+  const templateHeaderBg = getColor('template', 'headerBackground') as string;
+  const templatePlaceholderDark = getColor('template', 'placeholderDark') as string;
+  const templatePlaceholderMedium = getColor('template', 'placeholderMedium') as string;
+  const templatePlaceholderLight = getColor('template', 'placeholderLight') as string;
 
   return (
     <div
@@ -19,19 +26,19 @@ export const TemplateBackground: React.FC<TemplateBackgroundProps> = ({ classNam
     >
       <div
         className="rounded-md shadow-lg w-full max-w-4xl"
-        style={{ backgroundColor: 'rgba(255,255,255,0.95)', border: `1px solid ${borderColor}` }}
+        style={{ backgroundColor: templateCardBg, border: `1px solid ${borderColor}` }}
       >
         {/* Template Header */}
         <div
           className="p-4"
-          style={{ backgroundColor: 'rgba(255,255,255,0.9)', borderBottom: `1px solid ${borderColor}` }}
+          style={{ backgroundColor: templateHeaderBg, borderBottom: `1px solid ${borderColor}` }}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-8 h-8 rounded" style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}></div>
+              <div className="w-8 h-8 rounded" style={{ backgroundColor: templatePlaceholderDark }}></div>
               <div>
-                <div className="h-4 rounded w-32 mb-2" style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}></div>
-                <div className="h-3 rounded w-24" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }}></div>
+                <div className="h-4 rounded w-32 mb-2" style={{ backgroundColor: templatePlaceholderDark }}></div>
+                <div className="h-3 rounded w-24" style={{ backgroundColor: templatePlaceholderMedium }}></div>
               </div>
             </div>
             <div className="text-sm" style={{ color: textSecondary }}>Template</div>
@@ -46,12 +53,12 @@ export const TemplateBackground: React.FC<TemplateBackgroundProps> = ({ classNam
                 key={i}
                 className="aspect-video rounded flex items-center justify-center transition-colors"
                 style={{
-                  backgroundColor: 'rgba(0,0,0,0.03)',
+                  backgroundColor: templatePlaceholderLight,
                   border: `2px dashed ${borderColor}`,
                 }}
               >
                 <div className="text-center">
-                  <div className="w-8 h-8 rounded mx-auto mb-2" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }}></div>
+                  <div className="w-8 h-8 rounded mx-auto mb-2" style={{ backgroundColor: templatePlaceholderMedium }}></div>
                   <span className="text-sm font-medium" style={{ color: textMuted }}>
                     Shot {String(i + 1).padStart(2, '0')}
                   </span>

@@ -394,7 +394,8 @@ export class ProjectSwitcher {
       this.applyDefaultStateToStores(name);
       
       // Check if cloud sync is enabled and user is authenticated
-      if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
+      const { isAuthenticated } = useAuthStore.getState();
+      if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true' && isAuthenticated) {
         try {
           // Try to create cloud project first
           const { CloudSyncService } = await import('@/services/cloudSyncService');

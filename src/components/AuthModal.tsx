@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,10 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
+  const idBase = useId()
+  const emailId = `${idBase}-email`
+  const passwordId = `${idBase}-password`
+  const displayNameId = `${idBase}-displayName`
   
   const { signIn, signUp, signInWithGoogle, signInWithGitHub, signInWithApple, setLogoutReason } = useAuthStore()
   
@@ -65,7 +69,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   }
   
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent style={getGlassmorphismStyles('dark')}>
         <DialogHeader>
           <DialogTitle style={{ color: getColor('text', 'primary') as string }}>{isSignUp ? 'Create Account' : 'Sign In'}</DialogTitle>
@@ -130,12 +134,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (
             <div>
-              <Label htmlFor="displayName" style={{ color: getColor('text', 'secondary') as string }}>Display Name</Label>
+              <Label htmlFor={displayNameId} style={{ color: getColor('text', 'secondary') as string }}>Display Name</Label>
               <Input
-                id="displayName"
+                id={displayNameId}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Your name"
+                autoComplete="name"
                 className="text-white placeholder:text-white/50"
                 style={{ backgroundColor: getColor('input', 'background') as string, border: `1px solid ${getColor('input', 'border') as string}` }}
               />
@@ -143,13 +148,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           )}
           
           <div>
-            <Label htmlFor="email" style={{ color: getColor('text', 'secondary') as string }}>Email</Label>
+            <Label htmlFor={emailId} style={{ color: getColor('text', 'secondary') as string }}>Email</Label>
             <Input
-              id="email"
+              id={emailId}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
+              autoComplete="email"
               required
               className="text-white placeholder:text-white/50"
               style={{ backgroundColor: getColor('input', 'background') as string, border: `1px solid ${getColor('input', 'border') as string}` }}
@@ -157,13 +163,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </div>
           
           <div>
-            <Label htmlFor="password" style={{ color: getColor('text', 'secondary') as string }}>Password</Label>
+            <Label htmlFor={passwordId} style={{ color: getColor('text', 'secondary') as string }}>Password</Label>
             <Input
-              id="password"
+              id={passwordId}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              autoComplete={isSignUp ? 'new-password' : 'current-password'}
               required
               minLength={6}
               className="text-white placeholder:text-white/50"

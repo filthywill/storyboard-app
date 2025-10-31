@@ -23,6 +23,8 @@
  * - Button colors: Interactive button elements (separate from containers)
  * - Input colors: Form input fields (separate from buttons and containers)
  * - Text colors: All text styling
+ * - Status colors: Status indicators, banners, alerts (warning, error, info, success, offline)
+ * - Template colors: Template background component placeholder elements
  */
 export const COLOR_PALETTE = {
   // Base colors
@@ -64,6 +66,25 @@ export const COLOR_PALETTE = {
     primary: 'white',
     secondary: 'rgba(255, 255, 255, 0.7)',
     muted: 'rgba(255, 255, 255, 0.5)',
+  },
+  
+  // Status colors (for banners, alerts, notifications)
+  status: {
+    warning: 'rgba(245, 158, 11, 0.15)',   // Orange tint (session expiry)
+    warningLight: 'rgba(251, 191, 36, 0.15)',  // Lighter orange tint (session timeout)
+    error: 'rgba(239, 68, 68, 0.15)',      // Red tint (errors, security warnings)
+    info: 'rgba(59, 130, 246, 0.15)',      // Blue tint (syncing, pending)
+    success: 'rgba(34, 197, 94, 0.15)',    // Green tint (completed)
+    offline: 'rgba(156, 163, 175, 0.2)',   // Gray tint (offline state)
+  },
+  
+  // Template colors (for TemplateBackground component - placeholder/preview elements)
+  template: {
+    cardBackground: 'rgba(255, 255, 255, 0.95)',  // Template card background
+    headerBackground: 'rgba(255, 255, 255, 0.9)', // Template header background
+    placeholderDark: 'rgba(0, 0, 0, 0.1)',      // Dark placeholder elements
+    placeholderMedium: 'rgba(0, 0, 0, 0.08)',  // Medium placeholder elements
+    placeholderLight: 'rgba(0, 0, 0, 0.03)',    // Light placeholder elements (shot placeholders)
   }
 } as const;
 

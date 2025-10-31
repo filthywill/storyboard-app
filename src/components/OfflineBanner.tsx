@@ -128,29 +128,28 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
   const getBannerColors = () => {
     // Base palette
     const textPrimary = getColor('text', 'primary') as string
-    const textSecondary = getColor('text', 'secondary') as string
     const border = getColor('border', 'primary') as string
 
-    // Status backgrounds (subtle tints)
+    // Status backgrounds using centralized status colors
     if (logoutReason === 'expired') {
-      return { bg: 'rgba(245, 158, 11, 0.15)', border, text: textPrimary }
+      return { bg: getColor('status', 'warning') as string, border, text: textPrimary }
     }
     if (sessionTimeout) {
-      return { bg: 'rgba(251, 191, 36, 0.15)', border, text: textPrimary }
+      return { bg: getColor('status', 'warningLight') as string, border, text: textPrimary }
     }
     if (securityWarning) {
-      return { bg: 'rgba(239, 68, 68, 0.15)', border, text: textPrimary }
+      return { bg: getColor('status', 'error') as string, border, text: textPrimary }
     }
     if (!isOnline) {
-      return { bg: 'rgba(156, 163, 175, 0.2)', border, text: textPrimary }
+      return { bg: getColor('status', 'offline') as string, border, text: textPrimary }
     }
     if (syncStatus.totalFailed > 0) {
-      return { bg: 'rgba(239, 68, 68, 0.15)', border, text: textPrimary }
+      return { bg: getColor('status', 'error') as string, border, text: textPrimary }
     }
     if (syncStatus.isProcessing || syncStatus.totalPending > 0) {
-      return { bg: 'rgba(59, 130, 246, 0.15)', border, text: textPrimary }
+      return { bg: getColor('status', 'info') as string, border, text: textPrimary }
     }
-    return { bg: 'rgba(34, 197, 94, 0.15)', border, text: textPrimary }
+    return { bg: getColor('status', 'success') as string, border, text: textPrimary }
   }
   
   const message = getStatusMessage()

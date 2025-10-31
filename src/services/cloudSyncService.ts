@@ -20,6 +20,39 @@ export class CloudSyncService {
   static getCurrentProjectId(): string | null {
     return this.currentProjectId
   }
+
+  // Public helpers for other services
+  static isCloudAvailable(): boolean {
+    return this.isCloudEnabled() && this.isAuthenticated();
+  }
+
+  static async hasCloudProjectRecord(projectId: string): Promise<boolean> {
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('id', projectId)
+        .limit(1)
+        .maybeSingle();
+      if (error) return false;
+      return Boolean(data?.id);
+    } catch {
+      return false;
+    }
+  }
+
+  static async ensureCloudProjectRecord(projectId: string, name?: string, description?: string): Promise<void> {
+    if (!this.isCloudAvailable()) return;
+    const exists = await this.hasCloudProjectRecord(projectId);
+    if (exists) return;
+    try {
+      await this.createCloudProject(projectId, name || `Project ${projectId.slice(0, 8)}`, description);
+    } catch (err) {
+      console.warn('ensureCloudProjectRecord failed (will retry later):', err);
+      throw err;
+    }
+  }
   
   static async createProject(name: string, description?: string): Promise<string> {
     const projectId = await ProjectService.createProject(name, description)
@@ -103,14 +136,21 @@ export class CloudSyncService {
       const projectStore = useProjectStore.getState()
       const uiStore = useUIStore.getState()
       
-      // Check for base64 images that need migration
-      const base64Images = Object.entries(shotStore.shots).filter(([_, shot]) => 
-        shot.imageData && !shot.imageUrl
-      );
+      // Determine status up-front for gating migrations and cloud ops
+      const isOnline = navigator.onLine;
+      const isCloudEnabled = this.isCloudEnabled();
+      const isAuthenticated = this.isAuthenticated();
       
-      if (base64Images.length > 0) {
-        console.log(`Found ${base64Images.length} base64 images to migrate`);
-        await this.migrateBase64Images(id, base64Images);
+      // Check for base64 images that need migration (only when cloud sync is available and user is authenticated)
+      if (isCloudEnabled && isAuthenticated) {
+        const base64Images = Object.entries(shotStore.shots).filter(([_, shot]) => 
+          shot.imageData && !shot.imageUrl
+        );
+        
+        if (base64Images.length > 0) {
+          console.log(`Found ${base64Images.length} base64 images to migrate`);
+          await this.migrateBase64Images(id, base64Images);
+        }
       }
 
       // Check for project logo that needs migration (only if we have a valid file)
@@ -121,7 +161,7 @@ export class CloudSyncService {
       const { ProjectSwitcher } = await import('@/utils/projectSwitcher');
       const isProjectSwitching = ProjectSwitcher.isProjectSwitching();
       
-      if (id === currentProjectId && !isProjectSwitching) {
+      if (id === currentProjectId && !isProjectSwitching && isCloudEnabled && isAuthenticated) {
         if (projectStore.projectLogoFile && 
             projectStore.projectLogoFile instanceof File && 
             !projectStore.projectLogoUrl?.includes('supabase')) {
@@ -150,6 +190,8 @@ export class CloudSyncService {
       } else {
         if (isProjectSwitching) {
           console.log(`⏭️ Skipping logo operations for project ${id} - project switching in progress`);
+        } else if (!(isCloudEnabled && isAuthenticated)) {
+          console.log(`Skipping logo operations for project ${id} - cloud sync unavailable or unauthenticated`);
         } else {
           console.log(`Skipping logo operations for project ${id} - not the current active project (${currentProjectId})`);
         }
@@ -250,11 +292,7 @@ export class CloudSyncService {
       // Save locally first (always)
       await this.saveToLocalStorage(id, data)
       
-      // Check if we're online and authenticated
-      const isOnline = navigator.onLine;
-      const isCloudEnabled = this.isCloudEnabled();
-      const isAuthenticated = this.isAuthenticated();
-      
+      // Check if we're online and authenticated (already computed above)
       console.log('CloudSyncService.saveProject: Status check:', {
         isOnline,
         isCloudEnabled,
