@@ -11,6 +11,7 @@ import { compressImage, getImageSource, revokeImageObjectURL, shouldUseBase64, M
 import { toast } from 'sonner';
 import { SecurityNotificationService } from '@/services/securityNotificationService';
 import { getColor } from '@/styles/glassmorphism-styles';
+import { ShotImageRenderer } from './ShotImageRenderer';
 
 interface ShotCardProps {
   shot: Shot;
@@ -378,19 +379,13 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           {(() => {
             const imageSource = getImageSource(shot);
             
-            // Calculate actual pixel offsets from percentage values
-            // Offsets are stored as percentages (0.0 to 1.0) relative to container size
-            // This makes them aspect-ratio-relative and grid-layout-independent
+            // Calculate container dimensions for ShotImageRenderer
             const containerWidth = previewDimensions ? 
               previewDimensions.width - 18 : // Account for card padding (8*2) and border (1*2)
               300; // Fallback default
             const containerHeight = previewDimensions ? 
               previewDimensions.imageHeight :
               169; // Fallback default for 16:9
-            
-            // Convert percentage offsets to pixels for CSS transform
-            const actualOffsetX = (shot.imageOffsetX || 0) * containerWidth;
-            const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
             
             
             return imageSource ? (
@@ -400,20 +395,13 @@ export const ShotCard: React.FC<ShotCardProps> = ({
                   borderRadius: `${storyboardTheme.shotCard.borderRadius}px`
                 }}
               >
-                <img
-                  src={imageSource}
-                  alt={`Shot ${shot.number}`}
-                  className="w-full h-full object-cover"
-                  style={{
-                    borderRadius: `${storyboardTheme.shotCard.borderRadius}px`,
-                    transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
-                    transformOrigin: 'center center',
-                    border: 'none',
-                    boxShadow: 'none',
-                    outline: 'none'
-                  }}
+                <ShotImageRenderer
+                  shot={shot}
+                  containerWidth={containerWidth}
+                  containerHeight={containerHeight}
                   onError={handleImageError}
                 />
+
                 {/* Editing mode overlay - only show if onEditUpdate is provided (inline editing) */}
                 {isEditing && onEditUpdate && (
                   <div 
