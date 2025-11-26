@@ -71,6 +71,22 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
     renderHeight = containerWidth / imageAspect;
   }
 
+  // Debug logging
+  console.log('🖼️ ShotImageRenderer Debug:', {
+    shotNumber: shot.number,
+    containerSize: { width: containerWidth, height: containerHeight },
+    imageNaturalSize,
+    imageAspect,
+    containerAspect,
+    calculatedRenderSize: { width: renderWidth, height: renderHeight },
+    userTransforms: {
+      scale: shot.imageScale || 1.0,
+      offsetX: shot.imageOffsetX || 0,
+      offsetY: shot.imageOffsetY || 0
+    },
+    actualOffsets: { x: actualOffsetX, y: actualOffsetY }
+  });
+
   return (
     <div 
       className="relative overflow-hidden"
