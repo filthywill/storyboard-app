@@ -71,6 +71,11 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
     renderHeight = containerWidth / imageAspect;
   }
 
+  // Calculate centering offsets in pixels (not percentages)
+  // Position the image so its center aligns with container center
+  const leftOffset = (containerWidth - renderWidth) / 2;
+  const topOffset = (containerHeight - renderHeight) / 2;
+
   return (
     <div 
       className="relative overflow-hidden"
@@ -84,16 +89,16 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
         src={imageSource}
         alt={`Shot ${shot.number}`}
         style={{
-          // Position image centered like object-cover, but at natural size
+          // Position image with calculated pixel offsets (not percentage translate)
           position: 'absolute',
-          top: '50%',
-          left: '50%',
+          top: `${topOffset}px`,
+          left: `${leftOffset}px`,
           width: `${renderWidth}px`,
           height: `${renderHeight}px`,
           borderRadius: `${borderRadius}px`,
-          // Center the image, then apply user transforms
-          // This matches how object-cover centers, but without the CSS crop
-          transform: `translate(-50%, -50%) scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
+          // Apply user transforms from center of image
+          // Transform origin is center of the POSITIONED image
+          transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
           transformOrigin: 'center center',
           border: 'none',
           boxShadow: 'none',
