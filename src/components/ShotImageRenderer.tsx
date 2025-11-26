@@ -79,6 +79,12 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
   const leftOffset = (containerWidth - renderWidth) / 2;
   const topOffset = (containerHeight - actualRenderHeight) / 2;
 
+  // Calculate transform origin relative to the IMAGE element
+  // This should be the center of the CONTAINER, not the center of the image
+  // Transform origin is in pixels relative to the image's top-left corner
+  const transformOriginX = containerWidth / 2 - leftOffset;
+  const transformOriginY = containerHeight / 2 - topOffset;
+
   return (
     <div 
       className="relative overflow-hidden"
@@ -99,10 +105,10 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
           width: `${renderWidth}px`,
           height: 'auto', // Let browser maintain aspect ratio
           borderRadius: `${borderRadius}px`,
-          // Apply user transforms from center of image
-          // Transform origin is center of the POSITIONED image
+          // Apply user transforms from center of CONTAINER (not center of image)
+          // This ensures transforms work relative to the visible area
           transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
-          transformOrigin: 'center center',
+          transformOrigin: `${transformOriginX}px ${transformOriginY}px`,
           border: 'none',
           boxShadow: 'none',
           outline: 'none'
