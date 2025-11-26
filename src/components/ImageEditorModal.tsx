@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Shot } from '@/store';
-import { ShotCard } from './ShotCard';
+import { ShotImageRenderer } from './ShotImageRenderer';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 
 interface ImageEditorModalProps {
@@ -38,8 +38,9 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
     }
   }, [isOpen, shot]);
 
-  // Calculate preview dimensions for the ShotCard - use EXACT same logic as ShotGrid
-  const getPreviewDimensions = () => {
+  // Calculate IMAGE container dimensions (not card dimensions)
+  // This matches the actual image area inside ShotCard
+  const getImageDimensions = () => {
     const [w, h] = aspectRatio.split('/').map(str => parseInt(str.trim(), 10));
     
     // Use the EXACT same calculation as ShotGrid previewDimensions
@@ -56,13 +57,12 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
     const imageHeight = Math.floor((imageContainerWidth * h) / w);
     
     return {
-      width: shotWidth, // Return shotWidth like the actual calculation
-      imageHeight: imageHeight,
-      gap: 8
+      width: imageContainerWidth, // Return IMAGE width, not card width
+      height: imageHeight
     };
   };
 
-  const previewDimensions = getPreviewDimensions();
+  const imageDimensions = getImageDimensions();
 
   const handleEditUpdate = (updates: Partial<Shot>) => {
     if (editingShot) {
@@ -86,10 +86,9 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
     
-    // Calculate container dimensions (image frame size)
-    // Account for card padding (8*2) and border (1*2)
-    const containerWidth = previewDimensions.width - 18;
-    const containerHeight = previewDimensions.imageHeight;
+    // Use actual image container dimensions
+    const containerWidth = imageDimensions.width;
+    const containerHeight = imageDimensions.height;
     
     // Adjust drag sensitivity based on zoom level
     // When zoomed in more, we need to move less to get the same visual effect
@@ -110,7 +109,7 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
       x: e.clientX, 
       y: e.clientY 
     });
-  }, [isDragging, dragStart, editingShot, previewDimensions]);
+  }, [isDragging, dragStart, editingShot, imageDimensions]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -183,7 +182,6 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
               <div className="flex justify-center">
                 <div 
                   style={{ 
-                    width: `${previewDimensions.width}px`,
                     cursor: isDragging ? 'grabbing' : 'grab',
                     userSelect: 'none',
                     WebkitUserSelect: 'none',
@@ -192,16 +190,10 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                   }}
                   onMouseDown={handleMouseDown}
                 >
-                  <ShotCard
+                  <ShotImageRenderer
                     shot={editingShot}
-                    onUpdate={() => {}} // Not used in editing mode
-                    onDelete={() => {}} // Not used in editing mode
-                    onAddSubShot={() => {}} // Not used in editing mode
-                    onInsertShot={() => {}} // Not used in editing mode
-                    isEditing={false} // Disable editing overlay - we use sidebar controls
-                    isImageEditor={true} // Hide text fields and overlay buttons
-                    aspectRatio={aspectRatio}
-                    previewDimensions={previewDimensions}
+                    containerWidth={imageDimensions.width}
+                    containerHeight={imageDimensions.height}
                   />
                 </div>
               </div>
