@@ -71,34 +71,24 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
     renderHeight = containerWidth / imageAspect;
   }
 
-  // Position image centered like object-cover does
-  // Calculate offsets to center the oversized image
-  const leftOffset = (containerWidth - renderWidth) / 2;
-  const topOffset = (containerHeight - renderHeight) / 2;
-
   return (
     <div 
       className="relative overflow-hidden"
       style={{
         width: `${containerWidth}px`,
         height: `${containerHeight}px`,
-        borderRadius: `${borderRadius}px`,
-        backgroundColor: 'rgba(0, 0, 0, 0.05)' // Subtle background for debugging
+        borderRadius: `${borderRadius}px`
       }}
     >
       <img
         src={imageSource}
         alt={`Shot ${shot.number}`}
+        className="w-full h-full object-cover"
         style={{
-          position: 'absolute',
-          top: `${topOffset}px`,
-          left: `${leftOffset}px`,
-          width: `${renderWidth}px`,
-          height: `${renderHeight}px`,
-          // Match ShotCard transform: scale then translate (NO initial centering transform)
+          borderRadius: `${borderRadius}px`,
+          // Match ShotCard transform EXACTLY: scale then translate
           transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
           transformOrigin: 'center center',
-          borderRadius: `${borderRadius}px`,
           border: 'none',
           boxShadow: 'none',
           outline: 'none'
