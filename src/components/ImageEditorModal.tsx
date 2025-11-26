@@ -38,24 +38,27 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
     }
   }, [isOpen, shot]);
 
-  // Calculate IMAGE container dimensions for the editor preview
-  // Use a reasonable fixed size that's large enough for comfortable editing
+  // Calculate IMAGE container dimensions (not card dimensions)
+  // This matches the actual image area inside ShotCard
   const getImageDimensions = () => {
     const [w, h] = aspectRatio.split('/').map(str => parseInt(str.trim(), 10));
     
-    // Use a comfortable preview width for editing (larger than ShotCard)
-    const previewWidth = 500; // Large enough to see details while editing
-    const previewHeight = Math.floor((previewWidth * h) / w);
-    
-    console.log('📐 ImageEditor Dimensions:', {
-      aspectRatio,
-      gridCols,
-      calculatedSize: { width: previewWidth, height: previewHeight }
-    });
+    // Use the EXACT same calculation as ShotGrid previewDimensions
+    const fixedWidth = 1000;
+    const headerPadding = 16;
+    const gridWrapperPadding = 4;
+    const totalPadding = (headerPadding + gridWrapperPadding) * 2;
+    const availableWidth = fixedWidth - totalPadding;
+    const gaps = (gridCols - 1) * 8; // Use actual gridCols from page
+    const shotWidth = Math.floor((availableWidth - gaps) / gridCols);
+    const cardContentPadding = 8 * 2;
+    const imageBorder = 1 * 2;
+    const imageContainerWidth = shotWidth - cardContentPadding - imageBorder;
+    const imageHeight = Math.floor((imageContainerWidth * h) / w);
     
     return {
-      width: previewWidth,
-      height: previewHeight
+      width: imageContainerWidth, // Return IMAGE width, not card width
+      height: imageHeight
     };
   };
 

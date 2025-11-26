@@ -71,21 +71,10 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
     renderHeight = containerWidth / imageAspect;
   }
 
-  // Debug logging
-  console.log('🖼️ ShotImageRenderer Debug:', {
-    shotNumber: shot.number,
-    containerSize: { width: containerWidth, height: containerHeight },
-    imageNaturalSize,
-    imageAspect,
-    containerAspect,
-    calculatedRenderSize: { width: renderWidth, height: renderHeight },
-    userTransforms: {
-      scale: shot.imageScale || 1.0,
-      offsetX: shot.imageOffsetX || 0,
-      offsetY: shot.imageOffsetY || 0
-    },
-    actualOffsets: { x: actualOffsetX, y: actualOffsetY }
-  });
+  // Position image centered like object-cover does
+  // Calculate offsets to center the oversized image
+  const leftOffset = (containerWidth - renderWidth) / 2;
+  const topOffset = (containerHeight - renderHeight) / 2;
 
   return (
     <div 
@@ -102,12 +91,12 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
         alt={`Shot ${shot.number}`}
         style={{
           position: 'absolute',
-          top: '50%',
-          left: '50%',
+          top: `${topOffset}px`,
+          left: `${leftOffset}px`,
           width: `${renderWidth}px`,
           height: `${renderHeight}px`,
-          // Transform order: translate to center, apply user scale, apply user offset
-          transform: `translate(-50%, -50%) scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
+          // Match ShotCard transform: scale then translate (NO initial centering transform)
+          transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
           transformOrigin: 'center center',
           borderRadius: `${borderRadius}px`,
           border: 'none',
