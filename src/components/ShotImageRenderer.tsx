@@ -27,6 +27,9 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
   const storyboardTheme = useAppStore((state) => state.storyboardTheme);
   const imageSource = getImageSource(shot);
   const [imageNaturalSize, setImageNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  
+  // Safe fallback for border radius
+  const borderRadius = storyboardTheme?.shotCard?.borderRadius ?? 8;
 
   // Load image to get natural dimensions
   useEffect(() => {
@@ -74,7 +77,7 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
       style={{
         width: `${containerWidth}px`,
         height: `${containerHeight}px`,
-        borderRadius: `${storyboardTheme.shotCard.borderRadius}px`,
+        borderRadius: `${borderRadius}px`,
         backgroundColor: 'rgba(0, 0, 0, 0.05)' // Subtle background for debugging
       }}
     >
@@ -90,7 +93,7 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
           // Transform order: translate to center, apply user scale, apply user offset
           transform: `translate(-50%, -50%) scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
           transformOrigin: 'center center',
-          borderRadius: `${storyboardTheme.shotCard.borderRadius}px`,
+          borderRadius: `${borderRadius}px`,
           border: 'none',
           boxShadow: 'none',
           outline: 'none'
