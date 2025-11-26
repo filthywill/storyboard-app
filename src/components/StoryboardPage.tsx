@@ -9,8 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
-import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { getToolbarContainerStyles, getToolbarContainerStylesWithOverrides, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Download, FileImage, FileText, FolderOpen, ChevronDown } from 'lucide-react';
+import { Download, FileImage, FileText, FolderOpen, ChevronDown, Palette, ChevronUp } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,9 @@ import { cn } from '@/lib/utils';
 import { PageTabs } from './PageTabs';
 import { MasterHeader } from './MasterHeader';
 import { TemplateSettings } from './TemplateSettings';
+import { ThemeToolbar } from './ThemeToolbar';
 import { ProjectDropdown } from './ProjectDropdown';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { PDFExportModal } from './PDFExportModal';
 import { BatchLoadModal } from './BatchLoadModal';
 import { ShotListLoadModal } from './ShotListLoadModal';
@@ -66,6 +69,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     isExporting, 
     setIsExporting, 
     templateSettings,
+    storyboardTheme,
     getPageById,
     getPageShots,
     shots,
@@ -105,6 +109,17 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const [newProjectDescription, setNewProjectDescription] = useState('');
   const [editingShot, setEditingShot] = useState<Shot | null>(null);
   const [batchInsertPosition, setBatchInsertPosition] = useState<number | null>(null);
+  
+  // Theme toolbar collapse state with localStorage persistence
+  const [isThemeToolbarOpen, setIsThemeToolbarOpen] = useState(() => {
+    const saved = localStorage.getItem('themeToolbarOpen');
+    return saved !== null ? saved === 'true' : true; // Default to open
+  });
+  
+  const handleThemeToolbarToggle = (open: boolean) => {
+    setIsThemeToolbarOpen(open);
+    localStorage.setItem('themeToolbarOpen', String(open));
+  };
   
   // Drag and drop state
   const [activeShot, setActiveShot] = React.useState<Shot | null>(null);
@@ -310,10 +325,13 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
       <div className="flex items-center justify-center h-64">
         <Card className="w-96">
           <CardContent className="p-8 text-center">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 
+              className="text-lg font-semibold mb-2"
+              style={{ color: getColor('text', 'primary') as string }}
+            >
               Page Not Found
             </h3>
-            <p className="text-gray-600">
+            <p style={{ color: getColor('text', 'secondary') as string }}>
               The requested storyboard page could not be found.
             </p>
           </CardContent>
@@ -354,7 +372,8 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         isDragging: false,
         isExporting: false,
         showDeleteConfirmation: false,
-        templateSettings
+        templateSettings,
+        storyboardTheme
       };
       
       await exportManager.downloadPage(
@@ -501,6 +520,47 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
             <AspectRatioSelector pageId={pageId} />
             <StartNumberSelector />
             <TemplateSettings />
+            <Collapsible open={isThemeToolbarOpen} onOpenChange={handleThemeToolbarToggle}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CollapsibleTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="compact" 
+                      className={cn(
+                        "py-1.5 flex items-center justify-center gap-1 transition-all duration-200",
+                        "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent",
+                        "active:outline-none active:ring-0 active:border-transparent",
+                        "hover:border-transparent",
+                        "border-transparent"
+                      )}
+                      style={{
+                        ...getToolbarContainerStyles(),
+                        border: 'none',
+                        outline: 'none',
+                        ...(isThemeToolbarOpen && { 
+                          backgroundColor: getColor('button', 'active')
+                        })
+                      }}
+                      onMouseDown={(e) => {
+                        // Blur immediately after mousedown to prevent focus border
+                        setTimeout(() => e.currentTarget.blur(), 0);
+                      }}
+                    >
+                      <Palette size={16} className={TOOLBAR_STYLES.iconClasses} />
+                      {isThemeToolbarOpen ? (
+                        <ChevronUp size={12} className={TOOLBAR_STYLES.iconClasses} />
+                      ) : (
+                        <ChevronDown size={12} className={TOOLBAR_STYLES.iconClasses} />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Customize Theme</p>
+                </TooltipContent>
+              </Tooltip>
+            </Collapsible>
           </div>
         </div>
         
@@ -559,6 +619,13 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         </div>
       </div>
 
+      {/* Theme Toolbar - Collapsible */}
+      <Collapsible open={isThemeToolbarOpen} onOpenChange={handleThemeToolbarToggle}>
+        <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+          <ThemeToolbar />
+        </CollapsibleContent>
+      </Collapsible>
+
       <ErrorBoundary>
       <DndContext
         sensors={sensors}
@@ -598,10 +665,12 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
                 ref={contentRef}
                 id={`storyboard-page-${pageId}`}
                 className={cn(
-                  "bg-white rounded-md shadow-lg overflow-visible relative z-20"
+                  "shadow-lg overflow-visible relative z-20 storyboard-themeable"
                 )}
                 style={{
                   height: 'min-content',
+                  ['--inline-bg-color' as any]: storyboardTheme.contentBackground,
+                  ['--inline-border-radius' as any]: '6px', // rounded-md = 6px
                 }}
               >
           <MasterHeader />
@@ -676,26 +745,37 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
 
         {/* Create Project Dialog */}
         <Dialog open={showCreateProjectDialog} onOpenChange={setShowCreateProjectDialog}>
-          <DialogContent>
+          <DialogContent style={getGlassmorphismStyles('dark')}>
             <DialogHeader>
-              <DialogTitle>Create New Project</DialogTitle>
-              <DialogDescription>
+              <DialogTitle style={{ color: getColor('text', 'primary') as string }}>
+                Create New Project
+              </DialogTitle>
+              <DialogDescription style={{ color: getColor('text', 'secondary') as string }}>
                 Create a new storyboard project with a custom name and description.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="project-name">Project Name</Label>
+                <Label htmlFor="project-name" style={{ color: getColor('text', 'primary') as string }}>
+                  Project Name
+                </Label>
                 <Input
                   id="project-name"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   placeholder="Enter project name"
                   maxLength={50}
+                  style={{
+                    backgroundColor: getColor('input', 'background') as string,
+                    border: `1px solid ${getColor('input', 'border') as string}`,
+                    color: getColor('text', 'primary') as string
+                  }}
                 />
               </div>
               <div>
-                <Label htmlFor="project-description">Description (Optional)</Label>
+                <Label htmlFor="project-description" style={{ color: getColor('text', 'primary') as string }}>
+                  Description (Optional)
+                </Label>
                 <Textarea
                   id="project-description"
                   value={newProjectDescription}
@@ -703,14 +783,25 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
                   placeholder="Enter project description"
                   maxLength={200}
                   rows={3}
+                  style={{
+                    backgroundColor: getColor('input', 'background') as string,
+                    border: `1px solid ${getColor('input', 'border') as string}`,
+                    color: getColor('text', 'primary') as string
+                  }}
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateProjectDialog(false)}>
+              <Button 
+                onClick={() => setShowCreateProjectDialog(false)}
+                style={getGlassmorphismStyles('button')}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleCreateProject}>
+              <Button 
+                onClick={handleCreateProject}
+                style={getGlassmorphismStyles('buttonAccent')}
+              >
                 Create Project
               </Button>
             </DialogFooter>

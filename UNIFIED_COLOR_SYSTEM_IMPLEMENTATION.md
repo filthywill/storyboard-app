@@ -30,21 +30,48 @@ export const COLOR_PALETTE = {
     primary: 'rgba(1, 1, 1, 0.05)',      // Main container backgrounds
     secondary: 'rgba(15, 15, 15, 1)',    // Dark surfaces (modals, dropdowns)
     subtle: 'rgba(1, 1, 1, 0.2)',        // Subtle container backgrounds
+    themeParent: 'rgba(1, 1, 1, 0.3)',   // Theme toolbar parent container - ADDED Nov 11, 2025
+    themeSubContainer: 'rgba(0, 0, 0, 0.6)', // Theme toolbar sub-containers (grouping controls) - ADDED Nov 11, 2025
+    themeSelect: 'rgba(1, 1, 1, 0.2)',   // Theme toolbar select dropdown - ADDED Nov 11, 2025
     accent: 'rgba(59, 130, 246, 0.9)',   // Accent surfaces
   },
   
   // Button colors (separate from container backgrounds - ADDED Oct 30, 2025)
   button: {
-    primary: 'rgba(255, 255, 255, 0.08)',    // Default button background
-    secondary: 'rgba(255, 255, 255, 0.12)',  // Secondary/emphasized buttons
-    accent: 'rgba(59, 130, 246, 0.9)',       // CTA/accent buttons
+    primary: 'rgba(33, 212, 252, 0.7)',       // Primary action buttons (Export, Save, Create) - cyan
+    secondary: 'rgba(255, 255, 255, 0.08)',   // Secondary/Cancel buttons - subtle default
+    accent: 'rgba(33, 212, 252, 0.7)',       // DEPRECATED: Use button.primary instead (kept for backwards compatibility)
     hover: 'rgba(255, 255, 255, 0.15)',      // Hover state overlay
+    active: 'rgba(0, 0, 0, 0.7)',            // Active/pressed button state (dark) - ADDED Nov 11, 2025
+    toggleInactive: 'rgba(255, 255, 255, 0.05)', // Icon toggle inactive state - ADDED Nov 11, 2025
+    toggleInactiveHover: 'rgba(255, 255, 255, 0.20)', // Icon toggle inactive hover - ADDED Nov 11, 2025
+    toggleActive: 'rgba(255, 255, 255, 0.30)',   // Icon toggle active state - ADDED Nov 11, 2025
+    toggleActiveHover: 'rgba(255, 255, 255, 0.40)', // Icon toggle active hover - ADDED Nov 11, 2025
   },
   
   // Input colors (form fields - ADDED Oct 30, 2025)
   input: {
     background: 'rgba(255, 255, 255, 0.05)', // Input field backgrounds
+    backgroundDark: 'rgba(0, 0, 0, 0.8)',    // Dark input backgrounds (theme toolbar numeric inputs) - ADDED Nov 11, 2025
     border: 'rgba(255, 255, 255, 0.15)',     // Input field borders
+    borderSubtle: 'rgba(255, 255, 255, 0.1)', // Subtle input borders (theme toolbar) - ADDED Nov 11, 2025
+  },
+  
+  // Checkbox colors (for form checkboxes - needs strong contrast on dark backgrounds - ADDED Jan 15, 2025)
+  checkbox: {
+    background: 'rgba(255, 255, 255, 0.1)',   // Unselected checkbox background (visible on dark)
+    backgroundChecked: 'rgba(33, 212, 252, 0.8)', // Selected checkbox background (cyan/primary)
+    border: 'rgba(255, 255, 255, 0.3)',      // Checkbox border (stronger contrast)
+    borderChecked: 'rgba(33, 212, 252, 1)',  // Selected checkbox border
+    icon: 'rgba(255, 255, 255, 1)',         // Check icon color (white for visibility)
+  },
+  
+  // Radio button colors (same as checkbox for consistency - ADDED Jan 15, 2025)
+  radio: {
+    background: 'rgba(255, 255, 255, 0.1)',   // Unselected radio background (visible on dark)
+    border: 'rgba(255, 255, 255, 0.3)',      // Radio border (stronger contrast)
+    borderChecked: 'rgba(33, 212, 252, 1)',  // Selected radio border (cyan)
+    indicator: 'rgba(33, 212, 252, 1)',      // Radio indicator dot (cyan)
   },
   
   // Text colors
@@ -187,6 +214,74 @@ import { getColor } from '@/styles/glassmorphism-styles';
 </div>
 ```
 
+## ⚠️ Common Pitfalls & Solutions
+
+### **Pitfall 1: Animating Opacity on Transparent Backgrounds**
+
+**Problem**: Animating opacity (0→1 or 1→0) on containers with semi-transparent backgrounds creates visual darkening effects due to stacking transparency.
+
+**Example**:
+```typescript
+// ❌ WRONG: Opacity animation causes darkening
+'collapsible-down': {
+  from: { height: '0', opacity: '0' },
+  to: { height: 'var(--radix-collapsible-content-height)', opacity: '1' }
+}
+```
+
+**Solution**: Animate only height, not opacity:
+```typescript
+// ✅ CORRECT: Height-only animation
+'collapsible-down': {
+  from: { height: '0' },
+  to: { height: 'var(--radix-collapsible-content-height)' }
+}
+```
+
+**When this occurs**: Any collapsible/accordion with glassmorphism backgrounds  
+**Fixed in**: `tailwind.config.ts` collapsible keyframes (November 11, 2025)
+
+---
+
+### **Pitfall 2: Browser Default Focus Styles on Input Containers**
+
+**Problem**: Chrome applies default `:active` and `:focus-within` styles that change border colors to black, overriding centralized colors.
+
+**Solution**: Add CSS rules in `index.css` for all border color variants:
+```css
+/* Light borders (input.borderSubtle) */
+div[style*="rgba(255, 255, 255, 0.1)"]:has(button:active) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Dark borders (border.primary) */
+div[style*="rgba(0, 0, 0, 0.1)"]:has(button:active) {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+```
+
+**When this occurs**: Input containers with up/down arrow buttons  
+**Fixed in**: `index.css` lines 317-323 (November 11, 2025)
+
+---
+
+### **Pitfall 3: Hardcoding Colors Instead of Using Centralized System**
+
+**Problem**: Inline color values make it hard to maintain consistency and update styles globally.
+
+**Example**:
+```typescript
+// ❌ WRONG: Hardcoded
+style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+
+// ✅ CORRECT: Centralized
+style={{ backgroundColor: getColor('button', 'active') }}
+```
+
+**Audit completed**: November 11, 2025 - ThemeToolbar.tsx now fully centralized (0 hardcoded colors remaining)
+
+---
+
 ## 🔄 Migration Strategy
 
 ### **Phase 1: Foundation (Completed)**
@@ -263,14 +358,27 @@ Lack of semantic separation in the color palette. Multiple UI element types (but
 Added two new color categories for independent control:
 
 **Button Colors** (`button.*`):
-- `primary`: Default interactive buttons
-- `secondary`: Emphasized/important buttons (slightly brighter)
-- `accent`: Call-to-action buttons (blue accent color)
+- `primary`: Primary action buttons (cyan) - Export, Save, Create
+- `secondary`: Cancel/secondary buttons (subtle default)
+- `accent`: DEPRECATED - Use `primary` instead
 - `hover`: Hover state overlay
 
 **Input Colors** (`input.*`):
 - `background`: Form field backgrounds
 - `border`: Form field borders
+
+**Checkbox Colors** (`checkbox.*` - ADDED Jan 15, 2025):
+- `background`: Unselected background (visible on dark)
+- `backgroundChecked`: Selected background (cyan)
+- `border`: Unselected border (strong contrast)
+- `borderChecked`: Selected border (cyan)
+- `icon`: Check icon color (white)
+
+**Radio Button Colors** (`radio.*` - ADDED Jan 15, 2025):
+- `background`: Unselected background (visible on dark)
+- `border`: Unselected border (strong contrast)
+- `borderChecked`: Selected border (cyan)
+- `indicator`: Radio dot color (cyan)
 
 **Background Colors** (clarified usage):
 - Reserved for containers, panels, headers, wrappers
@@ -344,13 +452,13 @@ COLOR_PALETTE.input.background = 'rgba(0, 0, 255, 0.1)';
 
 #### **For Buttons:**
 ```typescript
-// Default buttons
+// Cancel/secondary buttons (subtle default)
 <Button style={getGlassmorphismStyles('button')} />
 
-// Emphasized buttons (slightly brighter)
+// Emphasized secondary buttons
 <Button style={getGlassmorphismStyles('buttonSecondary')} />
 
-// CTA/accent buttons
+// Primary action buttons (Export, Save, Create) - cyan
 <Button style={getGlassmorphismStyles('buttonAccent')} />
 ```
 
@@ -362,6 +470,15 @@ COLOR_PALETTE.input.background = 'rgba(0, 0, 255, 0.1)';
     border: `1px solid ${getColor('input', 'border')}`
   }}
 />
+```
+
+#### **For Checkboxes and Radio Buttons:**
+```typescript
+// Checkboxes and radio buttons use CSS variables injected at runtime
+// Colors are controlled via checkbox.* and radio.* in COLOR_PALETTE
+// CSS rules in index.css handle state transitions automatically
+<Checkbox />  // Uses centralized checkbox colors
+<RadioGroupItem />  // Uses centralized radio colors
 ```
 
 #### **For Containers:**
@@ -424,9 +541,13 @@ This update reinforces the following design system principles:
 
 ---
 
-*Last Updated: October 30, 2025*
+*Last Updated: January 15, 2025*
 *Unified color system with semantic separation*
 *Single source of truth for all styling*
 *Progressive enhancement approach*
 *Industry standard best practices*
+*Added theme toolbar colors and common pitfalls section*
+*Phases 4-6 completed: Added overlayButton, status glows, and text variants*
+*Button color naming updated: primary = cyan (actions), secondary = subtle (cancel)*
+*Added checkbox and radio button colors for visibility on dark backgrounds*
 

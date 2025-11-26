@@ -324,6 +324,7 @@ export const useAppStore = () => {
     clientAgency: projectStore.clientAgency,
     jobInfo: projectStore.jobInfo,
     templateSettings: projectStore.templateSettings,
+    storyboardTheme: projectStore.storyboardTheme,
     setProjectName: projectStore.setProjectName,
     setProjectInfo: projectStore.setProjectInfo,
     setProjectLogo: projectStore.setProjectLogo,
@@ -332,6 +333,7 @@ export const useAppStore = () => {
     setTemplateSetting: projectStore.setTemplateSetting,
     setTemplateSettings: projectStore.setTemplateSettings,
     resetTemplateSettings: projectStore.resetTemplateSettings,
+    setStoryboardTheme: projectStore.setStoryboardTheme,
 
     // UI state
     isDragging: uiStore.isDragging,

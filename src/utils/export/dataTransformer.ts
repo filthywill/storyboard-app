@@ -58,7 +58,8 @@ export class DataTransformer {
         page.aspectRatio,
         finalTargetWidth,
         scale,
-        showPageNumber
+        showPageNumber,
+        storyboardState.storyboardTheme
       );
       
       const layout = LayoutCalculator.calculateLayout(gridConfig, dimensions, showPageNumber);
@@ -75,7 +76,8 @@ export class DataTransformer {
         header,
         grid,
         layout,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        storyboardTheme: storyboardState.storyboardTheme
       };
       
       return result;

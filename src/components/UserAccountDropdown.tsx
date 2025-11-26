@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getColor } from '@/styles/glassmorphism-styles';
 import { LogOut } from 'lucide-react';
 import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 
@@ -25,8 +26,12 @@ export const UserAccountDropdown: React.FC = () => {
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
-          className="text-base text-white hover:bg-white/20 hover:text-white px-2 py-1 rounded transition-colors"
-          style={{ fontFamily: '"BBH Sans Hegarty", sans-serif' }}
+          className="text-base px-2 py-1 rounded transition-colors"
+          style={{ 
+            fontFamily: '"Gabarito", sans-serif',
+            fontWeight: 600,
+            ...getGlassmorphismStyles('button')
+          }}
         >
           {user.email}
         </button>
@@ -45,28 +50,34 @@ export const UserAccountDropdown: React.FC = () => {
           </div>
           
           {/* User Name */}
-          <div className="text-white font-semibold text-lg mb-1">
+          <div 
+            className="text-white text-lg mb-1"
+            style={{ 
+              fontFamily: '"Gabarito", sans-serif',
+              fontWeight: 700
+            }}
+          >
             {displayName}
           </div>
           
           {/* User Email */}
-          <div className="text-gray-400 text-sm mb-4">
+          <div 
+            className="text-sm mb-4"
+            style={{ 
+              fontFamily: '"Gabarito", sans-serif',
+              fontWeight: 600,
+              color: getColor('text', 'muted') as string 
+            }}
+          >
             {user.email}
           </div>
           
           {/* Sign Out Button */}
           <Button
-            variant="outline"
             size="sm"
             onClick={signOut}
-            className="w-full mb-4 text-white hover:bg-white/20 hover:text-white"
-            style={{
-              backgroundColor: 'rgba(1, 1, 1, 0.2)',
-              backdropFilter: 'blur(0.5px)',
-              WebkitBackdropFilter: 'blur(0.5px)',
-              border: '1px solid rgba(0, 0, 0, 0.2)',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-            }}
+            className="w-full mb-4"
+            style={getGlassmorphismStyles('button')}
           >
             <LogOut className="w-4 h-4 mr-2" />
             Sign out
@@ -74,21 +85,32 @@ export const UserAccountDropdown: React.FC = () => {
         </div>
         
         {/* Divider */}
-        <div className="border-t border-gray-600"></div>
+        <div style={{ borderTop: `1px solid ${getColor('border', 'primary')}` }}></div>
         
         {/* Policy Links */}
         <div className="p-4 text-center">
-          <div className="flex justify-center items-center gap-2 text-sm text-gray-400">
+          <div 
+            className="flex justify-center items-center gap-2 text-sm"
+            style={{ color: getColor('text', 'muted') as string }}
+          >
             <a 
               href="/privacy" 
-              className="hover:text-white transition-colors"
+              className="hover:transition-colors"
+              style={{ 
+                color: 'inherit'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = getColor('text', 'primary') as string}
+              onMouseLeave={(e) => e.currentTarget.style.color = getColor('text', 'muted') as string}
             >
               Privacy Policy
             </a>
             <span>•</span>
             <a 
               href="/terms" 
-              className="hover:text-white transition-colors"
+              className="hover:transition-colors"
+              style={{ color: 'inherit' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = getColor('text', 'primary') as string}
+              onMouseLeave={(e) => e.currentTarget.style.color = getColor('text', 'muted') as string}
             >
               Terms of Service
             </a>

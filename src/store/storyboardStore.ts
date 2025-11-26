@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { produce } from 'immer';
+import { StoryboardTheme } from '@/styles/storyboardTheme';
 
 export interface Shot {
   id: string;
@@ -48,6 +49,7 @@ export interface StoryboardState {
     showScriptText: boolean;
     showPageNumber: boolean;
   };
+  storyboardTheme: StoryboardTheme;
 }
 
 export interface StoryboardActions {

@@ -70,68 +70,36 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent style={getGlassmorphismStyles('dark')}>
-        <DialogHeader>
-          <DialogTitle style={{ color: getColor('text', 'primary') as string }}>{isSignUp ? 'Create Account' : 'Sign In'}</DialogTitle>
-          <DialogDescription style={{ color: getColor('text', 'secondary') as string }}>
-            {isSignUp 
-              ? 'Create a new account to start using Storyboard Flow' 
-              : 'Sign in to your account to continue'
-            }
+      <DialogContent 
+        className="sm:max-w-[360px]"
+        style={getGlassmorphismStyles('dark')}
+      >
+        <DialogHeader className="text-center space-y-2">
+          <DialogTitle 
+            className="text-2xl font-bold"
+            style={{ 
+              color: getColor('text', 'primary') as string,
+              textAlign: 'center'
+            }}
+          >
+            {isSignUp ? 'Create Account' : 'Sign In'}
+          </DialogTitle>
+          <DialogDescription 
+            className="text-sm"
+            style={{ 
+              color: getColor('text', 'secondary') as string,
+              textAlign: 'center'
+            }}
+          >
+            {isSignUp ? (
+              <>Already have an account? <button type="button" onClick={() => setIsSignUp(false)} style={{ color: getColor('button', 'primary') as string, textDecoration: 'underline' }}>Sign in</button></>
+            ) : (
+              <>New user? <button type="button" onClick={() => setIsSignUp(true)} style={{ color: getColor('button', 'primary') as string, textDecoration: 'underline' }}>Create an account</button></>
+            )}
           </DialogDescription>
         </DialogHeader>
         
-        {/* Social Login Buttons */}
-        <div className="space-y-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full text-white"
-            style={getGlassmorphismStyles('button')}
-            onClick={() => handleSocialLogin('google')}
-            disabled={loading}
-          >
-            <Chrome className="w-4 h-4 mr-2" />
-            Continue with Google
-          </Button>
-          
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full text-white"
-            style={getGlassmorphismStyles('button')}
-            onClick={() => handleSocialLogin('github')}
-            disabled={loading}
-          >
-            <Github className="w-4 h-4 mr-2" />
-            Continue with GitHub
-          </Button>
-          
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full text-white"
-            style={getGlassmorphismStyles('button')}
-            onClick={() => handleSocialLogin('apple')}
-            disabled={loading}
-          >
-            <Apple className="w-4 h-4 mr-2" />
-            Continue with Apple
-          </Button>
-        </div>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="px-2" style={{ color: getColor('text', 'muted') as string }}>
-              Or continue with email
-            </span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 px-4">
           {isSignUp && (
             <div>
               <Label htmlFor={displayNameId} style={{ color: getColor('text', 'secondary') as string }}>Display Name</Label>
@@ -141,8 +109,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Your name"
                 autoComplete="name"
-                className="text-white placeholder:text-white/50"
-                style={{ backgroundColor: getColor('input', 'background') as string, border: `1px solid ${getColor('input', 'border') as string}` }}
+                style={{ 
+                  backgroundColor: getColor('input', 'background') as string, 
+                  border: `1px solid ${getColor('input', 'border') as string}`,
+                  color: getColor('text', 'primary') as string
+                }}
+                className="placeholder:opacity-50"
               />
             </div>
           )}
@@ -157,8 +129,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               placeholder="you@example.com"
               autoComplete="email"
               required
-              className="text-white placeholder:text-white/50"
-              style={{ backgroundColor: getColor('input', 'background') as string, border: `1px solid ${getColor('input', 'border') as string}` }}
+              style={{ 
+                backgroundColor: getColor('input', 'background') as string, 
+                border: `1px solid ${getColor('input', 'border') as string}`,
+                color: getColor('text', 'primary') as string
+              }}
+              className="placeholder:opacity-50"
             />
           </div>
           
@@ -173,24 +149,83 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               autoComplete={isSignUp ? 'new-password' : 'current-password'}
               required
               minLength={6}
-              className="text-white placeholder:text-white/50"
-              style={{ backgroundColor: getColor('input', 'background') as string, border: `1px solid ${getColor('input', 'border') as string}` }}
+              style={{ 
+                backgroundColor: getColor('input', 'background') as string, 
+                border: `1px solid ${getColor('input', 'border') as string}`,
+                color: getColor('text', 'primary') as string
+              }}
+              className="placeholder:opacity-50"
             />
           </div>
           
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button 
+            type="submit" 
+            className="w-full" 
+            disabled={loading}
+            style={getGlassmorphismStyles('buttonAccent')}
+          >
             {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
+          </Button>
+        </form>
+
+        {/* Social Login Divider */}
+        <div className="relative px-4">
+          <div className="absolute inset-0 flex items-center px-4">
+            <span 
+              className="w-full" 
+              style={{ 
+                borderTop: `1px solid ${getColor('input', 'border') as string}`
+              }}
+            />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span 
+              className="px-2" 
+              style={{ 
+                color: getColor('text', 'muted') as string,
+                backgroundColor: getColor('background', 'secondary') as string
+              }}
+            >
+              Or continue with
+            </span>
+          </div>
+        </div>
+
+        {/* Social Login Buttons */}
+        <div className="space-y-2 px-4 pb-4">
+          <Button
+            type="button"
+            className="w-full"
+            style={getGlassmorphismStyles('button')}
+            onClick={() => handleSocialLogin('google')}
+            disabled={loading}
+          >
+            <Chrome className="w-4 h-4 mr-2" />
+            Continue with Google
           </Button>
           
           <Button
             type="button"
-            variant="ghost"
             className="w-full"
-            onClick={() => setIsSignUp(!isSignUp)}
+            style={getGlassmorphismStyles('button')}
+            onClick={() => handleSocialLogin('github')}
+            disabled={loading}
           >
-            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+            <Github className="w-4 h-4 mr-2" />
+            Continue with GitHub
           </Button>
-        </form>
+          
+          <Button
+            type="button"
+            className="w-full"
+            style={getGlassmorphismStyles('button')}
+            onClick={() => handleSocialLogin('apple')}
+            disabled={loading}
+          >
+            <Apple className="w-4 h-4 mr-2" />
+            Continue with Apple
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )

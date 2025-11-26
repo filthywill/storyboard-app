@@ -18,6 +18,7 @@ export interface DOMCaptureResult {
   grid: ExportGrid;
   footer: { bounds: Rectangle; text: string | null; justify: 'start' | 'center' | 'end' } | null;
   backgroundColor: string;
+  storyboardState: any;
 }
 
 export class DOMCapture {
@@ -106,7 +107,8 @@ export class DOMCapture {
         header,
         grid,
         footer: footerBounds ? { bounds: footerBounds, text: footerText, justify: footerJustify } : null,
-        backgroundColor: '#ffffff'
+        backgroundColor: storyboardState.storyboardTheme?.contentBackground || '#ffffff',
+        storyboardState
       };
 
     } catch (error) {

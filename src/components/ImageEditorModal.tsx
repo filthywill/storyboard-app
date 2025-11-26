@@ -5,6 +5,7 @@ import { Slider } from '@/components/ui/slider';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Shot } from '@/store';
 import { ShotCard } from './ShotCard';
+import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 
 interface ImageEditorModalProps {
   isOpen: boolean;
@@ -159,15 +160,26 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleCancel()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-hidden"
+        style={getGlassmorphismStyles('dark')}
+      >
         <DialogHeader>
-          <DialogTitle>Edit Image - Shot {shot.number}</DialogTitle>
+          <DialogTitle style={{ color: getColor('text', 'primary') as string }}>
+            Edit Image - Shot {shot.number}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex gap-6">
           {/* Real ShotCard for editing */}
           <div className="flex-1">
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <div 
+              className="rounded-lg p-4"
+              style={{
+                ...getGlassmorphismStyles('background'),
+                border: `1px solid ${getColor('border', 'primary') as string}`
+              }}
+            >
               <div className="flex justify-center">
                 <div 
                   style={{ 
@@ -193,7 +205,10 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-500 text-center mt-2">
+              <p 
+                className="text-xs text-center mt-2"
+                style={{ color: getColor('text', 'muted') as string }}
+              >
                 Click and drag to position • Use controls to zoom
               </p>
             </div>
@@ -203,12 +218,17 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
           <div className="w-64 space-y-6">
             {/* Zoom Controls */}
             <div className="space-y-3">
-              <h3 className="font-medium text-sm">Zoom Controls</h3>
+              <h3 
+                className="font-medium text-sm"
+                style={{ color: getColor('text', 'primary') as string }}
+              >
+                Zoom Controls
+              </h3>
               <div className="flex items-center gap-3">
                 <Button
-                  variant="outline"
                   size="icon"
                   className="h-8 w-8"
+                  style={getGlassmorphismStyles('button')}
                   onClick={() => handleEditUpdate({
                     imageScale: Math.max(0.1, (editingShot.imageScale || 1) - 0.1)
                   })}
@@ -224,9 +244,9 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                   className="flex-1"
                 />
                 <Button
-                  variant="outline"
                   size="icon"
                   className="h-8 w-8"
+                  style={getGlassmorphismStyles('button')}
                   onClick={() => handleEditUpdate({
                     imageScale: Math.min(4.0, (editingShot.imageScale || 1) + 0.1)
                   })}
@@ -234,7 +254,10 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
                   <ZoomIn size={16} />
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 text-center">
+              <p 
+                className="text-xs text-center"
+                style={{ color: getColor('text', 'muted') as string }}
+              >
                 {scalePercent}% (10% - 400%)
               </p>
             </div>
@@ -242,21 +265,37 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
 
             {/* Current Zoom Display */}
             <div className="space-y-2">
-              <h3 className="font-medium text-sm">Current Zoom</h3>
-              <div className="text-xs space-y-1 font-mono bg-gray-50 p-3 rounded border border-gray-200">
+              <h3 
+                className="font-medium text-sm"
+                style={{ color: getColor('text', 'primary') as string }}
+              >
+                Current Zoom
+              </h3>
+              <div 
+                className="text-xs space-y-1 font-mono p-3 rounded"
+                style={{
+                  ...getGlassmorphismStyles('background'),
+                  border: `1px solid ${getColor('border', 'primary') as string}`
+                }}
+              >
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Zoom:</span>
-                  <span>{scalePercent}%</span>
+                  <span style={{ color: getColor('text', 'secondary') as string }}>Zoom:</span>
+                  <span style={{ color: getColor('text', 'primary') as string }}>{scalePercent}%</span>
                 </div>
               </div>
             </div>
 
             {/* Quick Actions */}
             <div className="space-y-2">
-              <h3 className="font-medium text-sm">Quick Actions</h3>
+              <h3 
+                className="font-medium text-sm"
+                style={{ color: getColor('text', 'primary') as string }}
+              >
+                Quick Actions
+              </h3>
               <Button
-                variant="outline"
                 className="w-full justify-start"
+                style={getGlassmorphismStyles('button')}
                 onClick={handleReset}
               >
                 <RotateCcw size={16} className="mr-2" />
@@ -265,17 +304,18 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-4 space-y-2 border-t">
+            <div className="pt-4 space-y-2">
               <Button
                 onClick={handleApply}
                 className="w-full"
+                style={getGlassmorphismStyles('buttonSecondary')}
               >
                 Apply Changes
               </Button>
               <Button
-                variant="outline"
                 onClick={handleCancel}
                 className="w-full"
+                style={getGlassmorphismStyles('button')}
               >
                 Cancel
               </Button>

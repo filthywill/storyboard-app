@@ -32,9 +32,9 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 0 0% 0%;
-    --input: 0 0% 0%;
-    --ring: 221.2 83.2% 53.3%;
+    --border: 0 0% 0% / 0;  /* Transparent - using centralized system instead */
+    --input: 0 0% 0% / 0;   /* Transparent - using centralized system instead */
+    --ring: 0 0% 0% / 0;    /* Transparent - no focus rings, using centralized system */
 
     --radius: 0.5rem;
 
@@ -86,9 +86,9 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 0 0% 0%;
-    --input: 0 0% 0%;
-    --ring: 224.3 76.3% 94.1%;
+    --border: 0 0% 0% / 0;  /* Transparent - using centralized system instead */
+    --input: 0 0% 0% / 0;   /* Transparent - using centralized system instead */
+    --ring: 0 0% 0% / 0;    /* Transparent - no focus rings, using centralized system */
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -106,36 +106,153 @@
   }
 }
 
+/* ============================================================================
+   APP BACKGROUND SYSTEM - Centralized Color Control
+   ============================================================================
+   All app background colors are controlled via CSS custom properties.
+   
+   STRUCTURE:
+   - RGB colors are defined ONCE in glassmorphism-styles.ts (gradient1Color, etc.)
+   - Opacities are defined separately (gradient1Opacity, gradient1FadeOpacity, etc.)
+   - rgba() strings are auto-generated from RGB + opacity
+   - Base gradient uses base color with different opacities
+   
+   TO UPDATE COLORS:
+   1. Edit RGB values in glassmorphism-styles.ts (COLOR_PALETTE.appBackground)
+   2. Edit opacity values if needed
+   3. Sync the generated rgba() values below to match
+   
+   Example: Change gradient1Color from '255, 107, 197' to '255, 150, 200'
+   → Both gradient1 AND gradient1Fade automatically use the new color
+   ============================================================================ */
+
+:root {
+  /* Base background color */
+  --app-bg-base: #0a0911;
+  
+  /* Gradient colors (3-4 aurora lights) - full intensity */
+  /* AUTO-INJECTED: These values are overridden at runtime from glassmorphism-styles.ts */
+  /* Edit colors in: shot-flow-builder/src/styles/glassmorphism-styles.ts (COLOR_PALETTE.appBackground) */
+  /* Values below are fallbacks - actual values come from TypeScript at runtime */
+  --app-bg-gradient1: rgba(255, 107, 197, 0.25);  /* Pink aurora */
+  --app-bg-gradient2: rgba(169, 132, 255, 0.22);  /* Purple aurora */
+  --app-bg-gradient3: rgba(94, 92, 230, 0.28);   /* Indigo aurora */
+  --app-bg-gradient4: rgba(147, 51, 234, 0.2);    /* Optional 4th gradient */
+  
+  /* Gradient fade stops (mid-intensity for smooth transitions) */
+  /* AUTO-INJECTED: These use the same RGB colors as above with different opacity values */
+  --app-bg-gradient1-fade: rgba(255, 107, 197, 0.12);  /* Pink fade */
+  --app-bg-gradient2-fade: rgba(169, 132, 255, 0.1);  /* Purple fade */
+  --app-bg-gradient3-fade: rgba(94, 92, 230, 0.14);   /* Indigo fade */
+  
+  /* Base gradient stops (linear gradient foundation) */
+  /* AUTO-INJECTED: These are derived from base color with different opacities */
+  /* Change base color in glassmorphism-styles.ts, all stops update automatically */
+  --app-bg-base-gradient-start: rgba(10, 9, 17, 1.0);    /* Start: full base color */
+  --app-bg-base-gradient-mid1: rgba(10, 9, 17, 0.8);     /* Mid 1: 80% base color */
+  --app-bg-base-gradient-mid2: rgba(10, 9, 17, 0.6);     /* Mid 2: 60% base color */
+  --app-bg-base-gradient-end: rgba(10, 9, 17, 0.7);      /* End: 70% base color */
+  
+}
+
+/* HTML and scrollbar styles outside @layer to ensure they're not overridden */
+html {
+  /* Force scrollbar to always be visible - prevents layout shifts */
+  overflow-y: scroll !important;
+  background-color: var(--app-bg-base);
+  min-height: 100vh;
+  /* Prevent any padding/margin changes */
+  padding-right: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Custom scrollbar styling to match glassmorphism theme */
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  /* Dark background for the gutter area - fills the reserved space */
+  background: var(--app-bg-base);
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) var(--app-bg-base);
+}
+
 @layer base {
-  * {
+  /* REMOVED: Global border-border rule - now using centralized color system with inline styles */
+  /* * {
     @apply border-border;
+  } */
+
+  /* Aggressively prevent ALL unwanted borders and focus styles */
+  /* Only elements with explicit inline border styles should have borders */
+  *:not([style*="border"]) {
+    border-color: transparent !important;
+  }
+  
+  /* Remove all focus outlines - centralized system handles visual feedback */
+  *:focus,
+  *:focus-visible,
+  *:focus-within {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  
+  /* Prevent Radix UI and other libraries from adding borders */
+  [data-radix-dialog-content],
+  [data-radix-dialog-overlay],
+  [data-radix-select-content],
+  [data-radix-dropdown-menu-content],
+  [data-radix-popover-content] {
+    border-color: transparent !important;
   }
 
   body {
     @apply text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
-    /* Static Aurora Background - Enhanced with more color spots and contrast */
+    /* Prevent body from becoming scrollable when dropdowns open */
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    /* CRITICAL: Prevent Radix UI from adding padding-right that creates double gutter */
+    /* Radix adds padding-right when dropdowns open to compensate for scrollbar */
+    padding: 0 !important;
+    margin: 0 !important;
+    /* Ensure body takes full width */
+    width: 100% !important;
+    max-width: 100vw !important;
+    /* Simplified Aurora Background - 3-4 gradients controlled via CSS variables */
     background: 
-      /* Aurora lights - more concentrated with shorter transitions */
-      radial-gradient(ellipse at 20% 30%, rgba(255, 107, 197, 0.25) 0%, rgba(255, 107, 197, 0.12) 25%, transparent 40%),
-      radial-gradient(ellipse at 80% 20%, rgba(169, 132, 255, 0.22) 0%, rgba(169, 132, 255, 0.1) 20%, transparent 35%),
-      radial-gradient(ellipse at 60% 80%, rgba(94, 92, 230, 0.28) 0%, rgba(94, 92, 230, 0.14) 25%, transparent 40%),
-      radial-gradient(ellipse at 30% 70%, rgba(255, 107, 197, 0.18) 0%, rgba(255, 107, 197, 0.08) 20%, transparent 38%),
-      radial-gradient(ellipse at 85% 75%, rgba(169, 132, 255, 0.16) 0%, rgba(169, 132, 255, 0.06) 22%, transparent 40%),
-      /* Additional color spots for more variety */
-      radial-gradient(circle at 45% 15%, rgba(147, 51, 234, 0.2) 0%, transparent 28%),
-      radial-gradient(circle at 15% 85%, rgba(219, 39, 119, 0.15) 0%, transparent 32%),
-      radial-gradient(circle at 70% 50%, rgba(124, 58, 237, 0.12) 0%, transparent 25%),
-      radial-gradient(circle at 90% 45%, rgba(236, 72, 153, 0.14) 0%, transparent 30%),
-      radial-gradient(circle at 10% 55%, rgba(139, 92, 246, 0.16) 0%, transparent 28%),
+      /* Aurora lights - simplified to 3-4 gradients */
+      radial-gradient(ellipse at 20% 30%, var(--app-bg-gradient1) 0%, var(--app-bg-gradient1-fade) 25%, transparent 40%),
+      radial-gradient(ellipse at 80% 20%, var(--app-bg-gradient2) 0%, var(--app-bg-gradient2-fade) 20%, transparent 35%),
+      radial-gradient(ellipse at 60% 80%, var(--app-bg-gradient3) 0%, var(--app-bg-gradient3-fade) 25%, transparent 40%),
+      radial-gradient(circle at 45% 15%, var(--app-bg-gradient4) 0%, transparent 28%),
       /* Deep base gradient with more contrast */
-      linear-gradient(135deg, #0a0911 0%, #1a1825 40%, #0f0e1f 70%, #151428 100%);
+      linear-gradient(135deg, var(--app-bg-base-gradient-start) 0%, var(--app-bg-base-gradient-mid1) 40%, var(--app-bg-base-gradient-mid2) 70%, var(--app-bg-base-gradient-end) 100%);
     background-size: 100% 100%;
     background-attachment: fixed;
     min-height: 100vh;
   }
   
   /* Grainy noise texture overlay for pixelated color transitions */
+  /* Adjust opacity here to control grain intensity (0 = invisible, 1 = full intensity) */
   body::before {
     content: '';
     position: fixed;
@@ -143,11 +260,28 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='5 0 0 0 -2 0 5 0 0 -2 0 0 5 0 -2 0 0 0 1 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='discrete' tableValues='0 1'/%3E%3CfeFuncG type='discrete' tableValues='0 1'/%3E%3CfeFuncB type='discrete' tableValues='0 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='turbulence' baseFrequency='2' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='5 0 0 0 -2 0 5 0 0 -2 0 0 5 0 -2 0 0 0 1 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='discrete' tableValues='0 1'/%3E%3CfeFuncG type='discrete' tableValues='0 1'/%3E%3CfeFuncB type='discrete' tableValues='0 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
     pointer-events: none;
     z-index: 1;
-    opacity: 1;
+    opacity: 0.2; /* Grain intensity: 0 = invisible, 0.1 = subtle, 0.3 = moderate, 0.5+ = strong, 1 = maximum */
     mix-blend-mode: overlay;
+  }
+  
+  /* Filter overlay layer - for brightness/darkness/tint control */
+  /* Adjust background-color here to control brightness/darkness/tint */
+  /* Examples: rgba(0, 0, 0, 0.2) = darken, rgba(255, 255, 255, 0.1) = lighten, rgba(100, 50, 200, 0.15) = tint */
+  /* z-index: 1 ensures it sits above background gradients and grain, but below all app UI content (which uses z-index: 2+) */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(20, 36, 59, 0.7); /* Change this: rgba(0,0,0,0) = no effect, rgba(0,0,0,0.2) = darken, rgba(255,255,255,0.1) = lighten */
+    pointer-events: none;
+    z-index: 1; /* Above background (z-index: 0) and grain (z-index: 1, but ::after comes after ::before), below app UI (z-index: 2+) */
+    opacity: 1;
   }
 }
 
@@ -164,14 +298,28 @@
   
   /* Ensure shot numbers are always visible and properly styled */
   .shot-number {
-    background-color: #ffffff !important;
+    /* background-color removed - let theme control it */
     backdrop-filter: none !important;
-    border: 1px solid #e5e7eb !important;
-    border-radius: 6px !important;
-    color: #374151 !important;
+    /* border removed - let theme control it via CSS variables */
+    border-radius: var(--inline-border-radius) !important;
+    /* color removed - let theme control it */
     font-weight: bold !important;
     font-size: 14px !important;
     z-index: 20 !important;
+  }
+
+  /* Apply theme border to shot numbers */
+  .shot-number.storyboard-themeable[style] {
+    border-color: var(--inline-border-color) !important;
+    border-width: var(--inline-border-width) !important;
+    border-style: var(--inline-border-style) !important;
+  }
+
+  /* Action and Script text placeholder colors - use theme colors */
+  .action-text::placeholder,
+  .script-text::placeholder {
+    color: var(--placeholder-color) !important;
+    opacity: 0.6 !important;
   }
   
   /* Fix textarea rendering */
@@ -197,7 +345,7 @@
 }
 
 .shot-number-container > div {
-  background-color: rgba(255, 255, 255, 0.95) !important;
+  /* background-color removed - let theme control it */
   backdrop-filter: blur(4px) !important;
   border-radius: 6px !important;
   width: 36px !important;
@@ -207,7 +355,7 @@
   justify-content: center !important;
   font-size: 14px !important;
   font-weight: bold !important;
-  color: #374151 !important;
+  /* color removed - let theme control it */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
 }
 
@@ -218,220 +366,37 @@
   border: 1px solid #e5e7eb !important;
 }
 
-/* Remove focus rings from all interactive elements */
-*:focus,
-*:focus-visible,
-*:focus-within {
-  outline: none !important;
-  box-shadow: none !important;
-  border-color: inherit !important;
+/* ========================================
+ * CLEANUP COMPLETE: All redundant CSS overrides removed
+ * The aggressive rules in @layer base (lines 155-176) handle all border/focus scenarios
+ * The centralized color system now handles all borders via inline styles
+ * ======================================== */
+
+/* ============================================================================
+   UNIFIED COLOR SYSTEM - THEMEABLE COMPONENTS
+   ============================================================================
+   
+   Themeable components are COMPLETELY ISOLATED from Tailwind defaults.
+   They use their own independent styling system via inline styles ONLY.
+   
+   Strategy: Disable the Tailwind border-border utility specifically.
+   ========================================================================= */
+
+/* Override Tailwind's * { @apply border-border; } for themeable components */
+.storyboard-themeable {
+  /* Do NOT apply --border CSS variable */
+  border-color: initial !important;
 }
 
-/* Remove focus rings from specific components */
-button:focus,
-button:focus-visible,
-select:focus,
-select:focus-visible,
-[role="button"]:focus,
-[role="button"]:focus-visible,
-[role="menuitem"]:focus,
-[role="menuitem"]:focus-visible,
-[data-radix-collection-item]:focus,
-[data-radix-collection-item]:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-  border-color: inherit !important;
-}
-
-/* Remove focus rings from dropdown triggers and buttons */
-[data-radix-dropdown-menu-trigger]:focus,
-[data-radix-dropdown-menu-trigger]:focus-visible,
-[data-radix-select-trigger]:focus,
-[data-radix-select-trigger]:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-  border-color: inherit !important;
-}
-
-/* UNIFIED COLOR SYSTEM - No universal overrides */
-/* All styling now handled through the unified system in glassmorphism-styles.ts */
-
-/* TARGETED WHITE BORDER REMOVAL - Only for specific problematic classes */
-[class*="border-white"],
-[class*="border-gray-200"],
-[class*="border-gray-300"],
-[class*="border-slate-200"],
-[class*="border-slate-300"] {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Remove white borders from all dropdown and modal containers */
-[data-radix-dropdown-menu-content],
-[data-radix-select-content],
-[data-radix-dialog-content],
-[data-radix-alert-dialog-content],
-[role="dialog"],
-[role="menu"],
-[role="listbox"] {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  border-width: 1px !important;
-}
-
-/* Override Tailwind border utilities */
-.border,
-.border-1,
-.border-2,
-.border-4,
-.border-8 {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Remove white borders from all UI components */
-.border-input,
-.border-border,
-.border-ring {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Remove white borders from ALL button states and triggers */
-button,
-[role="button"],
-[data-radix-dropdown-menu-trigger],
-[data-radix-select-trigger],
-[data-radix-dialog-trigger],
-[data-radix-alert-dialog-trigger] {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Remove white borders from button focus, active, and hover states */
-button:focus,
-button:active,
-button:hover,
-button:focus-visible,
-button:focus-within,
-[role="button"]:focus,
-[role="button"]:active,
-[role="button"]:hover,
-[role="button"]:focus-visible,
-[role="button"]:focus-within,
-[data-radix-dropdown-menu-trigger]:focus,
-[data-radix-dropdown-menu-trigger]:active,
-[data-radix-dropdown-menu-trigger]:hover,
-[data-radix-dropdown-menu-trigger]:focus-visible,
-[data-radix-dropdown-menu-trigger]:focus-within,
-[data-radix-select-trigger]:focus,
-[data-radix-select-trigger]:active,
-[data-radix-select-trigger]:hover,
-[data-radix-select-trigger]:focus-visible,
-[data-radix-select-trigger]:focus-within {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-/* Remove white borders from all interactive elements */
-[data-state="open"],
-[data-state="closed"],
-[data-state="checked"],
-[data-state="unchecked"],
-[aria-expanded="true"],
-[aria-expanded="false"] {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Aggressive white border removal for all possible states */
-*:focus,
-*:active,
-*:hover,
-*:focus-visible,
-*:focus-within,
-*:visited,
-*:target {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Remove white borders from all Radix UI components */
-[data-radix-collection-item],
-[data-radix-dropdown-menu-item],
-[data-radix-select-item],
-[data-radix-dialog-title],
-[data-radix-dialog-description],
-[data-radix-alert-dialog-title],
-[data-radix-alert-dialog-description] {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Remove white borders from all form elements */
-input,
-select,
-textarea,
-[type="button"],
-[type="submit"],
-[type="reset"] {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Remove white borders from all form element states */
-input:focus,
-input:active,
-input:hover,
-select:focus,
-select:active,
-select:hover,
-textarea:focus,
-textarea:active,
-textarea:hover {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-/* Override any remaining white border utilities */
-.border-white,
-.border-white\/10,
-.border-white\/20,
-.border-white\/30,
-.border-white\/40,
-.border-white\/50,
-.border-gray-200,
-.border-gray-300,
-.border-slate-200,
-.border-slate-300,
-.border-zinc-200,
-.border-zinc-300 {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Specific targeting for Button component outline variant */
-button[data-variant="outline"],
-button.variant-outline,
-button[class*="variant-outline"],
-button[class*="outline"] {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Target all button states specifically */
-button:focus,
-button:active,
-button:hover,
-button:focus-visible,
-button:focus-within,
-button[data-state="open"],
-button[data-state="closed"],
-button[aria-expanded="true"],
-button[aria-expanded="false"] {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-/* Override any Tailwind border utilities on buttons */
-button.border,
-button.border-1,
-button.border-2,
-button.border-4,
-button.border-8 {
-  border-color: rgba(0, 0, 0, 0.1) !important;
+/* For child elements, let inline styles win with high specificity */
+.storyboard-themeable[style] {
+  /* Inline styles on this element should always win */
+  border-color: var(--inline-border-color) !important;
+  border-width: var(--inline-border-width) !important;
+  border-style: var(--inline-border-style) !important;
+  border-radius: var(--inline-border-radius) !important;
+  background-color: var(--inline-bg-color) !important;
+  color: var(--inline-text-color) !important;
 }
 
 /* GLASSMORPHISM OVERRIDES - Allow glassmorphism styles to work */
@@ -443,6 +408,31 @@ button.border-8 {
   /* Remove any conflicting overrides */
 }
 
+/* CRITICAL: Prevent Radix UI from adding padding-right to body when dropdowns open */
+/* Radix adds inline styles with padding-right to compensate for scrollbar, but we use scrollbar-gutter: stable */
+/* This creates a double gutter - one from scrollbar-gutter, one from padding-right */
+/* Note: Inline styles have highest specificity, so we use !important and attribute selector */
+body[style*="padding-right"],
+body[style*="paddingRight"],
+body[style],
+html[style*="padding-right"],
+html[style*="paddingRight"],
+html[style] {
+  padding-right: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* Nuclear option: prevent ANY element from adding padding that affects layout */
+#root {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+}
+
 /* Specific targeting for elements with glassmorphism styles applied */
 div[style*="backdrop-filter"],
 div[style*="backdropFilter"],
@@ -452,4 +442,38 @@ div[style*="WebkitBackdropFilter"],
 [data-radix-dialog-content][style*="backdrop-filter"] {
   /* Don't override glassmorphism styles - let them work naturally */
   /* Remove any conflicting overrides */
+}
+
+/* Checkbox styling - centralized color system with strong contrast */
+/* These CSS variables are injected at runtime from TypeScript (glassmorphism-styles.ts) */
+:root {
+  --checkbox-bg: rgba(255, 255, 255, 0.1);
+  --checkbox-bg-checked: rgba(33, 212, 252, 0.8);
+  --checkbox-border: rgba(255, 255, 255, 0.3);
+  --checkbox-border-checked: rgba(33, 212, 252, 1);
+  --checkbox-icon: rgba(255, 255, 255, 1);
+  --radio-bg: rgba(255, 255, 255, 0.1);
+  --radio-border: rgba(255, 255, 255, 0.3);
+  --radio-border-checked: rgba(33, 212, 252, 1);
+  --radio-indicator: rgba(33, 212, 252, 1);
+}
+
+[data-radix-checkbox-root][data-state="checked"] {
+  background-color: var(--checkbox-bg-checked) !important;
+  border-color: var(--checkbox-border-checked) !important;
+}
+
+[data-radix-checkbox-root][data-state="unchecked"] {
+  background-color: var(--checkbox-bg) !important;
+  border-color: var(--checkbox-border) !important;
+}
+
+/* Radio button styling - centralized color system with strong contrast */
+[data-radix-radio-group-item][data-state="checked"] {
+  border-color: var(--radio-border-checked) !important;
+}
+
+[data-radix-radio-group-item][data-state="unchecked"] {
+  background-color: var(--radio-bg) !important;
+  border-color: var(--radio-border) !important;
 }

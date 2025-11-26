@@ -128,28 +128,16 @@ export class PDFRenderer {
           }
         }
         
-        // Get page element for transform manipulation
+        // Capture DOM layout at current displayed size (with CSS transform intact)
         console.log(`Capturing DOM layout for page ${page.id}...`);
         const pageElement = document.getElementById(`storyboard-page-${page.id}`) as HTMLElement;
         if (!pageElement) {
           throw new ExportError('Page element not found for export', 'DOM_NOT_FOUND');
         }
         
-        // Save original transform and temporarily remove it to capture at native design size (1000px)
-        const originalTransform = pageElement.style.transform;
-        pageElement.style.transform = 'none';
-        
-        // Wait for browser layout to complete using RAF (more reliable than setTimeout)
-        await new Promise<void>(resolve => {
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => resolve());
-          });
-        });
-        
-        console.log('🔍 Removed CSS transform - capturing at native design size (1000px)');
-        
         try {
-          // Use DOMCapture to get the exact layout from rendered page (now at native size)
+          // Use DOMCapture to get the exact layout from rendered page (AS DISPLAYED)
+          // Keep the CSS transform to maintain WYSIWYG text sizes
           const captureResult = await DOMCapture.captureStoryboardLayout(
             page.id,
             storyboardState,
@@ -264,10 +252,9 @@ export class PDFRenderer {
           'FAST' // Use fast compression for better performance
         );
         
-        } finally {
-          // ALWAYS restore the original transform (guaranteed execution)
-          pageElement.style.transform = originalTransform;
-          console.log('🔍 Restored original CSS transform');
+        } catch (error) {
+          console.error('Export error:', error);
+          throw error;
         }
         
       } finally {

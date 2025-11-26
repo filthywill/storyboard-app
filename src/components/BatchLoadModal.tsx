@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileImage, AlertCircle, CheckCircle, X, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 import { 
   parseAndSortImageFiles, 
   processBatchImages, 
@@ -360,25 +361,39 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl w-full">
+      <DialogContent className="max-w-2xl w-full" style={getGlassmorphismStyles('dark')}>
         <DialogHeader className="pb-2">
-          <DialogTitle className="flex items-center gap-2 text-lg">
+          <DialogTitle 
+            className="flex items-center gap-2 text-lg"
+            style={{ color: getColor('text', 'primary') as string }}
+          >
             <Upload size={18} />
             Batch Load Images
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription style={{ color: getColor('text', 'secondary') as string }}>
             Upload multiple images to create storyboard shots quickly
           </DialogDescription>
         </DialogHeader>
         {/* File Selection */}
         {!showPreview && (
-          <div className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg">
-            <FileImage size={32} className="text-gray-400 mb-2" />
-            <h3 className="text-lg font-semibold mb-1">Select Images to Load</h3>
-            <p className="text-gray-600 text-center mb-3 text-sm">
+          <div 
+            className="flex flex-col items-center justify-center p-4 rounded-lg"
+            style={{ 
+              border: `2px dashed ${getColor('border', 'dashed') as string}`,
+              backgroundColor: getColor('background', 'lighter') as string
+            }}
+          >
+            <FileImage size={32} className="mb-2" style={{ color: getColor('text', 'muted') as string }} />
+            <h3 className="text-lg font-semibold mb-1" style={{ color: getColor('text', 'primary') as string }}>
+              Select Images to Load
+            </h3>
+            <p className="text-center mb-3 text-sm" style={{ color: getColor('text', 'secondary') as string }}>
               Choose multiple image files. The system will automatically detect numbering patterns and sort them appropriately.
             </p>
-            <Button onClick={() => fileInputRef.current?.click()}>
+            <Button 
+              onClick={() => fileInputRef.current?.click()}
+              style={getGlassmorphismStyles('buttonAccent')}
+            >
               <Upload size={16} className="mr-2" />
               Choose Files
             </Button>
@@ -397,49 +412,56 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
         {showPreview && previewInfo && loadingState === 'idle' && (
           <div className="flex flex-col gap-1">
             <div className="grid grid-cols-4 gap-1">
-                <Card>
+                <Card style={getGlassmorphismStyles('background')}>
                   <CardHeader className="pb-1">
-                    <CardTitle className="text-sm">Files Selected</CardTitle>
+                    <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                      Files Selected
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-xl font-bold">{previewInfo.totalFiles}</div>
-                   
+                    <div className="text-xl font-bold" style={{ color: getColor('text', 'primary') as string }}>
+                      {previewInfo.totalFiles}
+                    </div>
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card style={getGlassmorphismStyles('background')}>
                   <CardHeader className="pb-1">
-                    <CardTitle className="text-sm">Number Range</CardTitle>
+                    <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                      Number Range
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-xl font-bold">
+                    <div className="text-xl font-bold" style={{ color: getColor('text', 'primary') as string }}>
                       {previewInfo.numberRange ? 
                         `${previewInfo.numberRange.min}-${previewInfo.numberRange.max}` : 
                         'N/A'
                       }
                     </div>
-                   
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card style={getGlassmorphismStyles('background')}>
                   <CardHeader className="pb-1">
-                    <CardTitle className="text-sm">Numbering Pattern</CardTitle>
+                    <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                      Numbering Pattern
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-xl font-bold">
+                    <div className="text-xl font-bold" style={{ color: getColor('text', 'primary') as string }}>
                       {previewInfo.detectedPattern || 'None'}
                     </div>
-                    
                   </CardContent>
                 </Card>
               </div>
 
               {/* Image Preview */}
               {parsedFiles.length > 0 && (
-                <Card>
+                <Card style={getGlassmorphismStyles('background')}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Image Preview</CardTitle>
+                    <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                      Image Preview
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -450,9 +472,19 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
                         const isCreate = !targetShot || targetShotIndex >= existingShots.length;
                         
                         return (
-                          <div key={index} className="flex items-center gap-3 p-2 border rounded-lg">
+                          <div 
+                            key={index} 
+                            className="flex items-center gap-3 p-2 rounded-lg"
+                            style={{ border: `1px solid ${getColor('border', 'primary') as string}` }}
+                          >
                             {/* Image Thumbnail */}
-                            <div className="w-12 h-12 bg-gray-100 rounded border flex items-center justify-center overflow-hidden">
+                            <div 
+                              className="w-12 h-12 rounded flex items-center justify-center overflow-hidden"
+                              style={{ 
+                                backgroundColor: getColor('background', 'subtle') as string,
+                                border: `1px solid ${getColor('border', 'primary') as string}`
+                              }}
+                            >
                               <img 
                                 src={URL.createObjectURL(parsedFile.file)} 
                                 alt={parsedFile.originalName}
@@ -463,20 +495,33 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
                             
                             {/* File Info */}
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium truncate">
+                              <div 
+                                className="text-sm font-medium truncate"
+                                style={{ color: getColor('text', 'primary') as string }}
+                              >
                                 {parsedFile.originalName}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div 
+                                className="text-xs"
+                                style={{ color: getColor('text', 'muted') as string }}
+                              >
                                 {parsedFile.parsedNumber ? `Number: ${parsedFile.numberString}` : 'No number detected'}
                               </div>
                             </div>
                             
                             {/* Shot Assignment */}
                             <div className="flex items-center gap-2">
-                              <div className={cn(
-                                "px-2 py-1 rounded text-xs font-medium",
-                                isUpdate ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
-                              )}>
+                              <div 
+                                className="px-2 py-1 rounded text-xs font-medium"
+                                style={{
+                                  backgroundColor: isUpdate 
+                                    ? getColor('status', 'statusBadgeBlue') as string 
+                                    : getColor('status', 'statusBadgeGreen') as string,
+                                  color: isUpdate 
+                                    ? getColor('status', 'statusBadgeBlueText') as string 
+                                    : getColor('status', 'statusBadgeGreenText') as string
+                                }}
+                              >
                                 {isUpdate ? `Update Shot ${targetShot?.number || formatShotNumber(targetShotIndex + 1, templateSettings.shotNumberFormat)}` : `Create Shot ${formatShotNumber(targetShotIndex + 1, templateSettings.shotNumberFormat)}`}
                               </div>
                             </div>
@@ -489,18 +534,26 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
               )}
 
               {/* Operation Summary */}
-              <Card>
+              <Card style={getGlassmorphismStyles('background')}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Operation Summary</CardTitle>
+                  <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                    Operation Summary
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="grid grid-cols-2 gap-2 text-sm" style={{ color: getColor('text', 'primary') as string }}>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: getColor('status', 'statusBadgeBlue') as string }}
+                      ></div>
                       <span>Will update: {Math.min(parsedFiles.length, existingShots.length)} existing shots</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: getColor('status', 'statusBadgeGreen') as string }}
+                      ></div>
                       <span>Will create: {Math.max(0, parsedFiles.length - existingShots.length)} new shots</span>
                     </div>
                   </div>
@@ -508,9 +561,12 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
               </Card>
 
               {/* Load Options */}
-              <Card>
+              <Card style={getGlassmorphismStyles('background')}>
                 <CardHeader className="pb-1">
-                  <CardTitle className="text-sm flex items-center gap-2">
+                  <CardTitle 
+                    className="text-sm flex items-center gap-2"
+                    style={{ color: getColor('text', 'secondary') as string }}
+                  >
                     <ArrowDown size={14} />
                     Load Options
                   </CardTitle>
@@ -519,19 +575,31 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
                   <RadioGroup value={startingPosition} onValueChange={(value) => setStartingPosition(value as StartingPosition)}>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="start" id="start" />
-                      <Label htmlFor="start" className="text-xs">
+                      <Label 
+                        htmlFor="start" 
+                        className="text-xs"
+                        style={{ color: getColor('text', 'primary') as string }}
+                      >
                         Insert at Start
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="end" id="end" />
-                      <Label htmlFor="end" className="text-xs">
+                      <Label 
+                        htmlFor="end" 
+                        className="text-xs"
+                        style={{ color: getColor('text', 'primary') as string }}
+                      >
                         Insert at End
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="custom" id="custom" />
-                      <Label htmlFor="custom" className="text-xs">
+                      <Label 
+                        htmlFor="custom" 
+                        className="text-xs"
+                        style={{ color: getColor('text', 'primary') as string }}
+                      >
                         Custom
                       </Label>
                     </div>
@@ -545,8 +613,16 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
                           onChange={(e) => setCustomPosition(parseInt(e.target.value) || 1)}
                           className="w-16 h-7 text-xs"
                           placeholder="1"
+                          style={{
+                            backgroundColor: getColor('input', 'background') as string,
+                            border: `1px solid ${getColor('input', 'border') as string}`,
+                            color: getColor('text', 'primary') as string
+                          }}
                         />
-                        <span className="text-xs text-gray-500">
+                        <span 
+                          className="text-xs"
+                          style={{ color: getColor('text', 'muted') as string }}
+                        >
                           (1-{existingShots.length + 1})
                         </span>
                       </div>
@@ -561,8 +637,16 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
         {loadingState === 'processing' && (
           <div className="flex flex-col gap-3 p-4">
             <div className="text-center">
-              <h3 className="text-lg font-semibold mb-1">Processing Images...</h3>
-              <p className="text-gray-600 text-sm">
+              <h3 
+                className="text-lg font-semibold mb-1"
+                style={{ color: getColor('text', 'primary') as string }}
+              >
+                Processing Images...
+              </h3>
+              <p 
+                className="text-sm"
+                style={{ color: getColor('text', 'secondary') as string }}
+              >
                 {progress.current} of {progress.total}
               </p>
             </div>
@@ -570,7 +654,10 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
             <Progress value={(progress.current / progress.total) * 100} className="w-full" />
             
             {progress.currentFile && (
-              <p className="text-xs text-gray-500 text-center truncate">
+              <p 
+                className="text-xs text-center truncate"
+                style={{ color: getColor('text', 'muted') as string }}
+              >
                 {progress.currentFile}
               </p>
             )}
@@ -583,32 +670,60 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
             {/* Summary Row */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-green-600">
+                <div 
+                  className="flex items-center gap-2"
+                  style={{ color: getColor('status', 'statusBadgeGreenText') as string }}
+                >
                   <CheckCircle size={16} />
                   <span className="font-semibold">{batchResult.successful.length} loaded</span>
                 </div>
                 {batchResult.failed.length > 0 && (
-                  <div className="flex items-center gap-2 text-red-600">
+                  <div 
+                    className="flex items-center gap-2"
+                    style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+                  >
                     <AlertCircle size={16} />
                     <span className="font-semibold">{batchResult.failed.length} failed</span>
                   </div>
                 )}
               </div>
-              <Button onClick={handleClose} size="sm">
+              <Button 
+                onClick={handleClose} 
+                size="sm"
+                style={getGlassmorphismStyles('buttonAccent')}
+              >
                 Done
               </Button>
             </div>
 
             {/* Failed Files (if any) */}
             {batchResult.failed.length > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <div 
+                className="rounded-md p-3"
+                style={{
+                  backgroundColor: getColor('status', 'statusBadgeRed') as string,
+                  border: `1px solid ${getColor('border', 'primary') as string}`
+                }}
+              >
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle size={14} className="text-red-600" />
-                  <span className="text-sm font-medium text-red-800">Failed Files</span>
+                  <AlertCircle 
+                    size={14} 
+                    style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+                  />
+                  <span 
+                    className="text-sm font-medium"
+                    style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+                  >
+                    Failed Files
+                  </span>
                 </div>
                 <div className="space-y-1 max-h-20 overflow-y-auto">
                   {batchResult.failed.map((failure, index) => (
-                    <div key={index} className="text-xs text-red-700">
+                    <div 
+                      key={index} 
+                      className="text-xs"
+                      style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+                    >
                       <span className="font-medium">{failure.file.name}:</span> {failure.error}
                     </div>
                   ))}
@@ -621,16 +736,36 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
         {/* Error State */}
         {loadingState === 'error' && (
           <div className="text-center p-4">
-            <AlertCircle size={24} className="text-red-500 mx-auto mb-2" />
-            <h3 className="text-lg font-semibold mb-1">Processing Failed</h3>
-            <p className="text-gray-600 mb-3 text-sm">
+            <AlertCircle 
+              size={24} 
+              className="mx-auto mb-2"
+              style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+            />
+            <h3 
+              className="text-lg font-semibold mb-1"
+              style={{ color: getColor('text', 'primary') as string }}
+            >
+              Processing Failed
+            </h3>
+            <p 
+              className="mb-3 text-sm"
+              style={{ color: getColor('text', 'secondary') as string }}
+            >
               There was an error processing your images. Please try again.
             </p>
             <div className="flex gap-2 justify-center">
-              <Button variant="outline" size="sm" onClick={() => setShowPreview(false)}>
+              <Button 
+                size="sm" 
+                onClick={() => setShowPreview(false)}
+                style={getGlassmorphismStyles('button')}
+              >
                 Choose Different Files
               </Button>
-              <Button size="sm" onClick={() => setLoadingState('idle')}>
+              <Button 
+                size="sm" 
+                onClick={() => setLoadingState('idle')}
+                style={getGlassmorphismStyles('buttonAccent')}
+              >
                 Try Again
               </Button>
             </div>
@@ -638,11 +773,20 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
         )}
         {/* Action Buttons */}
         {showPreview && previewInfo && loadingState === 'idle' && (
-          <div className="flex gap-2 justify-end pt-2 border-t mt-2">
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
+          <div 
+            className="flex gap-2 justify-end pt-2 mt-2"
+            style={{ borderTop: `1px solid ${getColor('border', 'primary') as string}` }}
+          >
+            <Button 
+              onClick={() => setShowPreview(false)}
+              style={getGlassmorphismStyles('button')}
+            >
               Choose Different Files
             </Button>
-            <Button onClick={handleBatchLoad}>
+            <Button 
+              onClick={handleBatchLoad}
+              style={getGlassmorphismStyles('buttonAccent')}
+            >
               Load {previewInfo.totalFiles} Images
             </Button>
           </div>

@@ -5,6 +5,7 @@ import { Shot, useAppStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getColor } from '@/styles/glassmorphism-styles';
 
 interface ShotGridProps {
   pageId: string;
@@ -33,6 +34,7 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
     pages,
     activePageId,
     templateSettings,
+    storyboardTheme,
     getPageShots,
     shots,
     shotOrder,
@@ -112,7 +114,10 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
 
   if (!activePage) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-500">
+      <div 
+        className="flex items-center justify-center h-64"
+        style={{ color: getColor('text', 'muted') as string }}
+      >
         Page not found
       </div>
     );
@@ -123,7 +128,7 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
   const emptySlotsCount = Math.max(0, totalSlots - pageShots.length);
 
   return (
-    <div className={cn('w-full', className)}>
+    <div className={cn('w-full shot-grid', className)}>
       <div
         className={cn(
           'grid w-full',
@@ -172,12 +177,21 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
             }}
             onClick={() => handleAddShot()}
           >
-            <div className="text-center text-gray-400 group-hover:text-gray-600 transition-colors">
-              <Plus size={24} className="mx-auto mb-2" />
+            <div 
+              className="text-center transition-all"
+              style={{
+                background: getColor('background', 'subtle') as string,
+                color: getColor('text', 'muted') as string,
+                padding: '12px 12px',
+                borderRadius: '6px',
+                display: 'inline-block'
+              }}
+            >
+              <Plus size={20} className="mx-auto mb-0" style={{ color: 'inherit' }} />
               <span className={cn(
                 "font-medium",
                 "text-xs"
-              )}>Add Shot</span>
+              )} style={{ color: 'inherit' }}>Add Shot</span>
             </div>
           </div>
         ))}
@@ -204,10 +218,11 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
             }}
           >
             <div 
-              className="flex items-center justify-end text-xs text-gray-500"
+              className="flex items-center justify-end text-xs"
               style={{
                 fontSize: '10px',
-                lineHeight: '1.2'
+                lineHeight: '1.2',
+                color: storyboardTheme.header.text
               }}
             >
               {activePageIndex !== -1 && (

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import ObjectURLManager from '@/utils/objectURLManager';
 import { triggerAutoSave } from '@/utils/autoSave';
+import { StoryboardTheme, getDefaultTheme, migrateTheme } from '@/styles/storyboardTheme';
 
 export interface TemplateSettings {
   showLogo: boolean;
@@ -24,6 +25,7 @@ export interface ProjectState {
   clientAgency: string;
   jobInfo: string;
   templateSettings: TemplateSettings;
+  storyboardTheme: StoryboardTheme;
 }
 
 export interface ProjectActions {
@@ -38,6 +40,9 @@ export interface ProjectActions {
   setTemplateSetting: (setting: keyof TemplateSettings, value: boolean | string) => void;
   setTemplateSettings: (settings: Partial<TemplateSettings>) => void;
   resetTemplateSettings: () => void;
+  
+  // Storyboard theme
+  setStoryboardTheme: (theme: StoryboardTheme) => void;
   
   // Utility
   getProjectMetadata: () => Pick<ProjectState, 'projectName' | 'projectInfo' | 'clientAgency' | 'jobInfo'>;
@@ -68,6 +73,7 @@ export const useProjectStore = create<ProjectStore>()(
       clientAgency: 'Client/Agency',
       jobInfo: 'Job Info',
       templateSettings: { ...defaultTemplateSettings },
+      storyboardTheme: getDefaultTheme(),
 
       // Project metadata
       setProjectName: (name) => {
@@ -144,6 +150,16 @@ export const useProjectStore = create<ProjectStore>()(
         });
       },
 
+      // Storyboard theme
+      setStoryboardTheme: (theme) => {
+        set((state) => {
+          state.storyboardTheme = theme;
+        });
+        
+        // Trigger auto-save after changing theme
+        triggerAutoSave();
+      },
+
       // Utility methods
       getProjectMetadata: () => {
         const state = get();
@@ -164,7 +180,18 @@ export const useProjectStore = create<ProjectStore>()(
         clientAgency: state.clientAgency,
         jobInfo: state.jobInfo,
         templateSettings: state.templateSettings,
-      })
+        storyboardTheme: state.storyboardTheme,
+      }),
+      onRehydrateStorage: () => (state) => {
+        // Migration: Add default theme if missing, or migrate old themes
+        if (state) {
+          if (!state.storyboardTheme) {
+            state.storyboardTheme = getDefaultTheme();
+          } else {
+            state.storyboardTheme = migrateTheme(state.storyboardTheme);
+          }
+        }
+      }
     }
   )
 ); 

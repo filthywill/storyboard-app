@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 import { AuthModal } from '@/components/AuthModal';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 import { 
@@ -277,27 +278,41 @@ export const ProjectDropdown = ({
             </div>
           )}
           
-          <DropdownMenuSeparator />
-          <DropdownMenuItem 
-            onClick={() => {
-              // Check if user can create a project
-              if (!canCreateProject()) {
-                // If not authenticated and at limit, show encouraging dialog
-                if (!isAuthenticated) {
-                  setShowLimitDialog(true);
+          <div className="mt-2">
+            <DropdownMenuItem 
+              onClick={() => {
+                // Check if user can create a project
+                if (!canCreateProject()) {
+                  // If not authenticated and at limit, show encouraging dialog
+                  if (!isAuthenticated) {
+                    setShowLimitDialog(true);
+                    return;
+                  }
+                  // For authenticated users, show error
+                  toast.error('Maximum number of projects reached');
                   return;
                 }
-                // For authenticated users, show error
-                toast.error('Maximum number of projects reached');
-                return;
-              }
-              onRequestCreate?.();
-            }}
-            className="text-blue-400 py-1.5"
-          >
-            <Plus className="h-3 w-3 mr-2 text-blue-400" />
-            New Project
-          </DropdownMenuItem>
+                onRequestCreate?.();
+              }}
+              className="py-1.5"
+              style={{
+                ...getGlassmorphismStyles('buttonAccent'),
+                outline: 'none',
+                boxShadow: 'none'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.outline = 'none';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <Plus 
+                className="h-4 w-4 mr-2" 
+                strokeWidth={2.5}
+                style={{ color: getColor('text', 'primary') as string }}
+              />
+              New Project
+            </DropdownMenuItem>
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
 

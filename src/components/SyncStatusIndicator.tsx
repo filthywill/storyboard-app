@@ -4,6 +4,7 @@ import { BackgroundSyncService, SyncStatus } from '@/services/backgroundSyncServ
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { AlertCircle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 
 interface SyncStatusIndicatorProps {
   className?: string;
@@ -148,6 +149,10 @@ export function SyncStatusIndicator({ className = '' }: SyncStatusIndicatorProps
   };
 
   const getGlowStyle = () => {
+    const errorGlow = getColor('status', 'errorGlow');
+    const infoGlow = getColor('status', 'infoGlow');
+    const successGlow = getColor('status', 'successGlow');
+    
     if (isOffline) {
       return {
         boxShadow: 'none',
@@ -156,23 +161,23 @@ export function SyncStatusIndicator({ className = '' }: SyncStatusIndicatorProps
     }
     if (syncStatus.totalFailed > 0) {
       return {
-        boxShadow: '0 0 2px rgba(239, 68, 68, 0.8), 0 0 4px rgba(239, 68, 68, 0.5)',
-        filter: 'drop-shadow(0 0 1px rgba(239, 68, 68, 0.9))'
+        boxShadow: `0 0 2px ${errorGlow}, 0 0 4px ${errorGlow}`,
+        filter: `drop-shadow(0 0 1px ${errorGlow})`
       };
     }
     if (syncStatus.isProcessing || syncStatus.totalPending > 0) {
       return {
         boxShadow: isActivelySyncing 
-          ? '0 0 3px rgba(59, 130, 246, 0.9), 0 0 6px rgba(59, 130, 246, 0.7)'
-          : '0 0 2px rgba(59, 130, 246, 0.8), 0 0 4px rgba(59, 130, 246, 0.5)',
-        filter: 'drop-shadow(0 0 1px rgba(59, 130, 246, 0.9))'
+          ? `0 0 3px ${infoGlow}, 0 0 6px ${infoGlow}`
+          : `0 0 2px ${infoGlow}, 0 0 4px ${infoGlow}`,
+        filter: `drop-shadow(0 0 1px ${infoGlow})`
       };
     }
     return {
       boxShadow: isActivelySyncing 
-        ? '0 0 3px rgba(34, 197, 94, 0.9), 0 0 6px rgba(34, 197, 94, 0.7)'
-        : '0 0 2px rgba(34, 197, 94, 0.8), 0 0 4px rgba(34, 197, 94, 0.5)',
-      filter: 'drop-shadow(0 0 1px rgba(34, 197, 94, 0.9))'
+        ? `0 0 3px ${successGlow}, 0 0 6px ${successGlow}`
+        : `0 0 2px ${successGlow}, 0 0 4px ${successGlow}`,
+      filter: `drop-shadow(0 0 1px ${successGlow})`
     };
   };
   
@@ -194,8 +199,8 @@ export function SyncStatusIndicator({ className = '' }: SyncStatusIndicatorProps
           {/* Popup */}
           <div 
             ref={popupRef}
-            className="fixed top-16 right-6 w-80 bg-white border border-gray-300 rounded-lg shadow-2xl z-[99999]"
-            style={{ fontFamily: '"Open Sans", sans-serif' }}
+            className="fixed top-16 right-6 w-80 bg-white rounded-lg shadow-2xl z-[99999]"
+            style={{ fontFamily: '"Open Sans", sans-serif', border: '1px solid rgb(209, 213, 219)' }}
           >
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -234,7 +239,7 @@ export function SyncStatusIndicator({ className = '' }: SyncStatusIndicatorProps
             </div>
 
             {syncStatus.totalFailed > 0 && (
-              <div className="mt-4 pt-3 border-t border-gray-300">
+              <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgb(209, 213, 219)' }}>
                 <button
                   onClick={handleRetryFailed}
                   className="w-full px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors shadow-sm"
@@ -248,7 +253,8 @@ export function SyncStatusIndicator({ className = '' }: SyncStatusIndicatorProps
               <div className="mt-2">
                 <button
                   onClick={handleClearCompleted}
-                  className="w-full px-4 py-2 bg-gray-100 text-gray-800 text-sm font-medium rounded-md hover:bg-gray-200 transition-colors border border-gray-200"
+                  className="w-full px-4 py-2 bg-gray-100 text-gray-800 text-sm font-medium rounded-md hover:bg-gray-200 transition-colors"
+                  style={{ border: '1px solid rgb(229, 231, 235)' }}
                 >
                   Clear Completed
                 </button>

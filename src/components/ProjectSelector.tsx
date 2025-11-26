@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { AuthModal } from '@/components/AuthModal';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
+import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 
 export interface ProjectSelectorProps {
   onRequestCreate?: () => void;
@@ -113,8 +114,12 @@ export const ProjectSelector = ({
           {!isAuthenticated ? (
             <button
               onClick={() => setShowAuthModal(true)}
-              className="text-base text-white hover:bg-white/20 hover:text-white px-2 py-1 rounded transition-colors flex items-center gap-2"
-              style={{ fontFamily: '"BBH Sans Hegarty", sans-serif' }}
+              className="text-base px-2 py-1 rounded transition-colors flex items-center gap-2"
+              style={{ 
+                fontFamily: '"Gabarito", sans-serif',
+                fontWeight: 600,
+                ...getGlassmorphismStyles('button')
+              }}
             >
               <LogIn className="h-4 w-4" />
               Sign In
@@ -133,26 +138,37 @@ export const ProjectSelector = ({
 
       {/* Create Project Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
+        <DialogContent style={getGlassmorphismStyles('dark')}>
           <DialogHeader>
-            <DialogTitle>Create New Project</DialogTitle>
-            <DialogDescription>
+            <DialogTitle style={{ color: getColor('text', 'primary') as string }}>
+              Create New Project
+            </DialogTitle>
+            <DialogDescription style={{ color: getColor('text', 'secondary') as string }}>
               Create a new storyboard project with a custom name and description.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="project-name">Project Name</Label>
+              <Label htmlFor="project-name" style={{ color: getColor('text', 'primary') as string }}>
+                Project Name
+              </Label>
               <Input
                 id="project-name"
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
                 placeholder="Enter project name"
                 maxLength={50}
+                style={{
+                  backgroundColor: getColor('input', 'background') as string,
+                  border: `1px solid ${getColor('input', 'border') as string}`,
+                  color: getColor('text', 'primary') as string
+                }}
               />
             </div>
             <div>
-              <Label htmlFor="project-description">Description (Optional)</Label>
+              <Label htmlFor="project-description" style={{ color: getColor('text', 'primary') as string }}>
+                Description (Optional)
+              </Label>
               <Textarea
                 id="project-description"
                 value={newProjectDescription}
@@ -160,14 +176,25 @@ export const ProjectSelector = ({
                 placeholder="Enter project description"
                 maxLength={200}
                 rows={3}
+                style={{
+                  backgroundColor: getColor('input', 'background') as string,
+                  border: `1px solid ${getColor('input', 'border') as string}`,
+                  color: getColor('text', 'primary') as string
+                }}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+            <Button 
+              onClick={() => setShowCreateDialog(false)}
+              style={getGlassmorphismStyles('button')}
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreateProject}>
+            <Button 
+              onClick={handleCreateProject}
+              style={getGlassmorphismStyles('buttonAccent')}
+            >
               Create Project
             </Button>
           </DialogFooter>

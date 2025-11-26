@@ -24,7 +24,8 @@ export class LayoutCalculator {
     aspectRatio: string,
     targetWidth: number = 1000, // Always use Preview mode width
     scale: number = 2,
-    showPageNumber: boolean = false // Add parameter to control footer inclusion
+    showPageNumber: boolean = false, // Add parameter to control footer inclusion
+    storyboardTheme?: any
   ): ExportDimensions {
     // Always use Preview mode dimensions for WYSIWYG export
     // Use EXACT same calculation as ShotGrid previewDimensions
@@ -41,7 +42,10 @@ export class LayoutCalculator {
     
     // Account for ShotCard internal padding and borders - EXACT same as ShotGrid
     const cardContentPadding = 8 * 2; // p-2 = 8px each side = 16px total
-    const imageBorder = 1 * 2; // border = 1px each side = 2px total
+    const borderWidth = storyboardTheme?.imageFrame?.borderEnabled 
+      ? storyboardTheme.imageFrame.borderWidth 
+      : 1; // fallback to 1 for legacy compatibility
+    const imageBorder = borderWidth * 2; // border on both sides
     const imageContainerWidth = shotWidth - cardContentPadding - imageBorder;
     
     // Calculate height based on aspect ratio for image area only
@@ -191,6 +195,7 @@ export class LayoutCalculator {
     const shotWidth = Math.floor((availableWidth - gaps) / cols);
     
     // Account for ShotCard internal padding and borders - EXACT same as canvas renderer
+    // Legacy default - actual rendering uses theme from renderer
     const cardContentPadding = 8 * 2; // p-2 = 8px each side = 16px total
     const imageBorder = 1 * 2; // border = 1px each side = 2px total
     const imageContainerWidth = shotWidth - cardContentPadding - imageBorder;

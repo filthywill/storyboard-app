@@ -226,7 +226,8 @@ export class CloudSyncService {
           projectLogoUrl: projectStore.projectLogoUrl,
           clientAgency: projectStore.clientAgency,
           jobInfo: projectStore.jobInfo,
-          templateSettings: projectStore.templateSettings
+          templateSettings: projectStore.templateSettings,
+          storyboardTheme: projectStore.storyboardTheme
         },
         uiSettings: {
           isDragging: uiStore.isDragging,
@@ -492,7 +493,8 @@ export class CloudSyncService {
         projectLogoUrl: projectStore.projectLogoUrl,
         clientAgency: projectStore.clientAgency,
         jobInfo: projectStore.jobInfo,
-        templateSettings: projectStore.templateSettings
+        templateSettings: projectStore.templateSettings,
+        storyboardTheme: projectStore.storyboardTheme
       },
       uiSettings: {
         isDragging: uiStore.isDragging,
@@ -592,9 +594,14 @@ export class CloudSyncService {
       // Save project settings (wrapped in state object)
       if (data.projectSettings) {
         // Ensure project has a name - use project ID as fallback if empty
+        // Migration: Add default theme if missing
+        const { getDefaultTheme, migrateTheme } = await import('@/styles/storyboardTheme');
         const projectSettings = {
           ...data.projectSettings,
-          projectName: data.projectSettings.projectName || `Project ${projectId.slice(0, 8)}`
+          projectName: data.projectSettings.projectName || `Project ${projectId.slice(0, 8)}`,
+          storyboardTheme: data.projectSettings.storyboardTheme 
+            ? migrateTheme(data.projectSettings.storyboardTheme)
+            : getDefaultTheme()
         };
         
         const projectStoreData = {

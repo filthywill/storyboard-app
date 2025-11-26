@@ -4,6 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from './ui/button';
 import { Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getColor } from '@/styles/glassmorphism-styles';
 
 export const MasterHeader: React.FC = () => {
   const { 
@@ -17,7 +18,8 @@ export const MasterHeader: React.FC = () => {
     setProjectLogo,
     setClientAgency,
     setJobInfo,
-    templateSettings
+    templateSettings,
+    storyboardTheme
   } = useAppStore();
 
   const projectNameRef = useRef<HTMLTextAreaElement>(null);
@@ -126,14 +128,15 @@ export const MasterHeader: React.FC = () => {
   return (
     <div 
       className={cn(
-        "flex items-end justify-between w-full max-w-5xl mx-auto pt-8 pb-2 gap-6 flex-shrink-0"
+        "flex items-end justify-between w-full max-w-5xl mx-auto pt-8 pb-2 gap-6 flex-shrink-0 master-header"
       )}
       style={{
         minWidth: '1000px',
         maxWidth: '1000px',
         width: '1000px',
         paddingLeft: '33px',
-        paddingRight: '33px'
+        paddingRight: '33px',
+        color: storyboardTheme.header.text,
       }}
     >
       {/* Left Section: Logo and Project Info */}
@@ -172,10 +175,25 @@ export const MasterHeader: React.FC = () => {
               </>
             ) : (
               <div 
-                className="w-full h-full border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                className="w-full h-full border-2 border-dashed rounded-md flex items-center justify-center cursor-pointer transition-colors"
+                style={{
+                  borderColor: getColor('border', 'dashed') as string,
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = getColor('input', 'border') as string;
+                  e.currentTarget.style.backgroundColor = getColor('background', 'lighter') as string;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = getColor('border', 'dashed') as string;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
                 onClick={handleLogoUploadClick}
               >
-                <Upload size={24} className="text-gray-400" />
+                <Upload 
+                  size={24} 
+                  style={{ color: getColor('text', 'muted') as string }}
+                />
               </div>
             )}
             <input 
@@ -209,7 +227,8 @@ export const MasterHeader: React.FC = () => {
                   fontSize: '22px',
                   lineHeight: '1.2',
                   height: 'auto',
-                  minHeight: '26px'
+                  minHeight: '26px',
+                  backgroundColor: 'transparent'
                 }}
                 rows={1}
               />
@@ -226,14 +245,16 @@ export const MasterHeader: React.FC = () => {
                 onChange={(e) => setProjectInfo(e.target.value)}
                 placeholder="Project Info"
                 className={cn(
-                  "w-full text-muted-foreground resize-none overflow-hidden border-none focus:ring-0 shadow-none p-0 mt-1 pr-6 text-xs"
+                  "w-full resize-none overflow-hidden border-none focus:ring-0 shadow-none p-0 mt-1 pr-6 text-xs"
                 )}
                 style={{
                   fontSize: '14px',
                   lineHeight: '1.4',
                   height: 'auto',
                   minHeight: '20px',
-                  marginTop: '4px'
+                  marginTop: '4px',
+                  backgroundColor: 'transparent',
+                  color: storyboardTheme.header.text
                 }}
                 rows={1}
               />
@@ -267,7 +288,8 @@ export const MasterHeader: React.FC = () => {
                 fontSize: '18px',
                 lineHeight: '1.2',
                 height: 'auto',
-                minHeight: '22px'
+                minHeight: '22px',
+                backgroundColor: 'transparent'
               }}
               rows={1}
             />
@@ -284,14 +306,16 @@ export const MasterHeader: React.FC = () => {
               onChange={(e) => setJobInfo(e.target.value)}
               placeholder="Job Info"
               className={cn(
-                "w-full text-muted-foreground resize-none overflow-hidden border-none focus:ring-0 shadow-none p-0 mt-1 text-right pl-6 text-xs"
+                "w-full resize-none overflow-hidden border-none focus:ring-0 shadow-none p-0 mt-1 text-right pl-6 text-xs"
               )}
               style={{
                 fontSize: '14px',
                 lineHeight: '1.4',
                 height: 'auto',
                 minHeight: '20px',
-                marginTop: '4px'
+                marginTop: '4px',
+                backgroundColor: 'transparent',
+                color: storyboardTheme.header.text
               }}
               rows={1}
             />

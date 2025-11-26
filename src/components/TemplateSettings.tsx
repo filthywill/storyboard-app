@@ -10,7 +10,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getToolbarContainerStyles, getToolbarContainerStylesWithOverrides, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { cn } from '@/lib/utils';
 
 export const TemplateSettings: React.FC = () => {
   const {
@@ -47,8 +48,21 @@ export const TemplateSettings: React.FC = () => {
             <Button 
               variant="outline" 
               size="compact" 
-              className="py-1.5 flex items-center justify-center"
-              style={getToolbarContainerStyles()}
+              className={cn(
+                "py-1.5 flex items-center justify-center",
+                "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent",
+                "active:outline-none active:ring-0 active:border-transparent",
+                "hover:border-transparent",
+                "border-transparent"
+              )}
+              style={{
+                ...getToolbarContainerStylesWithOverrides({ border: 'none' }),
+                outline: 'none'
+              }}
+              onMouseDown={(e) => {
+                // Blur immediately after mousedown to prevent focus border
+                setTimeout(() => e.currentTarget.blur(), 0);
+              }}
             >
               <Settings size={16} className={TOOLBAR_STYLES.iconClasses} />
             </Button>

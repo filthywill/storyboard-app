@@ -126,6 +126,31 @@ The `useAppStore()` hook combines all modular stores into a single interface, pr
 
 **Export Flow**: DOM capture → Canvas fallback → PDF assembly → Download/Blob generation
 
+#### PDF Export Rendering (`domRenderer.ts`)
+**Global Font Size Multiplier:**
+- `FONT_SIZE_MULTIPLIER = 1.12` (line 63) - Applied to all text elements
+- Compensates for canvas rendering differences vs. DOM
+- Centralized via `getScaledFontSize()` helper method
+- Applied to: shot numbers, action/script text, headers, footers, page numbers
+
+**Theme Integration:**
+- Reads `storyboardState.storyboardTheme` for all styling
+- **Page background**: Uses `contentBackground` from Page Style section
+- **MasterHeader background**: Uses `contentBackground` from Page Style section  
+- **Shot Card**: Respects `backgroundEnabled` toggle, uses theme colors when enabled
+- **Image Frame**: Uses `shotCard.borderRadius` for rounded corners (inherited from shot card)
+
+**Empty Image Frame Rendering:**
+- No placeholder icons or text in PDF exports (clean, professional appearance)
+- Border radius applied from theme (`shotCard.borderRadius`)
+- Border styling from theme if enabled (`imageFrame.borderEnabled`)
+- Light gray background (`#f3f4f6`) to indicate empty state
+
+**Text Positioning:**
+- Shot number labels: Alphabetic baseline at 65% height for visual centering
+- Action/Script text: Extra 6px spacing compensation for CSS line-height differences
+- All text uses Inter font with fallback to system fonts
+
 ### Performance Optimizations
 - **Renumbering Optimizer**: Efficient shot renumbering
 - **Batch Operations**: Bulk shot operations

@@ -11,6 +11,8 @@ export class CanvasRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private fontsLoaded: boolean = false;
+  private storyboardTheme: any;
+  private scale: number = 1;
   
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -122,6 +124,10 @@ export class CanvasRenderer {
    */
   async renderStoryboardPage(exportPage: ExportStoryboardPage, pageNumber: number = 1): Promise<void> {
     try {
+      // Store theme and scale for border rendering
+      this.storyboardTheme = (exportPage as any).storyboardTheme;
+      this.scale = exportPage.layout.canvas.scale;
+      
       // Ensure fonts are loaded before rendering
       await this.ensureFontsLoaded();
       
@@ -321,7 +327,10 @@ export class CanvasRenderer {
     // Calculate the EXACT same dimensions as ShotGrid previewDimensions
     const shotWidth = bounds.width / scale; // Convert back to unscaled
     const cardContentPadding = 8 * 2; // p-2 = 8px each side = 16px total
-    const imageBorder = 1 * 2; // border = 1px each side = 2px total  
+    const borderWidth = this.storyboardTheme?.imageFrame?.borderEnabled 
+      ? this.storyboardTheme.imageFrame.borderWidth 
+      : 0;
+    const imageBorder = borderWidth * 2; // border on both sides
     const imageContainerWidth = shotWidth - cardContentPadding - imageBorder;
     
     // Parse aspect ratio exactly like ShotGrid
@@ -357,10 +366,13 @@ export class CanvasRenderer {
       this.ctx.fillStyle = '#f9fafb'; // Very light background
       this.ctx.fillRect(imageBounds.x, imageBounds.y, imageBounds.width, imageBounds.height);
       
-      // Subtle border for definition
-      this.ctx.strokeStyle = '#e5e7eb';
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(imageBounds.x, imageBounds.y, imageBounds.width, imageBounds.height);
+      // Subtle border for definition (theme-aware)
+      const borderStyles = this.getImageFrameBorderStyles();
+      if (borderStyles) {
+        this.ctx.strokeStyle = borderStyles.color;
+        this.ctx.lineWidth = borderStyles.width;
+        this.ctx.strokeRect(imageBounds.x, imageBounds.y, imageBounds.width, imageBounds.height);
+      }
       
       // No placeholder text or icons in export - keeps it clean and professional
     }
@@ -468,6 +480,18 @@ export class CanvasRenderer {
   }
 
   /**
+   * Get border styles from theme
+   */
+  private getImageFrameBorderStyles() {
+    if (!this.storyboardTheme?.imageFrame?.borderEnabled) return null;
+    return {
+      color: this.storyboardTheme.imageFrame.border,
+      width: this.storyboardTheme.imageFrame.borderWidth * this.scale,
+      radius: (this.storyboardTheme.shotCard?.borderRadius ?? 3) * this.scale
+    };
+  }
+
+  /**
    * Render image with object-contain behavior (shows full image, no cropping)
    */
   private async renderImageWithObjectContain(
@@ -519,18 +543,21 @@ export class CanvasRenderer {
       this.ctx.drawImage(imageData, drawX, drawY, drawWidth, drawHeight);
       this.ctx.restore();
       
-      // Add border
-      this.ctx.strokeStyle = '#e5e7eb';
-      this.ctx.lineWidth = 1;
-      this.ctx.save();
-      this.ctx.beginPath();
-      if (typeof this.ctx.roundRect === 'function') {
-        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
-      } else {
-        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      // Add border (theme-aware)
+      const borderStyles = this.getImageFrameBorderStyles();
+      if (borderStyles) {
+        this.ctx.strokeStyle = borderStyles.color;
+        this.ctx.lineWidth = borderStyles.width;
+        this.ctx.save();
+        this.ctx.beginPath();
+        if (typeof this.ctx.roundRect === 'function') {
+          this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderStyles.radius);
+        } else {
+          this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+        this.ctx.stroke();
+        this.ctx.restore();
       }
-      this.ctx.stroke();
-      this.ctx.restore();
       
     } else if (imageData instanceof ImageData) {
       const tempCanvas = document.createElement('canvas');
@@ -630,18 +657,21 @@ export class CanvasRenderer {
       
       this.ctx.restore();
       
-      // Add border around image container - matches ShotCard border-gray-200
-      this.ctx.strokeStyle = '#e5e7eb';
-      this.ctx.lineWidth = 1;
-      this.ctx.save();
-      this.ctx.beginPath();
-      if (typeof this.ctx.roundRect === 'function') {
-        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
-      } else {
-        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      // Add border around image container (theme-aware)
+      const borderStyles = this.getImageFrameBorderStyles();
+      if (borderStyles) {
+        this.ctx.strokeStyle = borderStyles.color;
+        this.ctx.lineWidth = borderStyles.width;
+        this.ctx.save();
+        this.ctx.beginPath();
+        if (typeof this.ctx.roundRect === 'function') {
+          this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderStyles.radius);
+        } else {
+          this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+        this.ctx.stroke();
+        this.ctx.restore();
       }
-      this.ctx.stroke();
-      this.ctx.restore();
       
     } else if (imageData instanceof ImageData) {
       // Create temporary canvas to draw ImageData
@@ -669,59 +699,53 @@ export class CanvasRenderer {
    * Render shot number with precise DOM-like styling for consistency
    */
   private async renderShotNumberPrecise(number: string, bounds: Rectangle, scale: number): Promise<void> {
-    // Create a temporary DOM element to measure the exact font rendering
-    const tempDiv = document.createElement('div');
-    tempDiv.style.cssText = `
-      position: absolute;
-      top: -1000px;
-      left: -1000px;
-      font-size: 14px;
-      font-weight: bold;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      padding: 4px 8px;
-      background: rgba(255, 255, 255, 0.95);
-      border-radius: 6px;
-      color: #374151;
-      white-space: nowrap;
-      visibility: hidden;
-    `;
-    tempDiv.textContent = number;
-    document.body.appendChild(tempDiv);
+    // Use fixed dimensions from CSS (.shot-number-container > div)
+    // CSS: width: 36px, height: 28px, font-size: 14px
+    const fixedWidth = 36; // Fixed width from CSS
+    const fixedHeight = 28; // Fixed height from CSS
+    const fontSize = 14; // Fixed font size from CSS
     
-    // Measure the actual rendered size
-    const rect = tempDiv.getBoundingClientRect();
-    const measuredWidth = rect.width;
-    const measuredHeight = rect.height;
-    
-    // Clean up the temporary element
-    document.body.removeChild(tempDiv);
-    
-    // Use measured dimensions with scale
-    const numberWidth = measuredWidth * scale;
-    const numberHeight = measuredHeight * scale;
+    // Scale the dimensions
+    const numberWidth = fixedWidth * scale;
+    const numberHeight = fixedHeight * scale;
     const numberX = bounds.x - (2 * scale); // top: -2px left: -2px from CSS
     const numberY = bounds.y - (2 * scale);
     
-    // Background - exact match to CSS
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    // Get theme values for shot number (with fallbacks)
+    const theme = this.storyboardTheme?.shotNumber;
+    const borderRadius = (theme?.borderRadius ?? 6) * scale;
+    const borderWidth = theme?.borderEnabled && theme?.borderWidth 
+      ? theme.borderWidth * scale 
+      : 0;
+    
+    // Background - use theme value
+    this.ctx.fillStyle = theme?.background || 'rgba(255, 255, 255, 0.95)';
     this.ctx.beginPath();
     
     // Use roundRect if available, otherwise fallback to regular rect
     if (typeof this.ctx.roundRect === 'function') {
-      this.ctx.roundRect(numberX, numberY, numberWidth, numberHeight, 6 * scale);
+      this.ctx.roundRect(numberX, numberY, numberWidth, numberHeight, borderRadius);
     } else {
       this.ctx.rect(numberX, numberY, numberWidth, numberHeight);
     }
     this.ctx.fill();
     
-    // Subtle shadow/border effect
-    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
-    this.ctx.lineWidth = 0.5;
-    this.ctx.strokeRect(numberX, numberY, numberWidth, numberHeight);
+    // Border - use theme values if enabled
+    if (borderWidth > 0 && theme?.borderEnabled) {
+      this.ctx.strokeStyle = theme.border || 'rgba(0, 0, 0, 0.1)';
+      this.ctx.lineWidth = borderWidth;
+      this.ctx.beginPath();
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(numberX, numberY, numberWidth, numberHeight, borderRadius);
+      } else {
+        this.ctx.rect(numberX, numberY, numberWidth, numberHeight);
+      }
+      this.ctx.stroke();
+    }
     
-    // Text - use system fonts for consistency
-    this.ctx.fillStyle = '#374151';
-    this.setFont('bold', 14 * scale);
+    // Text - use theme text color (theme already declared above)
+    this.ctx.fillStyle = theme?.text || '#374151';
+    this.setFont('bold', fontSize * scale);
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     
@@ -984,7 +1008,7 @@ export class CanvasRenderer {
       family: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       size: 10 * scale, // text-xs in preview mode
       weight: 'normal',
-      color: '#6b7280', // text-gray-500
+      color: this.storyboardTheme?.header?.text || '#6b7280', // Use Header color from theme, fallback to gray
       lineHeight: 1.2,
       textAlign: 'right'
     };

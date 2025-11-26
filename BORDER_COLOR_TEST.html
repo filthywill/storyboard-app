@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Border Color Test</title>
+  <style>
+    /* Simulating Tailwind's global border */
+    * {
+      border-color: black;
+    }
+    
+    /* Our protection rule */
+    .storyboard-themeable,
+    .storyboard-themeable * {
+      border-color: unset !important;
+    }
+  </style>
+</head>
+<body style="padding: 20px; background: white;">
+  <h1>Border Color Test</h1>
+  
+  <h2>Test 1: Without .storyboard-themeable</h2>
+  <div style="border: 3px solid red; padding: 20px; margin: 10px;">
+    This should have a RED border (inline style)
+  </div>
+  
+  <h2>Test 2: With .storyboard-themeable</h2>
+  <div class="storyboard-themeable" style="border: 3px solid blue; padding: 20px; margin: 10px;">
+    This should have a BLUE border (inline style + protection)
+  </div>
+  
+  <h2>Test 3: Actual ShotCard Simulation</h2>
+  <div 
+    class="storyboard-themeable" 
+    style="
+      background-color: white;
+      border-width: 2px;
+      border-style: solid;
+      border-color: #ff0000;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 10px;
+    "
+  >
+    This simulates a ShotCard with RED border (#ff0000)
+  </div>
+  
+  <h2>Test 4: Different Colors</h2>
+  <div class="storyboard-themeable" style="border: 3px solid #00ff00; padding: 20px; margin: 10px;">
+    GREEN (#00ff00)
+  </div>
+  
+  <div class="storyboard-themeable" style="border: 3px solid #0000ff; padding: 20px; margin: 10px;">
+    BLUE (#0000ff)
+  </div>
+  
+  <div class="storyboard-themeable" style="border: 3px solid #ff00ff; padding: 20px; margin: 10px;">
+    MAGENTA (#ff00ff)
+  </div>
+  
+  <script>
+    // Log computed styles
+    document.querySelectorAll('.storyboard-themeable').forEach((el, i) => {
+      const computed = window.getComputedStyle(el);
+      console.log(`Element ${i + 1}:`, {
+        borderColor: computed.borderColor,
+        borderWidth: computed.borderWidth,
+        borderStyle: computed.borderStyle
+      });
+    });
+  </script>
+</body>
+</html>
+
+
+
+

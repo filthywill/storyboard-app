@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Upload, FileText, AlertCircle, CheckCircle, X, ArrowDown, Clipboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 import { enableBatchMode, disableBatchMode } from '@/utils/autoSave';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { useAppStore } from '@/store';
@@ -352,13 +353,16 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl w-full">
+      <DialogContent className="max-w-2xl w-full" style={getGlassmorphismStyles('dark')}>
         <DialogHeader className="pb-2">
-          <DialogTitle className="flex items-center gap-2 text-lg">
+          <DialogTitle 
+            className="flex items-center gap-2 text-lg"
+            style={{ color: getColor('text', 'primary') as string }}
+          >
             <FileText size={18} />
             Load Shot List
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription style={{ color: getColor('text', 'secondary') as string }}>
             Import shot text data from a file or paste text directly
           </DialogDescription>
         </DialogHeader>
@@ -368,15 +372,32 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
           <div className="space-y-4">
             {/* Input Mode Selection */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Input Method</Label>
+              <Label 
+                className="text-sm font-medium"
+                style={{ color: getColor('text', 'primary') as string }}
+              >
+                Input Method
+              </Label>
               <RadioGroup value={inputMode} onValueChange={(value) => setInputMode(value as InputMode)}>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="paste" id="paste" />
-                  <Label htmlFor="paste" className="text-sm">Paste Text</Label>
+                  <Label 
+                    htmlFor="paste" 
+                    className="text-sm"
+                    style={{ color: getColor('text', 'primary') as string }}
+                  >
+                    Paste Text
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="file" id="file" />
-                  <Label htmlFor="file" className="text-sm">Upload File</Label>
+                  <Label 
+                    htmlFor="file" 
+                    className="text-sm"
+                    style={{ color: getColor('text', 'primary') as string }}
+                  >
+                    Upload File
+                  </Label>
                 </div>
               </RadioGroup>
             </div>
@@ -384,15 +405,29 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
             {/* Paste Text Input */}
             {inputMode === 'paste' && (
               <div className="space-y-2">
-                <Label htmlFor="pasted-text">Shot Text (one per line, optionally prefixed with numbers)</Label>
+                <Label 
+                  htmlFor="pasted-text"
+                  style={{ color: getColor('text', 'primary') as string }}
+                >
+                  Shot Text (one per line, optionally prefixed with numbers)
+                </Label>
                 <Textarea
                   id="pasted-text"
                   value={pastedText}
                   onChange={(e) => setPastedText(e.target.value)}
                   placeholder="1. Opening shot of the protagonist&#10;2. Close-up of the door handle&#10;3. Wide shot of the room&#10;..."
                   className="min-h-32"
+                  style={{
+                    backgroundColor: getColor('input', 'background') as string,
+                    border: `1px solid ${getColor('input', 'border') as string}`,
+                    color: getColor('text', 'primary') as string
+                  }}
                 />
-                <Button onClick={handlePasteText} disabled={!pastedText.trim()}>
+                <Button 
+                  onClick={handlePasteText} 
+                  disabled={!pastedText.trim()}
+                  style={getGlassmorphismStyles('buttonAccent')}
+                >
                   <Clipboard size={16} className="mr-2" />
                   Continue
                 </Button>
@@ -401,13 +436,24 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
 
             {/* File Upload Input */}
             {inputMode === 'file' && (
-              <div className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                <FileText size={32} className="text-gray-400 mb-2" />
-                <h3 className="text-lg font-semibold mb-1">Select Text File</h3>
-                <p className="text-gray-600 text-center mb-3 text-sm">
+              <div 
+                className="flex flex-col items-center justify-center p-4 rounded-lg"
+                style={{ 
+                  border: `2px dashed ${getColor('border', 'dashed') as string}`,
+                  backgroundColor: getColor('background', 'lighter') as string
+                }}
+              >
+                <FileText size={32} className="mb-2" style={{ color: getColor('text', 'muted') as string }} />
+                <h3 className="text-lg font-semibold mb-1" style={{ color: getColor('text', 'primary') as string }}>
+                  Select Text File
+                </h3>
+                <p className="text-center mb-3 text-sm" style={{ color: getColor('text', 'secondary') as string }}>
                   Choose a text file containing shot descriptions. Each line will be treated as one shot. Supported formats: .txt, .csv (rows treated as lines), .md.
                 </p>
-                <Button onClick={() => fileInputRef.current?.click()}>
+                <Button 
+                  onClick={() => fileInputRef.current?.click()}
+                  style={getGlassmorphismStyles('buttonAccent')}
+                >
                   <Upload size={16} className="mr-2" />
                   Choose File
                 </Button>
@@ -427,32 +473,40 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
         {showPreview && parsedShots.length > 0 && loadingState === 'idle' && (
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-3 gap-1">
-              <Card>
+              <Card style={getGlassmorphismStyles('background')}>
                 <CardHeader className="pb-1 pt-2 px-3">
-                  <CardTitle className="text-sm">Shots Found</CardTitle>
+                  <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                    Shots Found
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 px-3 pb-2">
-                  <div className="text-xl font-bold">{parsedShots.length}</div>
+                  <div className="text-xl font-bold" style={{ color: getColor('text', 'primary') as string }}>
+                    {parsedShots.length}
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card style={getGlassmorphismStyles('background')}>
                 <CardHeader className="pb-1 pt-2 px-3">
-                  <CardTitle className="text-sm">With Numbers</CardTitle>
+                  <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                    With Numbers
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 px-3 pb-2">
-                  <div className="text-xl font-bold">
+                  <div className="text-xl font-bold" style={{ color: getColor('text', 'primary') as string }}>
                     {parsedShots.filter(s => s.number !== null).length}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card style={getGlassmorphismStyles('background')}>
                 <CardHeader className="pb-1 pt-2 px-3">
-                  <CardTitle className="text-sm">Text Only</CardTitle>
+                  <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                    Text Only
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 px-3 pb-2">
-                  <div className="text-xl font-bold">
+                  <div className="text-xl font-bold" style={{ color: getColor('text', 'primary') as string }}>
                     {parsedShots.filter(s => s.number === null).length}
                   </div>
                 </CardContent>
@@ -462,24 +516,43 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
             {/* Parse mode toggle (Preview) */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Label className="text-xs">Parse As</Label>
+                <Label 
+                  className="text-xs"
+                  style={{ color: getColor('text', 'primary') as string }}
+                >
+                  Parse As
+                </Label>
                 <RadioGroup value={parseMode} onValueChange={handlePreviewParseModeChange} className="flex flex-row gap-3">
                   <div className="flex items-center space-x-1">
                     <RadioGroupItem value="numbers" id="parse-numbers-preview" />
-                    <Label htmlFor="parse-numbers-preview" className="text-xs">Numbers</Label>
+                    <Label 
+                      htmlFor="parse-numbers-preview" 
+                      className="text-xs"
+                      style={{ color: getColor('text', 'primary') as string }}
+                    >
+                      Numbers
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-1">
                     <RadioGroupItem value="lineBreaks" id="parse-linebreaks-preview" />
-                    <Label htmlFor="parse-linebreaks-preview" className="text-xs">Line Breaks</Label>
+                    <Label 
+                      htmlFor="parse-linebreaks-preview" 
+                      className="text-xs"
+                      style={{ color: getColor('text', 'primary') as string }}
+                    >
+                      Line Breaks
+                    </Label>
                   </div>
                 </RadioGroup>
               </div>
             </div>
 
             {/* Shot Preview */}
-            <Card>
+            <Card style={getGlassmorphismStyles('background')}>
               <CardHeader className="pb-1 pt-2 px-3">
-                <CardTitle className="text-sm">Shot Preview</CardTitle>
+                <CardTitle className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                  Shot Preview
+                </CardTitle>
               </CardHeader>
               <CardContent className="pt-1 px-3 pb-2">
                 <div className="space-y-1 max-h-80 overflow-y-auto">
@@ -490,23 +563,40 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
                     const isCreate = !targetShot || targetShotIndex >= existingShots.length;
                     
                     return (
-                      <div key={index} className="flex items-center gap-3 p-2 border rounded-md">
+                      <div 
+                        key={index} 
+                        className="flex items-center gap-3 p-2 rounded-md"
+                        style={{ border: `1px solid ${getColor('border', 'primary') as string}` }}
+                      >
                         {/* Shot Info */}
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
+                          <div 
+                            className="text-sm font-medium truncate"
+                            style={{ color: getColor('text', 'primary') as string }}
+                          >
                             {parseMode === 'numbers' && parsedShot.numberString ? `#${parsedShot.numberString}` : ''}
                           </div>
-                          <div className="text-xs text-gray-500 truncate">
+                          <div 
+                            className="text-xs truncate"
+                            style={{ color: getColor('text', 'muted') as string }}
+                          >
                             {parsedShot.text}
                           </div>
                         </div>
                         
                         {/* Shot Assignment */}
                         <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "px-2 py-1 rounded text-xs font-medium",
-                            isUpdate ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
-                          )}>
+                          <div 
+                            className="px-2 py-1 rounded text-xs font-medium"
+                            style={{
+                              backgroundColor: isUpdate 
+                                ? getColor('status', 'statusBadgeBlue') as string 
+                                : getColor('status', 'statusBadgeGreen') as string,
+                              color: isUpdate 
+                                ? getColor('status', 'statusBadgeBlueText') as string 
+                                : getColor('status', 'statusBadgeGreenText') as string
+                            }}
+                          >
                             {isUpdate ? `Update Shot ${targetShot?.number || formatShotNumber(targetShotIndex + 1, templateSettings.shotNumberFormat)}` : `Create Shot ${formatShotNumber(targetShotIndex + 1, templateSettings.shotNumberFormat)}`}
                           </div>
                         </div>
@@ -518,9 +608,12 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
             </Card>
 
             {/* Load Options */}
-            <Card>
+            <Card style={getGlassmorphismStyles('background')}>
               <CardHeader className="pb-1 pt-2 px-3">
-                <CardTitle className="text-sm flex items-center gap-2">
+                <CardTitle 
+                  className="text-sm flex items-center gap-2"
+                  style={{ color: getColor('text', 'secondary') as string }}
+                >
                   <ArrowDown size={14} />
                   Load Options
                 </CardTitle>
@@ -529,19 +622,31 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
                 <RadioGroup value={startingPosition} onValueChange={(value) => setStartingPosition(value as StartingPosition)}>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="start" id="start" />
-                    <Label htmlFor="start" className="text-xs">
+                    <Label 
+                      htmlFor="start" 
+                      className="text-xs"
+                      style={{ color: getColor('text', 'primary') as string }}
+                    >
                       Insert at Start
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="end" id="end" />
-                    <Label htmlFor="end" className="text-xs">
+                    <Label 
+                      htmlFor="end" 
+                      className="text-xs"
+                      style={{ color: getColor('text', 'primary') as string }}
+                    >
                       Insert at End
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="custom" id="custom" />
-                    <Label htmlFor="custom" className="text-xs">
+                    <Label 
+                      htmlFor="custom" 
+                      className="text-xs"
+                      style={{ color: getColor('text', 'primary') as string }}
+                    >
                       Custom
                     </Label>
                   </div>
@@ -555,8 +660,16 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
                         onChange={(e) => setCustomPosition(parseInt(e.target.value) || 1)}
                         className="w-16 h-7 text-xs"
                         placeholder="1"
+                        style={{
+                          backgroundColor: getColor('input', 'background') as string,
+                          border: `1px solid ${getColor('input', 'border') as string}`,
+                          color: getColor('text', 'primary') as string
+                        }}
                       />
-                      <span className="text-xs text-gray-500">
+                      <span 
+                        className="text-xs"
+                        style={{ color: getColor('text', 'muted') as string }}
+                      >
                         (1-{existingShots.length + 1})
                       </span>
                     </div>
@@ -571,8 +684,16 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
         {loadingState === 'processing' && (
           <div className="flex flex-col gap-3 p-4">
             <div className="text-center">
-              <h3 className="text-lg font-semibold mb-1">Processing Shot Text...</h3>
-              <p className="text-gray-600 text-sm">
+              <h3 
+                className="text-lg font-semibold mb-1"
+                style={{ color: getColor('text', 'primary') as string }}
+              >
+                Processing Shot Text...
+              </h3>
+              <p 
+                className="text-sm"
+                style={{ color: getColor('text', 'secondary') as string }}
+              >
                 {progress.current} of {progress.total}
               </p>
             </div>
@@ -580,7 +701,10 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
             <Progress value={(progress.current / progress.total) * 100} className="w-full" />
             
             {progress.currentLine && (
-              <p className="text-xs text-gray-500 text-center truncate">
+              <p 
+                className="text-xs text-center truncate"
+                style={{ color: getColor('text', 'muted') as string }}
+              >
                 {progress.currentLine}
               </p>
             )}
@@ -593,32 +717,60 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
             {/* Summary Row */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-green-600">
+                <div 
+                  className="flex items-center gap-2"
+                  style={{ color: getColor('status', 'statusBadgeGreenText') as string }}
+                >
                   <CheckCircle size={16} />
                   <span className="font-semibold">{loadResult.successful.length} loaded</span>
                 </div>
                 {loadResult.failed.length > 0 && (
-                  <div className="flex items-center gap-2 text-red-600">
+                  <div 
+                    className="flex items-center gap-2"
+                    style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+                  >
                     <AlertCircle size={16} />
                     <span className="font-semibold">{loadResult.failed.length} failed</span>
                   </div>
                 )}
               </div>
-              <Button onClick={handleClose} size="sm">
+              <Button 
+                onClick={handleClose} 
+                size="sm"
+                style={getGlassmorphismStyles('buttonAccent')}
+              >
                 Done
               </Button>
             </div>
 
             {/* Failed Lines (if any) */}
             {loadResult.failed.length > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <div 
+                className="rounded-md p-3"
+                style={{
+                  backgroundColor: getColor('status', 'statusBadgeRed') as string,
+                  border: `1px solid ${getColor('border', 'primary') as string}`
+                }}
+              >
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle size={14} className="text-red-600" />
-                  <span className="text-sm font-medium text-red-800">Failed Lines</span>
+                  <AlertCircle 
+                    size={14} 
+                    style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+                  />
+                  <span 
+                    className="text-sm font-medium"
+                    style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+                  >
+                    Failed Lines
+                  </span>
                 </div>
                 <div className="space-y-1 max-h-20 overflow-y-auto">
                   {loadResult.failed.map((failure, index) => (
-                    <div key={index} className="text-xs text-red-700">
+                    <div 
+                      key={index} 
+                      className="text-xs"
+                      style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+                    >
                       <span className="font-medium">{failure.line}:</span> {failure.error}
                     </div>
                   ))}
@@ -631,16 +783,36 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
         {/* Error State */}
         {loadingState === 'error' && (
           <div className="text-center p-4">
-            <AlertCircle size={24} className="text-red-500 mx-auto mb-2" />
-            <h3 className="text-lg font-semibold mb-1">Processing Failed</h3>
-            <p className="text-gray-600 mb-3 text-sm">
+            <AlertCircle 
+              size={24} 
+              className="mx-auto mb-2"
+              style={{ color: getColor('status', 'statusBadgeRedText') as string }}
+            />
+            <h3 
+              className="text-lg font-semibold mb-1"
+              style={{ color: getColor('text', 'primary') as string }}
+            >
+              Processing Failed
+            </h3>
+            <p 
+              className="mb-3 text-sm"
+              style={{ color: getColor('text', 'secondary') as string }}
+            >
               There was an error processing your shot text. Please try again.
             </p>
             <div className="flex gap-2 justify-center">
-              <Button variant="outline" size="sm" onClick={() => setShowPreview(false)}>
+              <Button 
+                size="sm" 
+                onClick={() => setShowPreview(false)}
+                style={getGlassmorphismStyles('button')}
+              >
                 Choose Different Text
               </Button>
-              <Button size="sm" onClick={() => setLoadingState('idle')}>
+              <Button 
+                size="sm" 
+                onClick={() => setLoadingState('idle')}
+                style={getGlassmorphismStyles('buttonAccent')}
+              >
                 Try Again
               </Button>
             </div>
@@ -649,11 +821,20 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
 
         {/* Action Buttons */}
         {showPreview && parsedShots.length > 0 && loadingState === 'idle' && (
-          <div className="flex gap-2 justify-end pt-2 border-t mt-2">
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
+          <div 
+            className="flex gap-2 justify-end pt-2 mt-2"
+            style={{ borderTop: `1px solid ${getColor('border', 'primary') as string}` }}
+          >
+            <Button 
+              onClick={() => setShowPreview(false)}
+              style={getGlassmorphismStyles('button')}
+            >
               Choose Different Text
             </Button>
-            <Button onClick={handleShotListLoad}>
+            <Button 
+              onClick={handleShotListLoad}
+              style={getGlassmorphismStyles('buttonAccent')}
+            >
               Load {parsedShots.length} Shots
             </Button>
           </div>

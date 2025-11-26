@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 
 export const PageTabs: React.FC = () => {
   const {
@@ -32,7 +33,8 @@ export const PageTabs: React.FC = () => {
     deletePage,
     duplicatePage,
     showDeleteConfirmation,
-    setShowDeleteConfirmation
+    setShowDeleteConfirmation,
+    storyboardTheme
   } = useAppStore();
 
   const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);
@@ -87,9 +89,13 @@ export const PageTabs: React.FC = () => {
                 <div
                   key={page.id}
                   className={cn(
-                    "flex items-center group rounded-t-md h-8",
-                    activePageId === page.id ? "bg-white" : "bg-muted opacity-50"
+                    "flex items-center group rounded-t-md h-8"
                   )}
+                  style={{
+                    backgroundColor: storyboardTheme.contentBackground,
+                    // INACTIVE TAB OPACITY - Change 0.5 to adjust transparency (0 = fully transparent, 1 = fully opaque)
+                    opacity: activePageId === page.id ? 1 : 0.55
+                  }}
                 >
                   <TabsTrigger
                     value={page.id}
@@ -97,7 +103,8 @@ export const PageTabs: React.FC = () => {
                     style={{
                       boxShadow: 'none',
                       outline: 'none',
-                      border: 'none'
+                      border: 'none',
+                      color: storyboardTheme.header.text
                     }}
                   >
                     {page.name}
@@ -123,7 +130,9 @@ export const PageTabs: React.FC = () => {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => handleAttemptDelete(page.id)}
-                        className="text-red-600 focus:text-red-600"
+                        style={{ 
+                          color: 'rgba(220, 38, 38, 1)' // red-600 for destructive action
+                        }}
                         disabled={pages.length <= 1}
                       >
                         <Trash2 size={14} className="mr-2" />
@@ -140,7 +149,20 @@ export const PageTabs: React.FC = () => {
         <Button
           onClick={handleCreatePage}
           size="sm"
-          className="shrink-0 ml-0.3 px-1.5 py-0.5 h-6 text-xs mt-0.5 bg-purple-500/20 hover:bg-purple-500/30 border-none border-purple-400/30 text-purple-200 hover:text-purple-100 transition-all duration-200"
+          className="shrink-0 ml-0.3 px-1.5 py-0.5 h-6 text-xs mt-0.5 border-none transition-all duration-200"
+          style={{
+            backgroundColor: getColor('button', 'actionBackground') as string,
+            color: getColor('button', 'actionText') as string,
+            border: 'none'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = getColor('button', 'actionBackgroundHover') as string;
+            e.currentTarget.style.color = getColor('button', 'actionTextHover') as string;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = getColor('button', 'actionBackground') as string;
+            e.currentTarget.style.color = getColor('button', 'actionText') as string;
+          }}
         >
           <Plus size={14} strokeWidth={3} className="mr-0" />
           </Button>
@@ -150,12 +172,17 @@ export const PageTabs: React.FC = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog !== null} onOpenChange={() => setShowDeleteDialog(null)}>
-        <DialogContent>
+        <DialogContent style={getGlassmorphismStyles('dark')}>
           <DialogHeader>
-            <DialogTitle>Delete Page</DialogTitle>
+            <DialogTitle style={{ color: getColor('text', 'primary') as string }}>
+              Delete Page
+            </DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <p className="text-sm text-gray-600">
+            <p 
+              className="text-sm"
+              style={{ color: getColor('text', 'secondary') as string }}
+            >
               Are you sure you want to delete this page? This action cannot be undone.
             </p>
           </div>
@@ -165,15 +192,36 @@ export const PageTabs: React.FC = () => {
               checked={dontShowAgain}
               onCheckedChange={(checked) => setDontShowAgain(!!checked)}
             />
-            <Label htmlFor="dont-show-again" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            <Label 
+              htmlFor="dont-show-again" 
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              style={{ color: getColor('text', 'primary') as string }}
+            >
               Don't show this again
             </Label>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(null)}>
+            <Button 
+              onClick={() => setShowDeleteDialog(null)}
+              style={getGlassmorphismStyles('button')}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm}>
+            <Button 
+              onClick={handleDeleteConfirm}
+              style={{
+                backgroundColor: getColor('button', 'destructive') as string,
+                color: getColor('button', 'destructiveText') as string,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = getColor('button', 'destructiveHover') as string;
+                e.currentTarget.style.color = getColor('button', 'destructiveTextHover') as string;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = getColor('button', 'destructive') as string;
+                e.currentTarget.style.color = getColor('button', 'destructiveText') as string;
+              }}
+            >
               Delete
             </Button>
           </DialogFooter>

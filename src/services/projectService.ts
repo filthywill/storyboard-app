@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { SecurityNotificationService } from './securityNotificationService';
 import { DataValidator } from '@/utils/dataValidator';
+import { StoryboardTheme } from '@/styles/storyboardTheme';
 
 export interface ProjectData {
   pages: any[];
@@ -13,6 +14,7 @@ export interface ProjectData {
     clientAgency: any;
     jobInfo: any;
     templateSettings: any;
+    storyboardTheme?: StoryboardTheme; // Optional for backwards compatibility
   };
   uiSettings: {
     isDragging: boolean;
@@ -68,11 +70,28 @@ export class ProjectService {
       throw error;
     }
 
+    // Migration: Add default theme if missing, or migrate old themes
+    const projectSettings = data.project_settings || {};
+    const { getDefaultTheme, migrateTheme } = await import('@/styles/storyboardTheme');
+    
+    if (!projectSettings.storyboardTheme) {
+      projectSettings.storyboardTheme = getDefaultTheme();
+    } else {
+      // Migrate existing theme to include new properties if missing
+      projectSettings.storyboardTheme = migrateTheme(projectSettings.storyboardTheme);
+    }
+    
+    // Save migrated data back to Supabase (silent migration)
+    await supabase
+      .from('project_data')
+      .update({ project_settings: projectSettings })
+      .eq('project_id', projectId);
+
     return {
       pages: data.pages || [],
       shots: data.shots || {},
       shotOrder: data.shot_order || [],
-      projectSettings: data.project_settings || {},
+      projectSettings: projectSettings,
       uiSettings: data.ui_settings || {}
     };
   }

@@ -40,10 +40,10 @@ export const ProjectPickerModal: React.FC<ProjectPickerModalProps> = ({
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50" style={MODAL_OVERLAY_STYLES}>
       <Card className="w-[500px] max-h-[600px] shadow-2xl flex flex-col" style={getGlassmorphismStyles('dark')}>
-        <CardHeader className="text-center border-b flex items-center justify-between" style={{ borderColor: getColor('border', 'primary') as string }}>
+        <CardHeader className="text-center flex items-center justify-between" style={{ borderBottom: `1px solid ${getColor('border', 'primary') as string}` }}>
           <div className="flex-1">
-            <CardTitle className="text-2xl text-white">Select a Project</CardTitle>
-            <CardDescription className="text-base mt-2 text-white/70">
+            <CardTitle className="text-2xl" style={{ color: getColor('text', 'primary') as string }}>Select a Project</CardTitle>
+            <CardDescription className="text-base mt-2" style={{ color: getColor('text', 'secondary') as string }}>
               Choose an existing project or create a new one
             </CardDescription>
           </div>
@@ -52,8 +52,8 @@ export const ProjectPickerModal: React.FC<ProjectPickerModalProps> = ({
           {projects.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="text-white hover:bg-white/10" style={getGlassmorphismStyles('button')}>
-                  <ArrowUpDown className="h-4 w-4 mr-1 text-white" />
+                <Button size="sm" className="hover:bg-white/10" style={getGlassmorphismStyles('button')}>
+                  <ArrowUpDown className="h-4 w-4 mr-1" style={{ color: getColor('text', 'primary') as string }} />
                   {sortBy === 'name' ? 'Name' : 'Date'}
                 </Button>
               </DropdownMenuTrigger>
@@ -74,10 +74,10 @@ export const ProjectPickerModal: React.FC<ProjectPickerModalProps> = ({
           {/* Project List */}
           <div className="flex-1 overflow-y-auto space-y-2 mb-4">
             {sortedProjects.length === 0 ? (
-              <div className="text-center py-8 text-white/70">
-                <FolderOpen className="h-12 w-12 mx-auto mb-3 text-white/50" />
-                <p className="text-sm text-white/80">No projects yet</p>
-                <p className="text-xs mt-1 text-white/60">Create your first project to get started</p>
+              <div className="text-center py-8" style={{ color: getColor('text', 'secondary') as string }}>
+                <FolderOpen className="h-12 w-12 mx-auto mb-3" style={{ color: getColor('text', 'muted') as string }} />
+                <p className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>No projects yet</p>
+                <p className="text-xs mt-1" style={{ color: getColor('text', 'muted') as string }}>Create your first project to get started</p>
               </div>
             ) : (
               sortedProjects.map((project) => (
@@ -93,13 +93,16 @@ export const ProjectPickerModal: React.FC<ProjectPickerModalProps> = ({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <FolderOpen className="h-5 w-5 text-white/60 group-hover:text-white flex-shrink-0" />
-                      <span className="font-medium text-white truncate">{project.name}</span>
+                      <FolderOpen 
+                        className="h-5 w-5 group-hover:text-white flex-shrink-0 transition-colors" 
+                        style={{ color: getColor('text', 'muted') as string }}
+                      />
+                      <span className="font-medium truncate" style={{ color: getColor('text', 'primary') as string }}>{project.name}</span>
                       {project.isCloudOnly && (
-                        <Cloud className="h-4 w-4 text-blue-400 flex-shrink-0" />
+                        <Cloud className="h-4 w-4 flex-shrink-0" style={{ color: getColor('status', 'info') as string }} />
                       )}
                     </div>
-                    <span className="text-sm text-white/70 ml-2 flex-shrink-0">
+                    <span className="text-sm ml-2 flex-shrink-0" style={{ color: getColor('text', 'secondary') as string }}>
                       {project.shotCount} {project.shotCount === 1 ? 'shot' : 'shots'}
                     </span>
                   </div>
@@ -109,15 +112,15 @@ export const ProjectPickerModal: React.FC<ProjectPickerModalProps> = ({
           </div>
 
           {/* Create New Button */}
-          <div className="pt-3 border-t" style={{ borderColor: getColor('border', 'primary') as string }}>
+          <div className="pt-3" style={{ borderTop: `1px solid ${getColor('border', 'primary') as string}` }}>
             <Button 
               onClick={onCreateNew}
-              className="w-full text-white"
+              className="w-full"
               size="lg"
               variant="default"
               style={getGlassmorphismStyles('buttonSecondary')}
             >
-              <Plus className="h-5 w-5 mr-2 text-white" />
+              <Plus className="h-5 w-5 mr-2" />
               Create New Project
             </Button>
           </div>

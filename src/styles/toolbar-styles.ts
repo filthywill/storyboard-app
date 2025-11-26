@@ -3,15 +3,17 @@
  * Update these values to change all toolbar elements at once
  */
 
+import { COLOR_PALETTE, getGlassmorphismStyles } from './glassmorphism-styles';
+
 export const TOOLBAR_STYLES = {
   // Main container styling
   container: {
-    backgroundColor: 'rgba(1, 1, 1, 0.2)',
+    backgroundColor: COLOR_PALETTE.background.subtle,
     backdropFilter: 'blur(0.5px)',
     WebkitBackdropFilter: 'blur(0.5px)',
-    border: '1px solid rgba(1, 1, 1, 0.05)',
+    border: `1px solid ${COLOR_PALETTE.border.primary}`,
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-    color: 'white'
+    color: COLOR_PALETTE.text.primary
   },
   
   // Container classes
@@ -19,6 +21,7 @@ export const TOOLBAR_STYLES = {
   
   // Icon styling
   iconClasses: 'text-white',
+  iconOpacity: 0.8, // Standard opacity for icons in theme toolbar
   
   // Text styling
   textClasses: 'text-white',
@@ -46,6 +49,14 @@ export const getToolbarContainerStylesWithOverrides = (overrides: Partial<typeof
   ...TOOLBAR_STYLES.container,
   ...overrides
 });
+
+/**
+ * Get styling for theme toolbar section containers
+ * Uses the themeSection glassmorphism variant (independent from subtle)
+ */
+export const getThemeSectionStyles = () => {
+  return getGlassmorphismStyles('themeSection');
+};
 
 /**
  * Example usage:

@@ -94,6 +94,7 @@ export interface ExportStoryboardPage {
   grid: ExportGrid;
   layout: LayoutConfig;
   backgroundColor: string;
+  storyboardTheme?: any; // Optional for backward compatibility
 }
 
 // Export options and settings

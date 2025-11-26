@@ -114,6 +114,23 @@ const Index = () => {
           }
         }, 300);
         
+        // Load user themes for authenticated users
+        if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
+          setTimeout(async () => {
+            const authState = useAuthStore.getState();
+            if (authState.isAuthenticated && !authState.isLoading) {
+              console.log('Authenticated user - loading user themes...');
+              try {
+                const { ThemeService } = await import('@/services/themeService');
+                await ThemeService.loadUserThemesIntoMemory();
+              } catch (error) {
+                console.error('Failed to load user themes:', error);
+                // Don't block the app if theme loading fails
+              }
+            }
+          }, 350); // After auth check completes
+        }
+        
         console.log('App initialization completed');
       } catch (error) {
         console.error('Error during app initialization:', error);
@@ -353,18 +370,18 @@ const Index = () => {
         <OfflineBanner onSignIn={() => setShowAuthModal(true)} />
         
         {/* Main Header */}
-        <div className="max-w-7xl mx-auto px-6 pt-4 pb-2">
+        <div className="max-w-7xl mx-auto px-6 pt-0 pb-2">
           <div className="flex items-end justify-between">
             <div>
               <img 
-                src="/storyflow-whc_01.png" 
+                src="/shotflower-whc_01.png" 
                 alt="Storyboard Flow" 
                 className="h-4 object-contain"
                 style={{
                   imageRendering: 'auto',
                   maxWidth: 'none',
                   width: 'auto',
-                  height: '42px',
+                  height: '48px',
                   filter: 'none'
                 }}
               />

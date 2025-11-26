@@ -218,3 +218,6 @@ Before implementing scaling alignment:
 
 *This document should be reviewed and updated as new scaling and alignment patterns are discovered.*
 
+
+
+

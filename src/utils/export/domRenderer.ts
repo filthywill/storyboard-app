@@ -10,6 +10,9 @@ import { DOMCaptureResult } from './domCapture';
 export class DOMRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private storyboardState: any;
+  private scale: number = 1;
+  private fontsLoaded: boolean = false;
   
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -21,11 +24,71 @@ export class DOMRenderer {
   }
   
   /**
+   * Ensure Inter font is loaded before rendering
+   */
+  private async ensureFontsLoaded(): Promise<void> {
+    if (this.fontsLoaded) return;
+    
+    try {
+      // Load various weights/styles of Inter that we use
+      await Promise.all([
+        document.fonts.load('bold 14px Inter'),      // Shot numbers
+        document.fonts.load('600 12px Inter'),       // Action text (font-semibold)
+        document.fonts.load('400 12px Inter'),       // Script text
+        document.fonts.load('normal 12px Inter'),    // General text
+      ]);
+      
+      // Verify the fonts are loaded
+      const isBoldLoaded = document.fonts.check('bold 14px Inter');
+      const is600Loaded = document.fonts.check('600 12px Inter');
+      
+      if (isBoldLoaded && is600Loaded) {
+        console.log('✅ Inter font loaded successfully for canvas');
+        this.fontsLoaded = true;
+      } else {
+        console.warn('⚠️ Inter font not fully loaded, will use fallback');
+        this.fontsLoaded = false;
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load Inter font:', error);
+      this.fontsLoaded = false;
+    }
+  }
+  
+  /**
+   * Global font size multiplier for canvas rendering
+   * Canvas renders fonts slightly differently than DOM, so we need a small adjustment
+   * This is applied globally to ALL text in the PDF export for consistency
+   */
+  private readonly FONT_SIZE_MULTIPLIER = 1.12;
+  
+  /**
+   * Get the scaled font size for canvas rendering
+   * Apply this globally to all text to ensure consistent sizing
+   */
+  private getScaledFontSize(rawFontSize: number, scale: number): number {
+    return rawFontSize * this.FONT_SIZE_MULTIPLIER * scale;
+  }
+  
+  /**
+   * @deprecated Use getScaledFontSize() instead
+   * Kept for backward compatibility
+   */
+  private getCanvasFontMultiplier(): number {
+    return this.FONT_SIZE_MULTIPLIER;
+  }
+  
+  /**
    * Render storyboard page using DOM-captured data
    */
   async renderFromDOMCapture(captureResult: DOMCaptureResult): Promise<void> {
     try {
-      const { layout, header, grid, footer, backgroundColor } = captureResult;
+      const { layout, header, grid, footer, backgroundColor, storyboardState } = captureResult;
+      this.storyboardState = storyboardState;
+      this.scale = layout.canvas.scale;
+      
+      // Ensure fonts are loaded before rendering
+      await this.ensureFontsLoaded();
       
       // Set canvas dimensions
       this.canvas.width = layout.canvas.width;
@@ -62,8 +125,9 @@ export class DOMRenderer {
     headerBounds: Rectangle,
     scale: number
   ): Promise<void> {
-    // Header background
-    this.ctx.fillStyle = '#ffffff';
+    // Header background - use theme's contentBackground (Page Style > Bg)
+    const headerBackground = this.storyboardState?.storyboardTheme?.contentBackground || '#ffffff';
+    this.ctx.fillStyle = headerBackground;
     this.ctx.fillRect(headerBounds.x, headerBounds.y, headerBounds.width, headerBounds.height);
     
     // Find and render header elements by querying the actual DOM
@@ -148,7 +212,7 @@ export class DOMRenderer {
       const rawFontSize = parseFloat(computedStyle.fontSize);
       const style: TextStyle = {
         family: computedStyle.fontFamily,
-        size: rawFontSize * scale,
+        size: this.getScaledFontSize(rawFontSize, scale),
         weight: computedStyle.fontWeight as any,
         color: computedStyle.color,
         lineHeight: parseFloat(computedStyle.lineHeight) / rawFontSize || 1.2,
@@ -208,9 +272,45 @@ export class DOMRenderer {
     
     if (!shotElement) return;
     
-    // Render shot background
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    // Get theme values for shot card
+    const theme = this.storyboardState?.storyboardTheme?.shotCard;
+    const borderRadius = (theme?.borderRadius ?? 8) * scale;
+    
+    // Render shot background only if enabled
+    if (theme?.backgroundEnabled) {
+      const backgroundColor = theme?.background || '#ffffff';
+      this.ctx.fillStyle = backgroundColor;
+      this.ctx.beginPath();
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+      } else {
+        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+      this.ctx.fill();
+    }
+    
+    // Render shot card border if enabled
+    if (theme?.borderEnabled && theme?.borderWidth) {
+      const borderWidth = theme.borderWidth * scale;
+      this.ctx.strokeStyle = theme.border || '#cccccc';
+      this.ctx.lineWidth = borderWidth;
+      this.ctx.beginPath();
+      
+      // Inset the border path by half the border width to draw inside (border-box behavior)
+      const inset = borderWidth / 2;
+      const innerX = bounds.x + inset;
+      const innerY = bounds.y + inset;
+      const innerWidth = bounds.width - borderWidth;
+      const innerHeight = bounds.height - borderWidth;
+      const innerRadius = Math.max(0, borderRadius - inset);
+      
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(innerX, innerY, innerWidth, innerHeight, innerRadius);
+      } else {
+        this.ctx.rect(innerX, innerY, innerWidth, innerHeight);
+      }
+      this.ctx.stroke();
+    }
     
     // Render shot image
     await this.renderShotImage(shot, shotElement, bounds, scale);
@@ -262,14 +362,19 @@ export class DOMRenderer {
     
     // Convert percentage offsets to pixels based on ACTUAL captured container size
     // imageBounds already reflects the correct container size after transform removal
-    // CRITICAL: The image container has left/right borders (2px total) but NO top/bottom borders
-    // So we subtract 2px from width but NOT from height
-    const borderLeftRight = 2; // 1px border on left + 1px on right
-    const containerWidth = (imageWidth / scale) - borderLeftRight; // Unscale and remove left/right borders
-    const containerHeight = (imageHeight / scale); // No top/bottom borders to subtract!
+    // CRITICAL: The image container has borders based on theme
+    // Subtract border width from container dimensions for accurate positioning
+    const borderWidth = this.storyboardState?.storyboardTheme?.imageFrame?.borderEnabled 
+      ? this.storyboardState.storyboardTheme.imageFrame.borderWidth 
+      : 0;
+    const borderLeftRight = borderWidth * 2; // border on left + right
+    const containerWidth = (imageWidth / scale) - borderLeftRight;
+    const containerHeight = (imageHeight / scale);
     
-    const imageOffsetX = imageOffsetXPercent * containerWidth;
-    const imageOffsetY = imageOffsetYPercent * containerHeight;
+    // Calculate offsets in unscaled coordinates, then scale for canvas
+    // Offsets are percentages of container size, but need to be in scaled canvas coordinates
+    const imageOffsetX = imageOffsetXPercent * containerWidth * scale;
+    const imageOffsetY = imageOffsetYPercent * containerHeight * scale;
     
     
     if (shot.imageData) {
@@ -281,6 +386,62 @@ export class DOMRenderer {
   }
   
   /**
+   * Measure actual text rendering size in browser vs canvas
+   */
+  private measureTextScaleFactor(
+    text: string,
+    fontWeight: string,
+    fontSize: number,
+    fontFamily: string
+  ): number {
+    // Create temporary DOM element to measure actual browser rendering
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = `
+      position: absolute;
+      top: -10000px;
+      left: -10000px;
+      font-weight: ${fontWeight};
+      font-size: ${fontSize}px;
+      font-family: ${fontFamily};
+      white-space: nowrap;
+      visibility: hidden;
+      padding: 0;
+      margin: 0;
+      border: none;
+    `;
+    tempDiv.textContent = text;
+    document.body.appendChild(tempDiv);
+    
+    // Measure actual rendered size in DOM
+    const domRect = tempDiv.getBoundingClientRect();
+    const domTextWidth = domRect.width;
+    const domTextHeight = domRect.height;
+    
+    // Clean up
+    document.body.removeChild(tempDiv);
+    
+    // Measure canvas text size
+    this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    const canvasMetrics = this.ctx.measureText(text);
+    const canvasTextWidth = canvasMetrics.width;
+    
+    // Calculate scale factor needed to make canvas text match DOM text
+    // We primarily care about width since that's most noticeable
+    const scaleFactor = domTextWidth / canvasTextWidth;
+    
+    console.log('🔍 Text Scale Factor:', {
+      text,
+      fontSize,
+      domWidth: domTextWidth,
+      domHeight: domTextHeight,
+      canvasWidth: canvasTextWidth,
+      scaleFactor: scaleFactor.toFixed(3)
+    });
+    
+    return scaleFactor;
+  }
+
+  /**
    * Render shot number using DOM positioning
    */
   private renderShotNumber(
@@ -289,52 +450,91 @@ export class DOMRenderer {
     shotBounds: Rectangle,
     scale: number
   ): void {
-    const numberElement = shotElement.querySelector('.shot-number');
-    if (!numberElement || !shot.number) return;
+    // Query the container first, then get the actual number div inside
+    const numberContainer = shotElement.querySelector('.shot-number-container');
+    if (!numberContainer || !shot.number) return;
+    
+    const numberElement = numberContainer.querySelector('.shot-number');
+    if (!numberElement) return;
     
     const numberRect = numberElement.getBoundingClientRect();
     const shotRect = shotElement.getBoundingClientRect();
     
-    // Calculate number position relative to shot
-    const numberX = shotBounds.x + ((numberRect.left - shotRect.left) * scale);
-    const numberY = shotBounds.y + ((numberRect.top - shotRect.top) * scale);
-    const numberWidth = numberRect.width * scale;
-    const numberHeight = numberRect.height * scale;
-    
     // Get computed styles
     const computedStyle = window.getComputedStyle(numberElement);
+    const rawFontSize = parseFloat(computedStyle.fontSize) || 14;
+    const fontWeight = computedStyle.fontWeight || 'bold';
     
-    // Render background
-    this.ctx.fillStyle = computedStyle.backgroundColor || 'rgba(255, 255, 255, 0.95)';
+    // Use Inter if loaded, otherwise fall back to system fonts
+    const fontFamily = this.fontsLoaded 
+      ? 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+      : 'Arial, Helvetica, sans-serif';
+    
+    // Use MEASURED dimensions from DOM (browser's actual rendered size with border-box sizing)
+    const measuredWidth = numberRect.width;
+    const measuredHeight = numberRect.height;
+    
+    // Calculate number position relative to shot (position from DOM)
+    const numberX = shotBounds.x + ((numberRect.left - shotRect.left) * scale);
+    const numberY = shotBounds.y + ((numberRect.top - shotRect.top) * scale);
+    
+    // Use measured dimensions scaled to canvas
+    const numberWidth = measuredWidth * scale;
+    const numberHeight = measuredHeight * scale;
+    
+    // Get theme values for shot number (with fallbacks)
+    const theme = this.storyboardState?.storyboardTheme?.shotNumber;
+    const borderRadius = (theme?.borderRadius ?? 6) * scale;
+    const borderWidth = theme?.borderEnabled && theme?.borderWidth 
+      ? theme.borderWidth * scale 
+      : 0;
+    
+    // Render background - fill the entire measured box
+    this.ctx.fillStyle = theme?.background || 'rgba(255, 255, 255, 0.95)';
     this.ctx.beginPath();
-    this.ctx.roundRect(numberX, numberY, numberWidth, numberHeight, 6 * scale);
+    if (typeof this.ctx.roundRect === 'function') {
+      this.ctx.roundRect(numberX, numberY, numberWidth, numberHeight, borderRadius);
+    } else {
+      this.ctx.rect(numberX, numberY, numberWidth, numberHeight);
+    }
     this.ctx.fill();
     
-    // Render border if present
-    if (computedStyle.border !== 'none') {
-      this.ctx.strokeStyle = computedStyle.borderColor || 'rgba(0, 0, 0, 0.1)';
-      this.ctx.lineWidth = parseFloat(computedStyle.borderWidth) || 0.5;
+    // Render border if enabled - draw INSIDE the box to match border-box behavior
+    if (borderWidth > 0 && theme?.borderEnabled) {
+      this.ctx.strokeStyle = theme.border || 'rgba(0, 0, 0, 0.1)';
+      this.ctx.lineWidth = borderWidth;
+      this.ctx.beginPath();
+      
+      // Inset the border path by half the border width to draw inside
+      const inset = borderWidth / 2;
+      const innerX = numberX + inset;
+      const innerY = numberY + inset;
+      const innerWidth = numberWidth - borderWidth;
+      const innerHeight = numberHeight - borderWidth;
+      const innerRadius = Math.max(0, borderRadius - inset);
+      
+      if (typeof this.ctx.roundRect === 'function') {
+        this.ctx.roundRect(innerX, innerY, innerWidth, innerHeight, innerRadius);
+      } else {
+        this.ctx.rect(innerX, innerY, innerWidth, innerHeight);
+      }
       this.ctx.stroke();
     }
     
-    // Render text
-    const rawFontSize = parseFloat(computedStyle.fontSize);
-    this.ctx.fillStyle = computedStyle.color || '#374151';
-    this.ctx.font = `${computedStyle.fontWeight} ${rawFontSize * scale}px ${computedStyle.fontFamily}`;
+    // Render text - use global font size scaling for consistency
+    this.ctx.fillStyle = theme?.text || '#374151';
+    const scaledFontSize = this.getScaledFontSize(rawFontSize, scale);
+    this.ctx.font = `${fontWeight} ${scaledFontSize}px ${fontFamily}`;
     this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
     
-    console.log('🔍 Shot number DEBUG:', {
-      shotNumber: shot.number,
-      rawFontSize,
-      scale,
-      finalSize: rawFontSize * scale,
-      numberWidth,
-      numberHeight
-    });
+    // Use 'alphabetic' baseline for better vertical centering
+    // Position the baseline at 65% down the box height for optimal visual centering
+    // This accounts for the descender space and matches how CSS centers text
+    // Higher percentage moves text down, making it appear more centered visually
+    this.ctx.textBaseline = 'alphabetic';
     
     const textX = numberX + (numberWidth / 2);
-    const textY = numberY + (numberHeight / 2);
+    const textY = numberY + (numberHeight * 0.68); // Adjusted to match browser visual center
     
     this.ctx.fillText(shot.number, textX, textY);
   }
@@ -362,17 +562,41 @@ export class DOMRenderer {
 
       // Calculate position of the content box, not the border box
       const contentX = shotBounds.x + ((rect.left - shotRect.left + paddingLeft) * scale);
-      const contentY = shotBounds.y + ((rect.top - shotRect.top + paddingTop) * scale);
+      
+      // CRITICAL FIX for spacing: Add extra spacing to match browser rendering
+      // Canvas doesn't account for CSS "half-leading" space above text lines
+      // Adding ~6px compensates for the visual gap that CSS line-height creates
+      const extraSpacing = 6; // Additional pixels to match browser visual spacing
+      const contentY = shotBounds.y + ((rect.top - shotRect.top + extraSpacing) * scale);
       const contentWidth = (rect.width - paddingLeft - paddingRight) * scale;
       
       // Extract styling from DOM
       const rawFontSize = parseFloat(computedStyle.fontSize);
+      const fontWeight = computedStyle.fontWeight || 'normal';
+      
+      // Use Inter if loaded, otherwise fall back to system fonts
+      const fontFamily = this.fontsLoaded 
+        ? 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+        : 'Arial, Helvetica, sans-serif';
+      
+      // Get actual line height from computed style (may be "normal" or a pixel value)
+      const computedLineHeight = computedStyle.lineHeight;
+      let lineHeightRatio: number;
+      if (computedLineHeight === 'normal') {
+        // Browser default is typically 1.2 for normal
+        lineHeightRatio = 1.2;
+      } else {
+        // Parse pixel value and convert to ratio based on RAW font size
+        const lineHeightPx = parseFloat(computedLineHeight);
+        lineHeightRatio = lineHeightPx / rawFontSize;
+      }
+      
       const style: TextStyle = {
-        family: computedStyle.fontFamily,
-        size: rawFontSize * scale,
-        weight: computedStyle.fontWeight as any,
+        family: fontFamily,
+        size: this.getScaledFontSize(rawFontSize, scale),
+        weight: fontWeight as any,
         color: computedStyle.color,
-        lineHeight: parseFloat(computedStyle.lineHeight) / rawFontSize || 1.2,
+        lineHeight: lineHeightRatio,
         textAlign: computedStyle.textAlign as any
       };
       
@@ -382,8 +606,11 @@ export class DOMRenderer {
         console.log('🔍 Shot text DEBUG:', {
           shotId: shot.id,
           rawFontSize,
+          multiplier: this.FONT_SIZE_MULTIPLIER,
+          scaledFontSize: style.size.toFixed(2),
           scale,
-          finalSize: style.size,
+          lineHeightRatio: lineHeightRatio.toFixed(3),
+          computedLineHeight,
           textContent: text.substring(0, 20)
         });
         this.renderTextFromDOM(text, contentX, contentY, contentWidth, style);
@@ -433,8 +660,8 @@ export class DOMRenderer {
       // Draw the image with CSS-like transforms applied
       this.ctx.save();
       
-      // Set up clipping region for container bounds with rounded corners (3px radius = rounded-sm in Tailwind)
-      const borderRadius = 3 * (bounds.width / 100); // Scale radius proportionally
+      // Set up clipping region for container bounds with rounded corners (use theme border radius, scaled)
+      const borderRadius = (this.storyboardState?.storyboardTheme?.shotCard?.borderRadius ?? 3) * this.scale;
       this.ctx.beginPath();
       if (typeof this.ctx.roundRect === 'function') {
         this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
@@ -477,9 +704,44 @@ export class DOMRenderer {
       
       this.ctx.restore();
       
-      // Add border around image container with rounded corners
-      this.ctx.strokeStyle = '#e5e7eb';
-      this.ctx.lineWidth = 1;
+      // Add border around image container with rounded corners (theme-aware)
+      if (this.storyboardState?.storyboardTheme?.imageFrame?.borderEnabled) {
+        this.ctx.strokeStyle = this.storyboardState.storyboardTheme.imageFrame.border;
+        this.ctx.lineWidth = this.storyboardState.storyboardTheme.imageFrame.borderWidth * this.scale;
+        this.ctx.beginPath();
+        if (typeof this.ctx.roundRect === 'function') {
+          this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+        } else {
+          this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+        this.ctx.stroke();
+      }
+    }
+  }
+  
+  /**
+   * Render placeholder for empty image slots
+   * Clean background only - no icons or text for professional PDF exports
+   */
+  private renderPlaceholder(bounds: Rectangle, scale: number): void {
+    // Background (light gray to indicate empty state)
+    this.ctx.fillStyle = '#f3f4f6';
+    this.ctx.beginPath();
+    
+    // Use same border radius as shot card (image container uses shot card radius)
+    const borderRadius = (this.storyboardState?.storyboardTheme?.shotCard?.borderRadius ?? 3) * scale;
+    
+    if (typeof this.ctx.roundRect === 'function') {
+      this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+    } else {
+      this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+    }
+    this.ctx.fill();
+    
+    // Border (theme-aware with rounded corners)
+    if (this.storyboardState?.storyboardTheme?.imageFrame?.borderEnabled) {
+      this.ctx.strokeStyle = this.storyboardState.storyboardTheme.imageFrame.border;
+      this.ctx.lineWidth = this.storyboardState.storyboardTheme.imageFrame.borderWidth * scale;
       this.ctx.beginPath();
       if (typeof this.ctx.roundRect === 'function') {
         this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
@@ -488,47 +750,8 @@ export class DOMRenderer {
       }
       this.ctx.stroke();
     }
-  }
-  
-  /**
-   * Render placeholder for empty image slots
-   */
-  private renderPlaceholder(bounds: Rectangle, scale: number): void {
-    // Background
-    this.ctx.fillStyle = '#f3f4f6';
-    this.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
     
-    // Border
-    this.ctx.strokeStyle = '#e5e7eb';
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    
-    // Plus icon
-    const centerX = bounds.x + (bounds.width / 2);
-    const centerY = bounds.y + (bounds.height / 2);
-    
-    this.ctx.strokeStyle = '#6b7280';
-    this.ctx.lineWidth = 3 * scale;
-    const iconSize = 16 * scale;
-    
-    // Horizontal line
-    this.ctx.beginPath();
-    this.ctx.moveTo(centerX - iconSize, centerY);
-    this.ctx.lineTo(centerX + iconSize, centerY);
-    this.ctx.stroke();
-    
-    // Vertical line
-    this.ctx.beginPath();
-    this.ctx.moveTo(centerX, centerY - iconSize);
-    this.ctx.lineTo(centerX, centerY + iconSize);
-    this.ctx.stroke();
-    
-    // Text
-    this.ctx.fillStyle = '#6b7280';
-          this.ctx.font = `600 ${14 * scale}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText('Add Image', centerX, centerY + (24 * scale));
+    // No placeholder icons or text in PDF exports - keeps it clean and professional
   }
   
   /**
@@ -541,8 +764,11 @@ export class DOMRenderer {
     scale: number
   ): void {
     // Set font for page number (match the styling from ShotGrid footer)
-    this.ctx.font = `400 ${10 * scale}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-    this.ctx.fillStyle = '#6b7280'; // text-gray-500
+    // Apply global font size multiplier for consistency
+    const rawFontSize = 10; // text-xs = 10px
+    const scaledFontSize = this.getScaledFontSize(rawFontSize, scale);
+    this.ctx.font = `400 ${scaledFontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    this.ctx.fillStyle = this.storyboardState?.storyboardTheme?.header?.text || '#6b7280'; // Use Header color from theme, fallback to gray
     this.ctx.textBaseline = 'top';
     
     // Calculate text position and alignment based on flex justify

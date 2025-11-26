@@ -71,11 +71,11 @@ export const ProjectLimitDialog: React.FC<ProjectLimitDialogProps> = ({
         <DialogFooter className="flex-col sm:flex-col gap-2">
           <Button
             onClick={handleSignIn}
-            className="w-full text-white"
+            className="w-full"
             size="lg"
-            style={getGlassmorphismStyles('accent')}
+            style={getGlassmorphismStyles('buttonAccent')}
           >
-            <LogIn className="h-5 w-5 mr-2 text-white" />
+            <LogIn className="h-5 w-5 mr-2" />
             Sign In / Create Account
           </Button>
           <Button

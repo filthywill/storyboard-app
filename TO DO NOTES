@@ -1,3 +1,56 @@
 TO DO NOTES
 
 -notification banner has white button "Extend Session"
+
+-review color/borders throughout app since we removed global ovverrides
+
+-customizable theme toolbar - save themes needs setup
+    -must be logged in to use
+    -check if it is properly functioning
+
+1. Yes, keep it where our existing Customize button is below the "Grid Size / Aspect Ratio / Start Number / Template Settings" toolbar. It should behave the same as the one above it.
+2. Always visible right now like the current toolbar.
+3. We should organize it as follows. 
+
+Remove the "Themes" text we have on the left, while keeping the "Themes" dropdown. Next to the themes dropdown should be a "plus sign" button which we will use to save the current settings as a theme. The dropdown and the button will be referred to as the "Themes" section of the toolbar.
+
+Next to that we will have a section called "Page Style" with a button that presents a dropdown to let the user choose Background Color and Header Text color.
+
+Next to that we will have a section called "Shot Style" with three buttons next to each other. The first button is called "Shot Card" and it's dropdown will let the user customize the Shot Card border (w on/off), border color, border width, corner radius and background color (w on/off). The second button is called "Label Style" and it's dropdown will let the user customize the Shot Label number text color, background color, Border (on/off), border color, and border radius. The third button is called "Shot Text Style" and it's dropdown will let the user customize the Action Text color and Script Text Color.
+
+4. Yes, this is referred to in my response above.
+5. Click to open, auto-close when clicking elsewhere.
+6. Only one at a time.
+7. match existing design and style patterns we are using in the existing toolbars. We should include mini color swatches where necessary.
+8. Keep the StyleSettings button for now so we have both options as we migrate.
+
+
+Ask me any clarifying questions.
+
+
+Theme Section
+1. Just the theme name for now
+2. Small dialog
+3. Yes, small X icon with warning prompt for user to confirm.
+4. No, just text labels
+5. Yes, the toggle should be on one line with the label. Then color, etc. visible below when it is turned on. We do want to match the existing toolbar's compact style.
+6. Yes just the color swatch button. The user only needs to see th ehex value when they are in the color picker.
+7. Just spacing to divide them, each section can have it's own glassmorph style container and the buttons within them can behave like they do in our existing toolbar above.
+
+Modifying Dropdowns to be always visible:
+
+1. We can flatten Page Style, Shot Card, Label Style, and Shot Text to just use one continuous toolbar - we will have small their labels above each section and keep them grouped accordingly. The Theme Selection dropdown and Plus button to save theme can stay as they are and still be on their own - no visual changes to that.
+2. Option A, keep them in vertical groups to start.
+3. Change to icon buttons to keep things compact
+4. Instead of Sliders change to a small number input that you can click to adjust
+5. They should still open our color picker.
+6. Show but greyed out/disabled
+7. Start by using multiple rows if needed.
+
+
+COMPETITOR REVIEW:
+BOORDS
+https://shaicreative.ai/everything-you-need-to-know-about-boords-in-2025/
+
+KROCK
+https://www.youtube.com/watch?v=SB6rEbsh9oo
