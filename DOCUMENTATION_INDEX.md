@@ -178,6 +178,28 @@ This index helps you find the right documentation for your needs.
 
 ---
 
+### `shot-flow-builder/PHASES_4-6_MIGRATION_SUMMARY.md`
+**Location:** `/storyboard-app-claude/shot-flow-builder/PHASES_4-6_MIGRATION_SUMMARY.md`
+
+**Purpose:** Comprehensive summary of Phases 4-6 color system migration
+
+**Key Topics:**
+- 11 components migrated to centralized color system
+- New color categories added (overlayButton, status glows, text variants)
+- User feedback integration and fixes
+- Migration statistics and achievements
+- Remaining work documentation
+
+**When to Read:**
+- Understanding recent color system migration progress
+- Reviewing which components use centralized colors
+- Planning further styling migrations
+- Understanding overlay button color system
+
+**Last Updated:** January 15, 2025
+
+---
+
 ## 🐛 **Historical Issues & Fixes**
 
 ### `CRITICAL-BUG-REPORT.md`
@@ -476,6 +498,22 @@ When making significant changes:
 
 ## 📝 **Recent Updates**
 
+### January 15, 2025
+- ✅ Completed Phases 4-6 color system migration
+- ✅ Migrated 11 components to centralized color system (ShotGrid, ShotCard, SyncStatusIndicator, ProjectSelector, StoryboardPage, UserAccountDropdown, PageTabs, MasterHeader, ThemeToolbar, ThemeEditorModal, ProjectPickerModal, AuthModal)
+- ✅ Added new color categories: `overlayButton`, `status` glows, `text.inverse`/`text.dark`
+- ✅ Fixed ShotCard overlay button visibility issues
+- ✅ Improved "Add Image" placeholder contrast on any background
+- ✅ Created PHASES_4-6_MIGRATION_SUMMARY.md documentation
+
+### Key Changes
+- **New Color Categories**: Overlay buttons, status glows, and text variants for better semantic separation
+- **Component Migration**: 11 additional components now use centralized color system
+- **User Experience**: Fixed all reported styling visibility and contrast issues
+- **Documentation**: Comprehensive migration summary with statistics and achievements
+
+---
+
 ### October 30, 2025
 - ✅ Added semantic color separation to unified styling system
 - ✅ Introduced `button.*` and `input.*` color categories
@@ -493,7 +531,7 @@ When making significant changes:
 
 ---
 
-*Last Updated: October 30, 2025*
+*Last Updated: January 15, 2025*
 *Keep this index updated as documentation evolves.*
 
 

@@ -222,6 +222,33 @@ getGlassmorphismStyles('buttonAccent')    // CTA buttons
 getGlassmorphismStyles('primary')  // This is for containers, not buttons!
 ```
 
+14. **NEVER mix shadcn/ui variants with centralized color system**
+    - **CRITICAL:** Do NOT use `variant="outline"` (or other variants) with `style={getGlassmorphismStyles(...)}`
+    - Shadcn/ui variants add Tailwind classes (`border`, `border-input`) that conflict with centralized system
+    - This causes black borders to appear during focus states due to global `* { @apply border-border; }` rule
+    - Remove ALL variant props when using centralized system inline styles
+
+**Button with Centralized System:**
+```typescript
+// ✅ CORRECT - Centralized system handles all styling
+<Button style={getGlassmorphismStyles('button')}>
+<Button className="w-full" style={getGlassmorphismStyles('buttonSecondary')}>
+
+// ❌ WRONG - variant="outline" conflicts with centralized system
+<Button variant="outline" style={getGlassmorphismStyles('button')}>
+
+// ❌ WRONG - Other variants also conflict
+<Button variant="secondary" style={getGlassmorphismStyles('buttonAccent')}>
+<Button variant="ghost" style={getGlassmorphismStyles('button')}>
+```
+
+**Why This Matters:**
+- `variant="outline"` adds `border border-input` classes
+- Tailwind's global rule forces `border-color` to black (`hsl(0 0% 0%)`)
+- This overrides inline styles because CSS separates `border` shorthand
+- Result: Black borders appear on click/focus, breaking dark theme
+- Same applies to Alert, Card, and other shadcn/ui components with border variants
+
 **Input Styling:**
 ```typescript
 // ✅ CORRECT
