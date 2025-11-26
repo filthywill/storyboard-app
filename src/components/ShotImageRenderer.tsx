@@ -71,10 +71,13 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
     renderHeight = containerWidth / imageAspect;
   }
 
+  // When using width with height:auto, calculate the actual rendered height
+  const actualRenderHeight = renderWidth / imageAspect;
+  
   // Calculate centering offsets in pixels (not percentages)
   // Position the image so its center aligns with container center
   const leftOffset = (containerWidth - renderWidth) / 2;
-  const topOffset = (containerHeight - renderHeight) / 2;
+  const topOffset = (containerHeight - actualRenderHeight) / 2;
 
   return (
     <div 
@@ -94,7 +97,7 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
           top: `${topOffset}px`,
           left: `${leftOffset}px`,
           width: `${renderWidth}px`,
-          height: `${renderHeight}px`,
+          height: 'auto', // Let browser maintain aspect ratio
           borderRadius: `${borderRadius}px`,
           // Apply user transforms from center of image
           // Transform origin is center of the POSITIONED image
