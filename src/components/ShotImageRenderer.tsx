@@ -83,11 +83,17 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
       <img
         src={imageSource}
         alt={`Shot ${shot.number}`}
-        className="w-full h-full object-cover"
         style={{
+          // Position image centered like object-cover, but at natural size
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: `${renderWidth}px`,
+          height: `${renderHeight}px`,
           borderRadius: `${borderRadius}px`,
-          // Match ShotCard transform EXACTLY: scale then translate
-          transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
+          // Center the image, then apply user transforms
+          // This matches how object-cover centers, but without the CSS crop
+          transform: `translate(-50%, -50%) scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
           transformOrigin: 'center center',
           border: 'none',
           boxShadow: 'none',
