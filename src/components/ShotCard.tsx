@@ -11,7 +11,6 @@ import { compressImage, getImageSource, revokeImageObjectURL, shouldUseBase64, M
 import { toast } from 'sonner';
 import { SecurityNotificationService } from '@/services/securityNotificationService';
 import { getColor } from '@/styles/glassmorphism-styles';
-import { ShotImageRenderer } from './ShotImageRenderer';
 
 interface ShotCardProps {
   shot: Shot;
@@ -379,14 +378,11 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           {(() => {
             const imageSource = getImageSource(shot);
             
-            // Calculate container dimensions for ShotImageRenderer
-            const containerWidth = previewDimensions ? 
-              previewDimensions.width - 18 : // Account for card padding (8*2) and border (1*2)
-              300; // Fallback default
-            const containerHeight = previewDimensions ? 
-              previewDimensions.imageHeight :
-              169; // Fallback default for 16:9
-            
+            // Calculate actual offsets in pixels from percentage values
+            const containerWidth = previewDimensions ? previewDimensions.width : 300;
+            const containerHeight = previewDimensions ? previewDimensions.imageHeight : 169;
+            const actualOffsetX = (shot.imageOffsetX || 0) * containerWidth;
+            const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
             
             return imageSource ? (
               <div 
@@ -395,10 +391,18 @@ export const ShotCard: React.FC<ShotCardProps> = ({
                   borderRadius: `${storyboardTheme.shotCard.borderRadius}px`
                 }}
               >
-                <ShotImageRenderer
-                  shot={shot}
-                  containerWidth={containerWidth}
-                  containerHeight={containerHeight}
+                <img
+                  src={imageSource}
+                  alt={`Shot ${shot.number}`}
+                  className="w-full h-full object-cover"
+                  style={{
+                    borderRadius: `${storyboardTheme.shotCard.borderRadius}px`,
+                    transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
+                    transformOrigin: 'center center',
+                    border: 'none',
+                    boxShadow: 'none',
+                    outline: 'none'
+                  }}
                   onError={handleImageError}
                 />
 

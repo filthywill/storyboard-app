@@ -71,44 +71,29 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
     renderHeight = containerWidth / imageAspect;
   }
 
-  // When using width with height:auto, calculate the actual rendered height
-  const actualRenderHeight = renderWidth / imageAspect;
-  
-  // Calculate centering offsets in pixels (not percentages)
-  // Position the image so its center aligns with container center
-  const leftOffset = (containerWidth - renderWidth) / 2;
-  const topOffset = (containerHeight - actualRenderHeight) / 2;
-
-  // Calculate transform origin relative to the IMAGE element
-  // This should be the center of the CONTAINER, not the center of the image
-  // Transform origin is in pixels relative to the image's top-left corner
-  const transformOriginX = containerWidth / 2 - leftOffset;
-  const transformOriginY = containerHeight / 2 - topOffset;
-
   return (
     <div 
       className="relative overflow-hidden"
       style={{
         width: `${containerWidth}px`,
         height: `${containerHeight}px`,
-        borderRadius: `${borderRadius}px`
+        borderRadius: `${borderRadius}px`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
       }}
     >
       <img
         src={imageSource}
         alt={`Shot ${shot.number}`}
         style={{
-          // Position image with calculated pixel offsets (not percentage translate)
-          position: 'absolute',
-          top: `${topOffset}px`,
-          left: `${leftOffset}px`,
           width: `${renderWidth}px`,
-          height: 'auto', // Let browser maintain aspect ratio
+          height: 'auto', // Let browser maintain aspect ratio - prevents distortion
           borderRadius: `${borderRadius}px`,
-          // Apply user transforms from center of CONTAINER (not center of image)
-          // This ensures transforms work relative to the visible area
+          // Use percentage-based transform origin like ShotCard
+          // This makes transforms stable across aspect ratio changes
           transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
-          transformOrigin: `${transformOriginX}px ${transformOriginY}px`,
+          transformOrigin: 'center center',
           border: 'none',
           boxShadow: 'none',
           outline: 'none'

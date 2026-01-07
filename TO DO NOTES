@@ -8,6 +8,9 @@ TO DO NOTES
     -must be logged in to use
     -check if it is properly functioning
 
+-auth modal needs Remember Me and Forgot Password
+
+
 1. Yes, keep it where our existing Customize button is below the "Grid Size / Aspect Ratio / Start Number / Template Settings" toolbar. It should behave the same as the one above it.
 2. Always visible right now like the current toolbar.
 3. We should organize it as follows. 
