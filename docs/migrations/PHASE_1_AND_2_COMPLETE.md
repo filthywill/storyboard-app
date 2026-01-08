@@ -25,7 +25,7 @@ All infrastructure for the theme system is in place:
    - SQL migration for user themes table
    - RLS policies
 
-4. **`SUPABASE_MIGRATION_INSTRUCTIONS.md`**
+4. **`../setup/SUPABASE_MIGRATION_INSTRUCTIONS.md`**
    - Manual migration instructions (MCP tool issue)
 
 ### Files Modified:
@@ -122,7 +122,7 @@ setStoryboardTheme(PRESET_THEMES.dark);
 Should see immediate visual change to dark mode.
 
 ### 4. **Supabase Migration** (Required before Phase 3)
-Run the SQL from `SUPABASE_MIGRATION_INSTRUCTIONS.md` manually in Supabase dashboard.
+Run the SQL from `../setup/SUPABASE_MIGRATION_INSTRUCTIONS.md` manually in Supabase dashboard.
 
 ### 5. **PDF Export** (Optional)
 - Export a page to PDF

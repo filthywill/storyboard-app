@@ -286,9 +286,9 @@ When the Storyboard Theme System was introduced, these global overrides prevente
 ## Related Documentation
 
 - `STORYBOARD_THEME_SYSTEM_PLAN.md` - Full theme system architecture
-- `UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` - Centralized color system for app UI
+- `../styling/UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` - Centralized color system for app UI
 - `ARCHITECTURE_PRINCIPLES.md` - High-level design philosophy
-- `THEME_BORDER_DEBUG_GUIDE.md` - Diagnostic guide for theme issues
+- `../styling/THEME_BORDER_DEBUG_GUIDE.md` - Diagnostic guide for theme issues
 
 ---
 

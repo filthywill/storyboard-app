@@ -210,8 +210,8 @@ Before implementing scaling alignment:
 
 ## 📚 Related Documentation
 
-- **`CLAUDE.md`** - Component architecture and patterns
-- **`UI_STATE_HANDLING.md`** - State management patterns
+- **`../../shot-flow-builder/CLAUDE.md`** - Component architecture and patterns
+- **`../architecture/UI_STATE_HANDLING.md`** - State management patterns
 - **`.cursorrules`** - Critical development rules
 
 ---

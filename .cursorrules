@@ -1,0 +1,340 @@
+# Cursor AI Rules for Storyboard Flow
+
+## 🚨 CRITICAL RULES - NEVER VIOLATE
+
+### 1. NO "PAGE NOT FOUND" / 404 States for Users
+**Users should NEVER see a "Page Not Found" or 404 error during normal application flow.**
+
+- The NotFound.tsx component should auto-redirect users back to the main app
+- Every application state MUST have a proper UI with clear user guidance
+- When in doubt, show appropriate state (EmptyProjectState, ProjectPicker, or Main UI)
+
+**Examples of NEVER showing 404:**
+- ❌ After sign in/sign out
+- ❌ During project switching
+- ❌ When authentication state changes
+- ❌ During offline/online transitions
+- ❌ While loading projects
+
+### 2. Always Render Something Meaningful
+**Every possible auth/project state combination MUST render a valid UI.**
+
+State combinations that MUST be handled:
+- Not authenticated → EmptyProjectState (Welcome screen)
+- Authenticated + No projects + Not loading → EmptyProjectState (Create Project)
+- Authenticated + Has projects + Loading → Loading spinner (inline)
+- Authenticated + Has projects + No current → ProjectPickerModal
+- Authenticated + Has current project → Main UI
+- Forced logout (other device) → LoggedOutElsewhereScreen
+
+### 3. Sign Out Flow Requirements
+**After sign out, user MUST see EmptyProjectState (Welcome screen).**
+
+Correct sign-out sequence:
+1. Check if online: If offline, BLOCK sign-out with message "You have unsynced changes. Please connect to internet first."
+2. If online: Clear auth state
+3. Clear project data via `ProjectSwitcher.clearCurrentProjectData()`
+4. Set `isAuthenticated = false`
+5. Index.tsx automatically renders EmptyProjectState
+6. NO navigation to other routes
+7. NO redirect logic
+
+**NEVER:**
+- Navigate to `/logout` or any other route
+- Leave stores in inconsistent state
+- Allow sign-out while offline with unsynced changes
+
+### 4. Index.tsx is the Single Source of Truth
+**Index.tsx must handle ALL application states through conditional rendering.**
+
+Conditional rendering order (evaluated top to bottom):
+```typescript
+1. if (logoutReason === 'expired' || 'other_session') → LoggedOutElsewhereScreen
+2. if (authLoading) → Loading state
+3. if (showProjectPicker && isAuthenticated) → ProjectPickerModal
+4. if (!isAuthenticated) → EmptyProjectState (Welcome)
+5. if (isAuthenticated && isLoadingCloudProjects) → Loading state
+6. if (isAuthenticated && allProjects.length === 0) → EmptyProjectState (Create)
+7. else → Main UI (authenticated with project)
+```
+
+**Never:**
+- Add new routes for transient states
+- Use URL routing for state management
+- Assume Index.tsx will handle undefined states automatically
+
+### 5. State Consistency Rules
+**isAuthenticated, currentProject, and allProjects must always be consistent.**
+
+After ANY auth change:
+- Verify these states align
+- Ensure there's always a valid UI path
+- Never allow "authenticated but no way to proceed" states
+- Never allow "unauthenticated but showing project UI" states
+
+### 6. Offline/Online Sync Critical Rules
+**ALL reconnection syncs MUST use timestamp-based conflict resolution.**
+
+When user reconnects after offline work:
+1. ✅ Compare `local lastModified` vs `cloud data_updated_at`
+2. ✅ Apply 5-second clock skew tolerance
+3. ✅ If cloud is newer → Preserve cloud (don't overwrite)
+4. ✅ If local is newer → Validate data, then sync
+5. ✅ Notify user of the outcome
+
+**NEVER:**
+- Blindly overwrite cloud data with offline changes
+- Allow sign-out while offline with unsynced changes
+- Sync without timestamp comparison
+
+## 📋 File Change Requirements
+
+### Before Editing Index.tsx
+1. ✅ Read current state handling logic
+2. ✅ Identify which conditional block handles your use case
+3. ✅ Verify all state transitions lead to valid UI
+4. ✅ Test all authentication states (authenticated, unauthenticated, loading)
+5. ✅ Test all project states (no projects, has projects, loading projects)
+6. ✅ Ensure NotFound is never shown during normal operation
+7. ✅ Verify template backgrounds use TemplateBackground component
+8. ✅ Test that unauthenticated users see Welcome screen (not "No Pages Found")
+9. ✅ Ensure all project data is cleared on sign-out
+
+### Before Editing Auth-Related Files
+1. ✅ Verify sign-out flow returns user to EmptyProjectState
+2. ✅ Check that clearCurrentProjectData() is called
+3. ✅ Ensure no navigation/redirects to invalid routes
+4. ✅ Block sign-out if offline with unsynced changes
+5. ✅ Test complete flow: sign out → clear data → show welcome screen
+
+### Before Editing ProjectSwitcher
+1. ✅ Verify all switch operations maintain valid currentProject state
+2. ✅ Ensure failed switches show appropriate UI (not 404)
+3. ✅ Check that switching doesn't break authentication state
+4. ✅ Maintain timestamp accuracy (only update on actual data changes)
+
+### Before Editing CloudSyncService / Data Sync
+1. ✅ Always validate currentProjectId matches before saving
+2. ✅ Compare timestamps before overwriting cloud data
+3. ✅ Check for data corruption (empty data, significant loss)
+4. ✅ Never update lastModified when merely loading from cloud
+5. ✅ Use existing validation layers in ProjectService
+
+## 🧪 Testing Checklist for Auth/Navigation Changes
+
+Before committing changes that affect authentication or navigation:
+
+**Required Manual Tests:**
+- [ ] Sign in → should show ProjectPicker or projects list
+- [ ] Sign out → should show EmptyProjectState welcome screen
+- [ ] Sign out + refresh → should show EmptyProjectState
+- [ ] Authenticated + no projects → should show EmptyProjectState with "Create Project"
+- [ ] Authenticated + has projects + no current → should show ProjectPicker
+- [ ] Authenticated + has current + refresh → should resume with same project
+- [ ] Forced logout (another device) → should show LoggedOutElsewhereScreen
+- [ ] No state should ever show NotFound during normal operation
+
+**Offline/Online Tests:**
+- [ ] Go offline while working → shows offline banner, continues working
+- [ ] Attempt sign out while offline → blocked with message
+- [ ] Reconnect after offline work → syncs with timestamp validation
+- [ ] Close browser while offline, reopen → preserves work, syncs correctly
+
+**Template Background Tests:**
+- [ ] Unauthenticated users see TemplateBackground (not "Page Not Found")
+- [ ] Template shows dimmed storyboard layout
+- [ ] No fake page data in stores
+- [ ] EmptyProjectState overlays work correctly
+
+## ❌ CRITICAL "NEVER DO THIS" RULES
+
+### NEVER:
+1. **Navigate to non-existent routes** based on auth/project state
+   - No `navigate('/logout')`, `navigate('/login')`, etc.
+   - State changes should trigger UI updates, not navigation
+
+2. **Call `initializeAppContent()` for authenticated users**
+   - This creates "phantom" project data that can corrupt real projects
+   - Only call for guest users (unauthenticated)
+   - Authenticated users should pick/create projects through UI
+
+3. **Save project data without validating `currentProjectId`**
+   - Always check: `const id = projectId || this.currentProjectId`
+   - Never save if `id` is null/undefined
+   - Existing validation in ProjectService.saveProject() will catch issues
+
+4. **Update `lastModified` when merely viewing/loading a project**
+   - Only update on actual data changes (add/edit/delete shots, pages)
+   - Loading from cloud ≠ user-made change
+   - Project switching ≠ data modification
+
+5. **Allow a state where user has no path forward**
+   - Every UI state must provide clear actions
+   - No dead-ends without "Try Again" or navigation options
+
+6. **Show generic 404 during normal application flow**
+   - NotFound.tsx should auto-redirect to appropriate state
+   - Based on auth status: Welcome screen or ProjectPicker
+
+7. **Clear auth state without clearing project data**
+   - Always call `ProjectSwitcher.clearCurrentProjectData()` first
+   - Then update auth state
+   - Keep stores consistent
+
+8. **Blindly sync offline changes without timestamp validation**
+   - Always compare local vs cloud timestamps
+   - Preserve newer version (most recent intentional change)
+   - Notify user of conflicts
+
+9. **Allow sign-out while offline with unsynced changes**
+   - Check online status before sign-out
+   - Block with message: "You have unsynced changes. Please connect to internet first."
+
+10. **Assume stores will handle undefined states automatically**
+    - Explicitly handle every state combination
+    - Default to EmptyProjectState if state is ambiguous
+
+11. **Create fake page data for background display**
+    - Don't create fake pages with fake IDs for template backgrounds
+    - Use dedicated components like TemplateBackground instead
+    - Fake pages cause "Page Not Found" errors in StoryboardPage
+
+12. **Check "no pages found" before authentication status**
+    - Always check authentication before checking page states
+    - Follow the exact state evaluation order in docs/architecture/UI_STATE_HANDLING.md
+    - Unauthenticated users should see Welcome screen, not "No Pages Found"
+
+13. **Use correct semantic color categories for UI elements**
+    - Buttons use `button.*` colors (primary, secondary, accent, hover)
+    - Containers use `background.*` colors (primary, secondary, subtle, accent)
+    - Inputs use `input.*` colors (background, border)
+    - Never share color categories between different UI element types
+    - Each element type has independent styling control
+
+**Button Styling:**
+```typescript
+// ✅ CORRECT
+getGlassmorphismStyles('button')         // Default buttons
+getGlassmorphismStyles('buttonSecondary') // Emphasized buttons
+getGlassmorphismStyles('buttonAccent')    // CTA buttons
+
+// ❌ WRONG
+getGlassmorphismStyles('primary')  // This is for containers, not buttons!
+```
+
+14. **NEVER mix shadcn/ui variants with centralized color system**
+    - **CRITICAL:** Do NOT use `variant="outline"` (or other variants) with `style={getGlassmorphismStyles(...)}`
+    - Shadcn/ui variants add Tailwind classes (`border`, `border-input`) that conflict with centralized system
+    - This causes black borders to appear during focus states due to global `* { @apply border-border; }` rule
+    - Remove ALL variant props when using centralized system inline styles
+
+**Button with Centralized System:**
+```typescript
+// ✅ CORRECT - Centralized system handles all styling
+<Button style={getGlassmorphismStyles('button')}>
+<Button className="w-full" style={getGlassmorphismStyles('buttonSecondary')}>
+
+// ❌ WRONG - variant="outline" conflicts with centralized system
+<Button variant="outline" style={getGlassmorphismStyles('button')}>
+
+// ❌ WRONG - Other variants also conflict
+<Button variant="secondary" style={getGlassmorphismStyles('buttonAccent')}>
+<Button variant="ghost" style={getGlassmorphismStyles('button')}>
+```
+
+**Why This Matters:**
+- `variant="outline"` adds `border border-input` classes
+- Tailwind's global rule forces `border-color` to black (`hsl(0 0% 0%)`)
+- This overrides inline styles because CSS separates `border` shorthand
+- Result: Black borders appear on click/focus, breaking dark theme
+- Same applies to Alert, Card, and other shadcn/ui components with border variants
+
+**Input Styling:**
+```typescript
+// ✅ CORRECT
+style={{ 
+  backgroundColor: getColor('input', 'background'),
+  border: `1px solid ${getColor('input', 'border')}`
+}}
+
+// ❌ WRONG
+style={{ 
+  backgroundColor: getColor('background', 'primary')  // Wrong category!
+}}
+```
+
+**Why This Matters:**
+- Prevents cascading changes when updating colors
+- Maintains clear separation of concerns
+- Makes it easy to update one element type without affecting others
+- Follow semantic separation principles documented in docs/styling/UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md
+
+## 📂 Reference Files
+
+### Key files that must remain consistent:
+- `src/pages/Index.tsx` - Main state machine and UI coordinator
+- `src/store/authStore.ts` - Authentication state
+- `src/utils/projectSwitcher.ts` - Project state transitions
+- `src/services/cloudSyncService.ts` - Data sync with validation
+- `src/services/projectService.ts` - Database operations with validation
+- `src/components/EmptyProjectState.tsx` - Default "no work" state
+- `src/components/ProjectPickerModal.tsx` - Project selection
+- `src/components/LoggedOutElsewhereScreen.tsx` - Forced logout state
+- `src/components/TemplateBackground.tsx` - Visual template for empty states
+
+## 🤔 Questions to Ask Before Making Changes
+
+### Before ANY change affecting UI state:
+1. "What should the user see in this state?"
+2. "Is there a path to NotFound from this change?"
+3. "Did I test signing out after this change?"
+4. "Are all possible state combinations handled?"
+5. "Does Index.tsx know how to render this state?"
+
+### Before ANY change affecting data sync:
+1. "Am I comparing timestamps before overwriting?"
+2. "Am I validating currentProjectId matches?"
+3. "Am I handling offline scenarios correctly?"
+4. "Will this preserve the user's most recent work?"
+
+### Before ANY change affecting offline/online:
+1. "Does this respect timestamp-based conflict resolution?"
+2. "Does this block sign-out when offline with unsynced changes?"
+3. "Does this notify the user of sync conflicts?"
+
+## 🚑 Emergency Fix for 404 Issues
+
+If users are seeing 404 during normal operation:
+
+### Immediate Investigation:
+1. Check browser console for navigation calls
+2. Search codebase for `navigate(` calls that might cause issues
+3. Check Index.tsx conditional rendering logic
+4. Verify state consistency (auth + project states)
+
+### Quick Fix:
+Add failsafe at end of Index.tsx render logic:
+```typescript
+// Emergency failsafe - should never reach here
+console.error('Unexpected state, showing EmptyProjectState');
+return <EmptyProjectState 
+  isAuthenticated={isAuthenticated}
+  onCreateProject={() => setShowCreateProjectDialog(true)}
+  onSignIn={() => setShowAuthModal(true)}
+/>;
+```
+
+## 📚 Related Documentation
+
+For deeper understanding, refer to:
+- `docs/architecture/ARCHITECTURE_PRINCIPLES.md` - High-level design philosophy
+- `docs/architecture/UI_STATE_HANDLING.md` - Complete state matrix and transitions
+- `shot-flow-builder/CLAUDE.md` - Technical architecture details
+- `docs/bugs-and-fixes/CRITICAL-BUG-REPORT.md` - Historical data corruption issues
+- `docs/sync-and-data/TIMESTAMP_SYNC_IMPLEMENTATION.md` - Conflict resolution details
+- `docs/styling/UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` - Styling system and semantic separation
+
+---
+
+*These rules are automatically loaded by Cursor AI. Keep them updated as the application evolves.*
+

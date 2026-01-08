@@ -1309,9 +1309,9 @@ This implementation is successful when:
 ## 📚 Related Documentation
 
 - **`.cursorrules`** - Semantic color separation rules
-- **`ARCHITECTURE_PRINCIPLES.md`** - Principle 7: Semantic Separation
-- **`UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md`** - App UI color system
-- **`COLOR_SYSTEM_COMPREHENSIVE_AUDIT.md`** - Current color system status
+- **`ARCHITECTURE_PRINCIPLES.md`** - Principle 7: Semantic Separation (this directory)
+- **`../styling/UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md`** - App UI color system
+- **`../styling/COLOR_SYSTEM_COMPREHENSIVE_AUDIT.md`** - Current color system status
 
 ---
 

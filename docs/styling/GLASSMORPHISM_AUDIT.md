@@ -308,7 +308,7 @@ Added semantic separation to the unified color system to prevent cascading style
 - ✅ Clear semantic separation and code intent
 
 ### **Documentation:**
-See `UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` for complete implementation details, usage guide, and migration path.
+See `UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` (this directory) for complete implementation details, usage guide, and migration path.
 
 ---
 

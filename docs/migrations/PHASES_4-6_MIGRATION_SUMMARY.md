@@ -322,7 +322,7 @@ These components intentionally use hardcoded colors or are theme-aware:
 3. **Cursor AI Rules** - Reinforced semantic separation principles
 
 ### **Key Documentation:**
-- `shot-flow-builder/UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` - Main color system reference
+- `../styling/UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` - Main color system reference
 - `shot-flow-builder/src/styles/glassmorphism-styles.ts` - Single source of truth for colors
 
 ---

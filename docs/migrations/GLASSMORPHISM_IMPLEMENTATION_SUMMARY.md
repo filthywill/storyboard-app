@@ -220,8 +220,8 @@ import { getGlassmorphismClasses } from '@/styles/glassmorphism-styles';
 
 ### **New Files Created**
 - `src/styles/glassmorphism-styles.ts` - Centralized styling system
-- `GLASSMORPHISM_AUDIT.md` - Comprehensive audit document
-- `GLASSMORPHISM_IMPLEMENTATION_SUMMARY.md` - This summary
+- `../styling/GLASSMORPHISM_AUDIT.md` - Comprehensive audit document
+- `GLASSMORPHISM_IMPLEMENTATION_SUMMARY.md` - This summary (this directory)
 
 ### **Files Updated**
 - `src/pages/PrivacyPolicy.tsx` - Fixed white border

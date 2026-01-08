@@ -352,9 +352,9 @@ This audit is successful when:
 
 ## 📚 Related Documentation
 
-- **`UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md`** - Complete system documentation
-- **`GLASSMORPHISM_AUDIT.md`** - Previous audit (October 2024)
-- **`ARCHITECTURE_PRINCIPLES.md`** - Semantic separation principles
+- **`UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md`** - Complete system documentation (this directory)
+- **`GLASSMORPHISM_AUDIT.md`** - Previous audit (October 2024) (this directory)
+- **`../architecture/ARCHITECTURE_PRINCIPLES.md`** - Semantic separation principles
 - **`.cursorrules`** - AI assistant rules for color usage
 
 ---
