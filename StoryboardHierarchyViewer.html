@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Storyboard Hierarchy Viewer</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #121a33;
+        --muted: #94a3b8;
+        --text: #e5e7eb;
+        --accent: #7c3aed;
+        --accent-2: #22c55e;
+        --border: #1f2a4a;
+        --highlight: #fde68a33;
+      }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans,
+          Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: linear-gradient(180deg, #0b1020 0%, #0b1226 100%);
+        color: var(--text);
+      }
+      .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+      .header {
+        display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px;
+      }
+      .title { font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }
+      .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+      .btn {
+        background: linear-gradient(180deg, #1a2446 0%, #16203d 100%);
+        border: 1px solid var(--border); color: var(--text);
+        padding: 8px 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;
+      }
+      .btn:hover { border-color: #2a3a64; }
+      .btn.primary { background: linear-gradient(180deg, #6d28d9 0%, #5b21b6 100%); border-color: #6d28d9; }
+      .btn.success { background: linear-gradient(180deg, #16a34a 0%, #15803d 100%); border-color: #16a34a; }
+      .search {
+        display: flex; align-items: center; gap: 8px; background: #0e1530; border: 1px solid var(--border);
+        padding: 8px 10px; border-radius: 8px; color: var(--text); width: 320px;
+      }
+      .search input {
+        flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-size: 13px;
+      }
+      .panel { background: #0e1530; border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+      details { background: #0e1530; border-radius: 8px; margin: 4px 0; }
+      details > summary {
+        list-style: none; cursor: pointer; padding: 6px 8px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-size: 13px;
+      }
+      details > summary::-webkit-details-marker { display: none; }
+      details[open] > summary { background: #121a33; }
+      .node-label { font-weight: 600; }
+      .node-meta { color: var(--muted); font-size: 12px; }
+      .children { padding: 4px 8px 6px 18px; }
+      .badge { font-size: 10px; padding: 2px 6px; border-radius: 999px; background: #1e293b; color: #cbd5e1; border: 1px solid #2a3a64; }
+      .hit { background: var(--highlight); border-radius: 4px; }
+      .legend { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+      .legend .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+      .dot-main { background: var(--accent); }
+      .dot-leaf { background: var(--accent-2); }
+      .footer { margin-top: 10px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; }
+      .kbd { border: 1px solid var(--border); padding: 0 6px; border-radius: 6px; background: #0e1530; color: #cbd5e1; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="title">Storyboard Component Hierarchy</div>
+        <div class="controls">
+          <div class="search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/></svg>
+            <input id="searchInput" type="text" placeholder="Search components, sections... (⌘/Ctrl + K)" />
+          </div>
+          <button id="expandAll" class="btn primary">Expand all</button>
+          <button id="collapseAll" class="btn">Collapse all</button>
+          <button id="clearSearch" class="btn">Clear search</button>
+        </div>
+      </div>
+
+      <div class="panel" id="treeRoot"></div>
+
+      
+
+      <div class="footer">
+        <div class="legend">
+          <span class="dot dot-main"></span>
+          Main containers
+          <span class="dot dot-leaf" style="margin-left:12px;"></span>
+          Leaf components
+        </div>
+        <div>
+          Tips: <span class="kbd">arrow keys</span> navigate, <span class="kbd">Enter</span> toggle, <span class="kbd">Esc</span> clear
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Hierarchy data (derived from StoryboardPage-Layout-Hierarchy.md)
+      const hierarchy = {
+        label: 'StoryboardPage.tsx (Main Container)',
+        kind: 'container',
+        children: [
+          {
+            label: 'Toolbar Section (Top)',
+            kind: 'container',
+            children: [
+              { label: 'GridSizeSelector', kind: 'leaf' },
+              { label: 'AspectRatioSelector', kind: 'leaf' },
+              { label: 'StartNumberSelector', kind: 'leaf' },
+              { label: 'TemplateSettings', kind: 'leaf' },
+              { label: 'ProjectDropdown', kind: 'leaf' },
+              { label: 'Batch Load Button', kind: 'leaf' },
+              { label: 'Load Shot List Button', kind: 'leaf' },
+              { label: 'Export Dropdown (PNG/PDF)', kind: 'leaf' },
+            ],
+          },
+          {
+            label: 'Main Content Container (Glassmorphism Background)',
+            kind: 'container',
+            children: [
+              {
+                label: 'Scaling Container (1000px width)',
+                kind: 'container',
+                children: [
+                  {
+                    label: 'PageTabs.tsx',
+                    kind: 'component',
+                    children: [
+                      { label: 'Individual Page Tabs', kind: 'leaf' },
+                      { label: 'Add Page Button (+)', kind: 'leaf' },
+                    ],
+                  },
+                  {
+                    label: 'Storyboard Content Container',
+                    kind: 'container',
+                    children: [
+                      {
+                        label: 'MasterHeader.tsx',
+                        kind: 'component',
+                        children: [
+                          { label: 'Logo Section (Left)', kind: 'leaf', meta: 'Logo upload/display' },
+                          { label: 'Project Info Section (Center-Left)', kind: 'leaf', meta: 'Project Name, Project Info' },
+                          { label: 'Client/Job Info Section (Right)', kind: 'leaf', meta: 'Client/Agency, Job Info' },
+                        ],
+                      },
+                      {
+                        label: 'ShotGrid.tsx',
+                        kind: 'component',
+                        children: [
+                          {
+                            label: 'Grid Container (CSS Grid)',
+                            kind: 'container',
+                            children: [
+                              {
+                                label: 'ShotCard.tsx (Individual Shots)',
+                                kind: 'component',
+                                children: [
+                                  { label: 'Drag Handle (Move icon)', kind: 'leaf' },
+                                  { label: 'Shot Number', kind: 'leaf' },
+                                  { label: 'Delete Button', kind: 'leaf' },
+                                  { label: 'Insert Batch Button', kind: 'leaf' },
+                                  { label: 'Insert Shot Button', kind: 'leaf' },
+                                  { label: 'Add Sub-Shot Button', kind: 'leaf' },
+                                  { label: 'Image Container', kind: 'container', meta: 'Image with scale/offset/edit', children: [
+                                    { label: 'Image (with scale/offset controls)', kind: 'leaf' },
+                                    { label: 'Edit Image Button (hover)', kind: 'leaf' },
+                                    { label: 'Upload/Remove Buttons (hover)', kind: 'leaf' },
+                                    { label: 'Inline Image Editor (when editing)', kind: 'leaf' },
+                                  ]},
+                                  { label: 'Action Text Field', kind: 'leaf' },
+                                  { label: 'Script Text Field', kind: 'leaf' },
+                                ],
+                              },
+                              { label: 'Empty Slot Placeholders', kind: 'leaf', meta: '"Add Shot" Button' },
+                            ],
+                          },
+                          { label: 'Page Number Footer', kind: 'leaf', meta: '"Page X" Label (bottom-right)' },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            label: 'Modals (Overlays)',
+            kind: 'container',
+            children: [
+              { label: 'PDFExportModal', kind: 'leaf' },
+              { label: 'BatchLoadModal', kind: 'leaf' },
+              { label: 'ShotListLoadModal', kind: 'leaf' },
+              { label: 'ImageEditorModal', kind: 'leaf' },
+              { label: 'Create Project Dialog', kind: 'leaf' },
+            ],
+          },
+        ],
+      };
+
+      function highlight(text, query) {
+        if (!query) return text;
+        const re = new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'ig');
+        return text.replace(re, '<span class="hit">$1</span>');
+      }
+
+      function renderNode(node) {
+        const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+        const details = document.createElement('details');
+        details.className = 'node';
+        if (hasChildren) details.open = false;
+
+        const summary = document.createElement('summary');
+        const label = document.createElement('span');
+        label.className = 'node-label';
+        label.innerHTML = node.label;
+        summary.appendChild(label);
+        if (node.meta) {
+          const meta = document.createElement('span');
+          meta.className = 'node-meta';
+          meta.style.marginLeft = '8px';
+          meta.textContent = `(${node.meta})`;
+          summary.appendChild(meta);
+        }
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.style.marginLeft = 'auto';
+        badge.textContent = node.kind || 'node';
+        summary.appendChild(badge);
+        details.appendChild(summary);
+
+        if (hasChildren) {
+          const children = document.createElement('div');
+          children.className = 'children';
+          node.children.forEach(child => children.appendChild(renderNode(child)));
+          details.appendChild(children);
+        }
+        return details;
+      }
+
+      const rootEl = document.getElementById('treeRoot');
+      rootEl.appendChild(renderNode(hierarchy));
+      // open root so content shows
+      const firstDetails = document.querySelector('#treeRoot details');
+      if (firstDetails) firstDetails.open = true;
+
+      // Controls
+      document.getElementById('expandAll').addEventListener('click', () => {
+        document.querySelectorAll('#treeRoot details').forEach(d => d.open = true);
+      });
+      document.getElementById('collapseAll').addEventListener('click', () => {
+        document.querySelectorAll('#treeRoot details').forEach(d => d.open = false);
+      });
+      document.getElementById('clearSearch').addEventListener('click', () => {
+        const input = document.getElementById('searchInput');
+        input.value = '';
+        applySearch('');
+        input.focus();
+      });
+
+      // Search
+      const input = document.getElementById('searchInput');
+      input.addEventListener('input', (e) => applySearch(e.target.value.trim()))
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault(); input.focus(); input.select();
+        } else if (e.key === 'Escape') {
+          input.value = ''; applySearch('');
+        }
+      });
+
+      function applySearch(query) {
+        // Reset labels
+        document.querySelectorAll('#treeRoot .node-label').forEach(el => {
+          el.innerHTML = el.textContent;
+        });
+
+        if (!query) return;
+        // Expand all and highlight matches
+        document.querySelectorAll('#treeRoot details').forEach(d => d.open = false);
+        const matches = [];
+        document.querySelectorAll('#treeRoot .node-label').forEach(el => {
+          const text = el.textContent || '';
+          if (text.toLowerCase().includes(query.toLowerCase())) {
+            matches.push(el);
+          }
+        });
+        matches.forEach(el => {
+          // highlight
+          el.innerHTML = highlight(el.textContent, query);
+          // expand ancestry
+          let p = el.closest('details');
+          while (p) { p.open = true; p = p.parentElement?.closest('details'); }
+        });
+      }
+
+      // Keyboard navigation: arrow keys + Enter to toggle
+      let focusables = [];
+      function refreshFocusables() {
+        focusables = Array.from(document.querySelectorAll('#treeRoot summary'));
+        focusables.forEach(s => s.setAttribute('tabindex', '0'));
+      }
+      refreshFocusables();
+      document.addEventListener('click', refreshFocusables);
+
+      let idx = 0;
+      function setFocus(i) { if (focusables[i]) focusables[i].focus(); }
+      document.addEventListener('keydown', (e) => {
+        const active = document.activeElement;
+        const i = focusables.indexOf(active);
+        if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min((i >= 0 ? i + 1 : 0), focusables.length - 1); setFocus(idx); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max((i >= 0 ? i - 1 : 0), 0); setFocus(idx); }
+        if (e.key === 'Enter' && active?.tagName === 'SUMMARY') { e.preventDefault(); active.parentElement.open = !active.parentElement.open; }
+      });
+    </script>
+  </body>
+  </html>
+
+
