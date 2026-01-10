@@ -9,21 +9,21 @@ October 20, 2025
 ## Key Changes Made
 
 ### 1. ProjectService.ts
-**Location**: `shot-flow-builder/src/services/projectService.ts`
+**Location**: `src/services/projectService.ts`
 
 - **Added `data_updated_at` field** to `getProjects()` query to fetch actual data modification timestamps from `project_data.updated_at`
 - **Enhanced validation logging** in `saveProject()` to include timestamp context
 - **Maintained database-level protection** against overwriting valid cloud data with empty data
 
 ### 2. CloudProjectSyncService.ts
-**Location**: `shot-flow-builder/src/services/cloudProjectSyncService.ts`
+**Location**: `src/services/cloudProjectSyncService.ts`
 
 - **Updated `syncProjectList()`** to use `data_updated_at` as the primary timestamp source
 - **Fallback chain**: `data_updated_at` → `last_accessed_at` → `created_at`
 - Ensures metadata reflects actual data modification times, not just access times
 
 ### 3. GuestProjectSyncService.ts (Major Refactor)
-**Location**: `shot-flow-builder/src/services/guestProjectSyncService.ts`
+**Location**: `src/services/guestProjectSyncService.ts`
 
 **New Timestamp-First Approach:**
 
@@ -57,7 +57,7 @@ Three layers of protection:
 - Provides clear user feedback via toast notifications
 
 ### 4. ProjectSwitcher.ts
-**Location**: `shot-flow-builder/src/utils/projectSwitcher.ts`
+**Location**: `src/utils/projectSwitcher.ts`
 
 **Fixed `lastModified` Update Behavior:**
 
@@ -120,10 +120,10 @@ Per the implementation plan, verify these scenarios:
 
 ## Files Modified
 
-1. `/shot-flow-builder/src/services/projectService.ts`
-2. `/shot-flow-builder/src/services/cloudProjectSyncService.ts`
-3. `/shot-flow-builder/src/services/guestProjectSyncService.ts`
-4. `/shot-flow-builder/src/utils/projectSwitcher.ts`
+1. `src/services/projectService.ts`
+2. `src/services/cloudProjectSyncService.ts`
+3. `src/services/guestProjectSyncService.ts`
+4. `src/utils/projectSwitcher.ts`
 
 ## Future Enhancement (Phase 2)
 

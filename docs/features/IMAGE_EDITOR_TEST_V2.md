@@ -107,7 +107,7 @@ style={{
 If this doesn't work:
 
 ```bash
-cd /home/wsamatis/projects/storyboard-app-claude/shot-flow-builder
+cd /home/wsamatis/projects/storyboard-app-claude
 git checkout custom-styles
 ```
 

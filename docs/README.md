@@ -118,7 +118,7 @@ Work-in-progress documentation
 ### "I'm adding a new feature"
 1. Read: [`architecture/ARCHITECTURE_PRINCIPLES.md`](architecture/ARCHITECTURE_PRINCIPLES.md)
 2. Read: [`../.cursorrules`](../.cursorrules)
-3. Read: [`../shot-flow-builder/CLAUDE.md`](../shot-flow-builder/CLAUDE.md) (kept at shot-flow-builder root)
+3. Read: [`../CLAUDE.md`](../CLAUDE.md) (technical architecture details)
 
 ---
 

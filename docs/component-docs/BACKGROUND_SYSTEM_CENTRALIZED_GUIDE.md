@@ -8,7 +8,7 @@ The app background system is now centralized in the color system, making it easy
 
 ## 📍 Where to Make Changes
 
-**Primary Location:** `shot-flow-builder/src/styles/glassmorphism-styles.ts`
+**Primary Location:** `src/styles/glassmorphism-styles.ts`
 
 Look for the `appBackground` section in `COLOR_PALETTE`:
 
@@ -31,7 +31,7 @@ appBackground: {
 }
 ```
 
-**CSS Variables:** `shot-flow-builder/src/index.css` (lines 9-30)
+**CSS Variables:** `src/index.css` (lines 9-30)
 
 The CSS file uses CSS custom properties that reference the TypeScript values. **Keep them in sync** when making changes.
 
@@ -62,7 +62,7 @@ The CSS file uses CSS custom properties that reference the TypeScript values. **
 
 ### Filter Overlay
 - **Filter overlay**: Controlled directly in CSS (`index.css` → `body::after` → `background-color` property)
-  - Edit in: `shot-flow-builder/src/index.css` (line ~265)
+  - Edit in: `src/index.css` (line ~265)
   - `rgba(0, 0, 0, 0)` = No effect (transparent)
   - `rgba(0, 0, 0, 0.2)` = Darken by 20%
   - `rgba(255, 255, 255, 0.1)` = Lighten by 10%
@@ -70,7 +70,7 @@ The CSS file uses CSS custom properties that reference the TypeScript values. **
 
 ### Grain Texture
 - **Grain opacity**: Controlled directly in CSS (`index.css` → `body::before` → `opacity` property)
-  - Edit in: `shot-flow-builder/src/index.css` (line ~255)
+  - Edit in: `src/index.css` (line ~255)
   - `0` = Invisible (no grain)
   - `0.1` = Very subtle
   - `0.3` = Moderate
@@ -82,7 +82,7 @@ The CSS file uses CSS custom properties that reference the TypeScript values. **
 
 ### Change Background Brightness/Tint
 
-**Edit directly in CSS** (`shot-flow-builder/src/index.css`, find `body::after`):
+**Edit directly in CSS** (`src/index.css`, find `body::after`):
 
 **Darken:**
 ```css
@@ -139,7 +139,7 @@ radial-gradient(circle at 45% 15%, var(--app-bg-gradient4) 0%, transparent 28%),
 
 ### Adjust Grain Intensity
 
-**Edit directly in CSS** (`shot-flow-builder/src/index.css`, find `body::before`):
+**Edit directly in CSS** (`src/index.css`, find `body::before`):
 
 **Subtle grain:**
 ```css
@@ -167,19 +167,19 @@ opacity: 0; /* In body::before */
 
 ### For Colors and Gradients
 
-1. **Open** `shot-flow-builder/src/styles/glassmorphism-styles.ts`
+1. **Open** `src/styles/glassmorphism-styles.ts`
 
 2. **Find** the `appBackground` section in `COLOR_PALETTE`
 
 3. **Update** the value you want to change
 
-4. **Sync** the CSS variable in `shot-flow-builder/src/index.css` (lines 9-30) if needed
+4. **Sync** the CSS variable in `src/index.css` (lines 9-30) if needed
 
 5. **Save** and see the changes immediately
 
 ### For Grain Opacity
 
-1. **Open** `shot-flow-builder/src/index.css`
+1. **Open** `src/index.css`
 
 2. **Find** `body::before` (around line 250)
 
@@ -189,7 +189,7 @@ opacity: 0; /* In body::before */
 
 ### For Filter Overlay (Brightness/Darkness/Tint)
 
-1. **Open** `shot-flow-builder/src/index.css`
+1. **Open** `src/index.css`
 
 2. **Find** `body::after` (around line 257)
 
@@ -239,8 +239,8 @@ Keep gradient colors in the same color family for harmony:
 
 ## 🔗 Related Files
 
-- **Color System:** `shot-flow-builder/src/styles/glassmorphism-styles.ts`
-- **CSS Implementation:** `shot-flow-builder/src/index.css` (lines 9-30, 209-250)
+- **Color System:** `src/styles/glassmorphism-styles.ts`
+- **CSS Implementation:** `src/index.css` (lines 9-30, 209-250)
 - **Documentation:** `BACKGROUND_SYSTEM_DOCUMENTATION.md` (detailed technical docs)
 
 ---

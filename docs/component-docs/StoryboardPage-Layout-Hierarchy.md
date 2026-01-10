@@ -145,7 +145,7 @@ This container wraps around:
 <details>
 <summary><strong>📍 Page Number Location (Click to expand)</strong></summary>
 
-**File**: `shot-flow-builder/src/components/ShotGrid.tsx`  
+**File**: `src/components/ShotGrid.tsx`  
 **Lines**: 187-221  
 **Display**: "Page X" in bottom-right corner  
 **Control**: `templateSettings.showPageNumber` setting

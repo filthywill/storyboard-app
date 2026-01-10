@@ -132,7 +132,7 @@
   
   /* Gradient colors (3-4 aurora lights) - full intensity */
   /* AUTO-INJECTED: These values are overridden at runtime from glassmorphism-styles.ts */
-  /* Edit colors in: shot-flow-builder/src/styles/glassmorphism-styles.ts (COLOR_PALETTE.appBackground) */
+  /* Edit colors in: src/styles/glassmorphism-styles.ts (COLOR_PALETTE.appBackground) */
   /* Values below are fallbacks - actual values come from TypeScript at runtime */
   --app-bg-gradient1: rgba(255, 107, 197, 0.25);  /* Pink aurora */
   --app-bg-gradient2: rgba(169, 132, 255, 0.22);  /* Purple aurora */

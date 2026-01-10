@@ -1,5 +1,36 @@
 # Cursor AI Rules for Storyboard Flow
 
+## 🏗️ REPO STRUCTURE RULE (CRITICAL)
+
+**This is a single root application. Do NOT create nested projects.**
+
+### Repository Facts
+- ✅ Single Vite + React + TypeScript app at repository root
+- ✅ All source code in `/src`
+- ✅ Single `package.json` at root
+- ✅ Single `node_modules` at root
+- ✅ Single `.git` folder at root
+
+### NEVER Do This
+- ❌ Create nested `package.json` files in subdirectories
+- ❌ Create additional `node_modules` folders
+- ❌ Create duplicate `.git` folders
+- ❌ Initialize new projects inside subdirectories
+- ❌ Reference non-existent `shot-flow-builder/` directory
+
+### Build & Development Commands
+All commands run from **repository root only**:
+```bash
+npm install      # Install dependencies
+npm run dev      # Start dev server
+npm run build    # Build for production
+npm run preview  # Preview production build
+```
+
+**If you see references to `shot-flow-builder/` directory, they are outdated and should be removed.**
+
+---
+
 ## 🚨 CRITICAL RULES - NEVER VIOLATE
 
 ### 1. NO "PAGE NOT FOUND" / 404 States for Users
@@ -329,7 +360,7 @@ return <EmptyProjectState
 For deeper understanding, refer to:
 - `docs/architecture/ARCHITECTURE_PRINCIPLES.md` - High-level design philosophy
 - `docs/architecture/UI_STATE_HANDLING.md` - Complete state matrix and transitions
-- `shot-flow-builder/CLAUDE.md` - Technical architecture details
+- `CLAUDE.md` - Technical architecture details
 - `docs/bugs-and-fixes/CRITICAL-BUG-REPORT.md` - Historical data corruption issues
 - `docs/sync-and-data/TIMESTAMP_SYNC_IMPLEMENTATION.md` - Conflict resolution details
 - `docs/styling/UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` - Styling system and semantic separation

@@ -84,7 +84,7 @@ Documentation needs attention if:
 
 **Full Guide:** `docs/maintenance/DOCUMENTATION_MAINTENANCE.md`  
 **Index:** `docs/maintenance/DOCUMENTATION_INDEX.md`  
-**Setup:** `shot-flow-builder/setup-doc-maintenance.sh`
+**Setup:** `setup-doc-maintenance.sh` (repository root)
 
 ---
 

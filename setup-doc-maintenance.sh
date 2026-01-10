@@ -5,7 +5,7 @@ echo ""
 
 # Check if we're in the right directory
 if [ ! -d ".git" ]; then
-  echo "❌ Error: Must run from shot-flow-builder directory (where .git exists)"
+  echo "❌ Error: Must run from repository root (where .git exists)"
   exit 1
 fi
 
@@ -22,11 +22,11 @@ fi
 
 echo ""
 echo "2️⃣ Documentation files ready:"
-echo "   📄 ../.cursorrules"
-echo "   📄 ../ARCHITECTURE_PRINCIPLES.md"
-echo "   📄 ../UI_STATE_HANDLING.md"
-echo "   📄 ../DOCUMENTATION_INDEX.md"
-echo "   📄 ../DOCUMENTATION_MAINTENANCE.md"
+echo "   📄 .cursorrules"
+echo "   📄 docs/architecture/ARCHITECTURE_PRINCIPLES.md"
+echo "   📄 docs/architecture/UI_STATE_HANDLING.md"
+echo "   📄 docs/maintenance/DOCUMENTATION_INDEX.md"
+echo "   📄 docs/maintenance/DOCUMENTATION_MAINTENANCE.md"
 
 echo ""
 echo "✅ Setup complete!"
@@ -36,7 +36,7 @@ echo "📋 Next Steps:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "1. Read the maintenance guide:"
-echo "   cat ../DOCUMENTATION_MAINTENANCE.md"
+echo "   cat docs/maintenance/DOCUMENTATION_MAINTENANCE.md"
 echo ""
 echo "2. Test the git hook:"
 echo "   # Make a small change to Index.tsx"
@@ -51,11 +51,11 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "📚 Quick Reference:"
-echo "   - Before changes: Read ../.cursorrules"
+echo "   - Before changes: Read .cursorrules"
 echo "   - After session: Run end-of-session review"
 echo "   - Monthly: Run documentation audit"
 echo ""
-echo "For full instructions: ../DOCUMENTATION_MAINTENANCE.md"
+echo "For full instructions: docs/maintenance/DOCUMENTATION_MAINTENANCE.md"
 echo ""
 
 

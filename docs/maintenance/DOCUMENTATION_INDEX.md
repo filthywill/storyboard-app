@@ -86,8 +86,8 @@ This index helps you find the right documentation for your needs.
 
 ## 🛠️ **Technical Details**
 
-### `shot-flow-builder/CLAUDE.md`
-**Location:** `/storyboard-app-claude/shot-flow-builder/CLAUDE.md`
+### `CLAUDE.md`
+**Location:** `/storyboard-app-claude/CLAUDE.md` (repository root)
 
 **Purpose:** Technical architecture and component details
 
@@ -126,7 +126,7 @@ This index helps you find the right documentation for your needs.
 
 **Files touched:**
 - `vercel.json`
-- `shot-flow-builder/index.html` (meta X-Frame-Options removed)
+- `index.html` (meta X-Frame-Options removed - historical)
 
 ---
 
@@ -346,8 +346,8 @@ See also in `docs/migrations/`:
 
 ## 📋 **Planning & Specs**
 
-### `shot-flow-builder/docs/plan-consolidated.md`
-**Location:** `/storyboard-app-claude/shot-flow-builder/docs/plan-consolidated.md`
+### `docs/tasks/plan-consolidated.md`
+**Location:** `/storyboard-app-claude/docs/tasks/plan-consolidated.md`
 
 **Purpose:** Shot order, redistribution, and cloud switching plan
 
@@ -475,11 +475,8 @@ storyboard-app-claude/
 │   └── business/
 │       ├── Stripe_billing_notes.md
 │       └── SECURITY.md
-└── shot-flow-builder/
-    ├── CLAUDE.md                         ← Technical architecture
-    ├── README.md                         ← Project overview
-    └── docs/
-        └── plan-consolidated.md          ← Shot order plan
+├── CLAUDE.md                             ← Technical architecture (root)
+└── README.md                             ← Project overview (root)
 ```
 
 ---
@@ -487,21 +484,21 @@ storyboard-app-claude/
 ## 🎯 **Priority Reading for New Developers**
 
 ### Day 1:
-1. `shot-flow-builder/README.md` - Project overview
+1. `README.md` - Project overview (repository root)
 2. `.cursorrules` - Critical rules (30 min read)
-3. `ARCHITECTURE_PRINCIPLES.md` - Design philosophy (45 min read)
+3. `docs/architecture/ARCHITECTURE_PRINCIPLES.md` - Design philosophy (45 min read)
 
 ### Day 2:
-1. `shot-flow-builder/CLAUDE.md` - Technical details (60 min read)
-2. `UI_STATE_HANDLING.md` - State management (60 min read)
+1. `CLAUDE.md` - Technical details (60 min read, repository root)
+2. `docs/architecture/UI_STATE_HANDLING.md` - State management (60 min read)
 
 ### Day 3:
-1. `CRITICAL-BUG-REPORT.md` - What went wrong and why (30 min)
-2. `TIMESTAMP_SYNC_IMPLEMENTATION.md` - How sync works (30 min)
+1. `docs/bugs-and-fixes/CRITICAL-BUG-REPORT.md` - What went wrong and why (30 min)
+2. `docs/sync-and-data/TIMESTAMP_SYNC_IMPLEMENTATION.md` - How sync works (30 min)
 
 ### Ongoing:
 - Reference `.cursorrules` before EVERY commit
-- Reference `UI_STATE_HANDLING.md` when touching Index.tsx
+- Reference `docs/architecture/UI_STATE_HANDLING.md` when touching Index.tsx
 - Reference `ARCHITECTURE_PRINCIPLES.md` when making design decisions
 
 ---

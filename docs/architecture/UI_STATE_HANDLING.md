@@ -843,7 +843,7 @@ const NotFound = () => {
 
 - **`../../.cursorrules`** - Specific rules for AI assistants
 - **`ARCHITECTURE_PRINCIPLES.md`** - High-level design philosophy
-- **`../../shot-flow-builder/CLAUDE.md`** - Technical architecture details
+- **`../../CLAUDE.md`** - Technical architecture details
 - **`../bugs-and-fixes/CRITICAL-BUG-REPORT.md`** - Historical issues and fixes
 - **`../sync-and-data/TIMESTAMP_SYNC_IMPLEMENTATION.md`** - Conflict resolution details
 - **`../bugs-and-fixes/DATA_LOSS_FIX_SUMMARY.md`** - Validation layers

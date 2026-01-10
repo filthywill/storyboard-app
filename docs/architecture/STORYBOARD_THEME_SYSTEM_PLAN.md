@@ -639,7 +639,7 @@ export const ThemeEditorModal: React.FC<ThemeEditorModalProps> = ({
 ## 📂 File Structure
 
 ```
-shot-flow-builder/src/
+src/
 ├── styles/
 │   ├── glassmorphism-styles.ts      (existing - app UI colors)
 │   └── storyboardTheme.ts           (NEW - user-customizable themes)

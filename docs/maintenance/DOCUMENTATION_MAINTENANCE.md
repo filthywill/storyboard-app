@@ -358,7 +358,7 @@ Before considering documentation "updated":
 To install the documentation reminder hook:
 
 ```bash
-cd shot-flow-builder
+# From repository root
 cp .git-hooks/pre-commit-docs-reminder.sh .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```

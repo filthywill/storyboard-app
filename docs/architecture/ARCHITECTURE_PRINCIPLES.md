@@ -656,7 +656,7 @@ To verify the separation works:
 
 - **`../../.cursorrules`** - Specific rules for AI assistants
 - **`UI_STATE_HANDLING.md`** - Complete state matrix and transitions
-- **`../../shot-flow-builder/CLAUDE.md`** - Technical architecture and component details
+- **`../../CLAUDE.md`** - Technical architecture and component details
 - **`../bugs-and-fixes/CRITICAL-BUG-REPORT.md`** - Historical data corruption issues and fixes
 - **`../sync-and-data/TIMESTAMP_SYNC_IMPLEMENTATION.md`** - Conflict resolution implementation
 - **`../bugs-and-fixes/DATA_LOSS_FIX_SUMMARY.md`** - Validation layers and protection mechanisms
