@@ -34,7 +34,7 @@ class BackgroundSyncServiceClass {
   private readonly BATCH_SIZE = 5;
   private readonly RETRY_DELAYS = [1000, 2000, 4000]; // 1s, 2s, 4s
   private deletedShots: Set<string> = new Set();
-  private isProcessingOfflineQueue = false;
+  private isOfflineQueueProcessing = false;
 
   constructor() {
     this.loadQueueFromStorage();
@@ -104,7 +104,7 @@ class BackgroundSyncServiceClass {
         const { CloudSyncService } = await import('@/services/cloudSyncService');
         if (CloudSyncService.hasQueuedChanges()) {
           console.log('Processing queued project data changes...');
-          this.isProcessingOfflineQueue = true;
+          this.isOfflineQueueProcessing = true;
           
           await CloudSyncService.replayQueue();
           console.log('✅ Queued project data changes synced to cloud');
@@ -114,11 +114,11 @@ class BackgroundSyncServiceClass {
           await new Promise(resolve => setTimeout(resolve, 5000));
           console.log('✅ Auto-save and cloud loading conflict prevention complete');
           
-          this.isProcessingOfflineQueue = false;
+          this.isOfflineQueueProcessing = false;
         }
       } catch (error) {
         console.error('Failed to process queued project data changes:', error);
-        this.isProcessingOfflineQueue = false;
+        this.isOfflineQueueProcessing = false;
       }
     });
 
@@ -413,7 +413,7 @@ class BackgroundSyncServiceClass {
    * Check if offline queue is being processed
    */
   public isProcessingOfflineQueue(): boolean {
-    return this.isProcessing;
+    return this.isOfflineQueueProcessing;
   }
 
   public retryFailed(): void {
