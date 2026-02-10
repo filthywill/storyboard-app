@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +23,9 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { AuthModal } from '@/components/AuthModal';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
+import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
+import { canCreateProjectServerSide } from '@/utils/projectCreationGate';
 
 export interface ProjectSelectorProps {
   onRequestCreate?: () => void;
@@ -40,44 +43,59 @@ export const ProjectSelector = ({
     createProject,
   } = useAppStore();
   
+  const navigate = useNavigate();
   const { isAuthenticated, user, signOut } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   // Use external control if provided, otherwise use local state
   const [internalShowCreateDialog, setInternalShowCreateDialog] = useState(false);
   const showCreateDialog = externalShowCreateDialog ?? internalShowCreateDialog;
+  
+  const requestCreateProject = async (): Promise<boolean> => {
+    if (!isAuthenticated) {
+      if (!canCreateProject()) {
+        setShowLimitDialog(true);
+        return false;
+      }
+      return true;
+    }
+
+    try {
+      const canCreate = await canCreateProjectServerSide(user?.id);
+      if (!canCreate) {
+        setShowUpgradeDialog(true);
+        return false;
+      }
+    } catch (error) {
+      console.error("Project gate check failed:", error);
+      toast.error("Couldn't verify your plan. Please try again.");
+      return false;
+    }
+
+    return true;
+  };
+
   const setShowCreateDialog = onCloseCreateDialog ? 
     (value: boolean) => { 
       if (value) {
-        // Check if user can create a project
-        if (!canCreateProject()) {
-          // If not authenticated and at limit, show encouraging dialog
-          if (!isAuthenticated) {
-            setShowLimitDialog(true);
-            return;
-          }
-          // For authenticated users, just show error
-          toast.error('Maximum number of projects reached');
-          return;
-        }
-        // When opening dialog, we need to notify the parent
-        onRequestCreate?.();
+        void onRequestCreate?.();
       } else {
         // When closing dialog, notify the parent
         onCloseCreateDialog();
       }
     } : 
     (value: boolean) => {
-      if (value && !canCreateProject()) {
-        if (!isAuthenticated) {
-          setShowLimitDialog(true);
-          return;
-        }
-        toast.error('Maximum number of projects reached');
+      if (value) {
+        void requestCreateProject().then((allowed) => {
+          if (allowed) {
+            setInternalShowCreateDialog(true);
+          }
+        });
         return;
       }
-      setInternalShowCreateDialog(value);
+      setInternalShowCreateDialog(false);
     };
 
   const [newProjectName, setNewProjectName] = useState('');
@@ -99,8 +117,19 @@ export const ProjectSelector = ({
       } else {
         toast.error('Failed to create project');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating project:', error);
+      
+      // Check for upgrade required error
+      if (error.code === 'UPGRADE_REQUIRED') {
+        toast.error(error.message);
+        setShowCreateDialog(false);
+        setNewProjectName('');
+        setNewProjectDescription('');
+        navigate('/billing');
+        return;
+      }
+      
       toast.error('Failed to create project');
     }
   };
@@ -212,6 +241,12 @@ export const ProjectSelector = ({
         isOpen={showLimitDialog}
         onClose={() => setShowLimitDialog(false)}
         onSignIn={() => setShowAuthModal(true)}
+      />
+
+      <UpgradeToProDialog
+        isOpen={showUpgradeDialog}
+        onClose={() => setShowUpgradeDialog(false)}
+        onUpgrade={() => navigate('/billing')}
       />
     </div>
   );

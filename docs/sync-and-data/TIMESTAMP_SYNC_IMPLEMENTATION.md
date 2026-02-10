@@ -9,21 +9,21 @@ October 20, 2025
 ## Key Changes Made
 
 ### 1. ProjectService.ts
-**Location**: `shot-flow-builder/src/services/projectService.ts`
+**Location**: `src/services/projectService.ts`
 
 - **Added `data_updated_at` field** to `getProjects()` query to fetch actual data modification timestamps from `project_data.updated_at`
 - **Enhanced validation logging** in `saveProject()` to include timestamp context
 - **Maintained database-level protection** against overwriting valid cloud data with empty data
 
 ### 2. CloudProjectSyncService.ts
-**Location**: `shot-flow-builder/src/services/cloudProjectSyncService.ts`
+**Location**: `src/services/cloudProjectSyncService.ts`
 
 - **Updated `syncProjectList()`** to use `data_updated_at` as the primary timestamp source
 - **Fallback chain**: `data_updated_at` → `last_accessed_at` → `created_at`
 - Ensures metadata reflects actual data modification times, not just access times
 
 ### 3. GuestProjectSyncService.ts (Major Refactor)
-**Location**: `shot-flow-builder/src/services/guestProjectSyncService.ts`
+**Location**: `src/services/guestProjectSyncService.ts`
 
 **New Timestamp-First Approach:**
 
@@ -57,7 +57,7 @@ Three layers of protection:
 - Provides clear user feedback via toast notifications
 
 ### 4. ProjectSwitcher.ts
-**Location**: `shot-flow-builder/src/utils/projectSwitcher.ts`
+**Location**: `src/utils/projectSwitcher.ts`
 
 **Fixed `lastModified` Update Behavior:**
 
@@ -120,10 +120,76 @@ Per the implementation plan, verify these scenarios:
 
 ## Files Modified
 
-1. `/shot-flow-builder/src/services/projectService.ts`
-2. `/shot-flow-builder/src/services/cloudProjectSyncService.ts`
-3. `/shot-flow-builder/src/services/guestProjectSyncService.ts`
-4. `/shot-flow-builder/src/utils/projectSwitcher.ts`
+1. `src/services/projectService.ts`
+2. `src/services/cloudProjectSyncService.ts`
+3. `src/services/guestProjectSyncService.ts`
+4. `src/utils/projectSwitcher.ts`
+
+---
+
+## Atomic Saves and Optimistic Concurrency (February 2026)
+
+### `save_project_if_unchanged` RPC
+
+Cloud saves now use an atomic save RPC that prevents silent overwrites:
+
+1. Client sends `expectedUpdatedAt` (the `updated_at` it last saw from the server)
+2. Server compares with current `project_data.updated_at`
+3. If they match → save proceeds, `updated_at` refreshed
+4. If they differ → conflict returned with the server's current timestamp
+
+### Writer Lease Validation During Save
+
+The RPC also supports optional `p_writer_id` parameter:
+- If provided, validates that `writer_id` matches and `writer_expires_at` is not expired
+- On success, extends the lease by 60 seconds
+- On failure, returns `{ok: false, lease_rejected: true}`
+
+### Autosave Conflict Handling
+
+| Trigger | On Conflict | User Impact |
+|---------|------------|-------------|
+| Autosave (debounced, 2s) | Silent pause — autosave stops, no modal | None — user keeps editing |
+| Manual save | Auto-retry once with fresh timestamp; if still fails → `CloudSaveConflictDialog` | User chooses: "Reload from cloud" or "Cancel" |
+
+**Key design:** Autosave conflicts never show modals. The system pauses cloud sync silently and waits for the user to manually resolve (via manual save or reload).
+
+### Auto-Recovery Flow
+
+1. First save attempt → conflict detected (timestamps don't match)
+2. System fetches latest `updated_at` from server
+3. Retries save with updated `expectedUpdatedAt`
+4. If retry succeeds → conflict was a false positive (e.g., millisecond precision)
+5. If retry fails → genuine conflict → manual resolution required
+
+### Related Files
+- `src/services/cloudSyncService.ts` — main sync logic, conflict handling
+- `src/store/cloudSaveConflictStore.ts` — conflict pause state
+- `src/components/CloudSaveConflictDialog.tsx` — manual-save conflict UI
+- `src/utils/autoSave.ts` — intent-based autosave with guards
+
+---
+
+## Autosave Architecture (February 2026)
+
+### Intent-Based Saves
+- `beginIntent(reason)` / `endIntent(reason)` — wraps multi-step operations
+- Prevents partial saves during batch operations (e.g., adding multiple shots)
+- Save only fires when intent depth returns to 0
+
+### Debounce
+- 2-second debounce after last `markDirty()` call
+- Multiple rapid changes coalesce into a single save
+
+### Guards
+| Guard | Blocks When | Purpose |
+|-------|------------|---------|
+| `isSwitchingProject` | Project switch in progress | Prevent cross-project saves |
+| `isSavePaused` | Cloud conflict paused | Prevent overwriting newer cloud data |
+| `isBatchMode` | Inside `beginIntent` | Defer until multi-step operation completes |
+| Writer lease check | `mode === 'read_only'` | Prevent saves without write permission |
+
+---
 
 ## Future Enhancement (Phase 2)
 
@@ -175,9 +241,10 @@ Minimal:
 ✅ No linter errors
 ✅ All existing functionality preserved
 
+---
 
-
-
+*Last Updated: February 9, 2026*
+*Added: atomic saves via `save_project_if_unchanged`, autosave conflict handling, writer lease integration, intent-based autosave architecture.*
 
 
 

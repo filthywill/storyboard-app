@@ -1,5 +1,7 @@
 # Scaling and Alignment Patterns
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical; current equivalents are under repo root (e.g., `src/`, `docs/`).
+
 *Last Updated: January 2025*
 
 ## 🎯 Overview
@@ -210,7 +212,7 @@ Before implementing scaling alignment:
 
 ## 📚 Related Documentation
 
-- **`../../shot-flow-builder/CLAUDE.md`** - Component architecture and patterns
+- **`docs/README.md`** - Current documentation entry points
 - **`../architecture/UI_STATE_HANDLING.md`** - State management patterns
 - **`.cursorrules`** - Critical development rules
 

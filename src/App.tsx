@@ -3,12 +3,17 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+
 import Index from "./pages/Index";
 import TestIndex from "./pages/TestIndex";
 import AuthCallback from "./pages/AuthCallback";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
+
+import BillingPage from "./pages/billing/BillingPage";
+import BillingSuccessPage from "./pages/billing/BillingSuccessPage";
+import BillingCanceledPage from "./pages/billing/BillingCanceledPage";
 
 const queryClient = new QueryClient();
 
@@ -24,7 +29,13 @@ const App = () => (
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
+          {/* Billing routes */}
+          <Route path="/billing" element={<BillingPage />} />
+          <Route path="/billing/success" element={<BillingSuccessPage />} />
+          <Route path="/billing/canceled" element={<BillingCanceledPage />} />
+
+          {/* Catch-all MUST be last */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

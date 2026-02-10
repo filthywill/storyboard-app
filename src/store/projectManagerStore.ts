@@ -7,11 +7,13 @@ export interface ProjectMetadata {
   name: string;
   description?: string;
   lastModified: Date;
+  baseCloudUpdatedAt?: string | null;
   shotCount: number;
   pageCount: number;
   createdAt: Date;
   isLocal: boolean;        // NEW: Has full local copy
   isCloudOnly: boolean;    // NEW: Only metadata, needs download
+  isCloudBacked?: boolean; // NEW: Backed by a cloud record
 }
 
 export interface ProjectManagerState {
@@ -24,13 +26,20 @@ export interface ProjectManagerState {
 export interface ProjectManagerActions {
   // Project management
   createProject: (name: string, description?: string) => string;
-  createProjectWithId: (projectId: string, name: string, description?: string) => void;
+  createProjectWithId: (
+    projectId: string,
+    name: string,
+    description?: string,
+    isCloudBacked?: boolean
+  ) => void;
   deleteProject: (projectId: string) => void;
   renameProject: (projectId: string, name: string) => void;
   setCurrentProject: (projectId: string | null) => void;
   
   // Project metadata
   updateProjectMetadata: (projectId: string, updates: Partial<ProjectMetadata>) => void;
+  setProjectCloudBacked: (projectId: string, isCloudBacked: boolean) => void;
+  setProjectCloudUpdatedAt: (projectId: string, updatedAt: string | null) => void;
   getAllProjects: () => ProjectMetadata[];
   
   // Cloud project management
@@ -74,11 +83,13 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
           name,
           description,
           lastModified: now,
+          baseCloudUpdatedAt: null,
           shotCount: 0,
           pageCount: 1, // Default to 1 page
           createdAt: now,
           isLocal: true,
-          isCloudOnly: false
+          isCloudOnly: false,
+          isCloudBacked: false
         };
 
         set((state) => {
@@ -89,7 +100,7 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
         return projectId;
       },
 
-      createProjectWithId: (projectId, name, description) => {
+      createProjectWithId: (projectId, name, description, isCloudBacked = false) => {
         const state = get();
         
         if (!state.canCreateProject()) {
@@ -103,11 +114,13 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
           name,
           description,
           lastModified: now,
+          baseCloudUpdatedAt: null,
           shotCount: 0,
           pageCount: 1,
           createdAt: now,
           isLocal: true,
-          isCloudOnly: false
+          isCloudOnly: false,
+          isCloudBacked
         };
 
         set((state) => {
@@ -160,6 +173,31 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
           const project = state.projects[projectId];
           if (project) {
             Object.assign(project, updates, { lastModified: new Date() });
+          }
+        });
+      },
+
+      setProjectCloudBacked: (projectId, isCloudBacked) => {
+        set((state) => {
+          const project = state.projects[projectId];
+          if (project) {
+            project.isCloudBacked = isCloudBacked;
+          }
+        });
+      },
+
+      setProjectCloudUpdatedAt: (projectId, updatedAt) => {
+        set((state) => {
+          const project = state.projects[projectId];
+          if (project) {
+            if (import.meta.env.DEV) {
+              console.log('@@@ BASE SET', {
+                projectId,
+                value: updatedAt ?? null,
+                source: 'projectManagerStore.setProjectCloudUpdatedAt'
+              });
+            }
+            project.baseCloudUpdatedAt = updatedAt;
           }
         });
       },
@@ -255,11 +293,13 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
             name: project.name,
             description: '',
             lastModified: new Date(project.lastModified),
+            baseCloudUpdatedAt: null,
             createdAt: new Date(project.lastModified),
             shotCount: project.shotCount,
             pageCount: 0,
             isLocal: false,
-            isCloudOnly: true
+            isCloudOnly: true,
+            isCloudBacked: true
           };
         });
       },
@@ -269,6 +309,7 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
           if (state.projects[projectId]) {
             state.projects[projectId].isLocal = true;
             state.projects[projectId].isCloudOnly = false;
+            state.projects[projectId].isCloudBacked = true;
           }
         });
       },

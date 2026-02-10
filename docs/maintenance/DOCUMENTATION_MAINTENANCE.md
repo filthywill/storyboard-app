@@ -358,7 +358,7 @@ Before considering documentation "updated":
 To install the documentation reminder hook:
 
 ```bash
-cd shot-flow-builder
+cd /path/to/storyboard-app-claude
 cp .git-hooks/pre-commit-docs-reminder.sh .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
@@ -583,7 +583,43 @@ All documentation has been reorganized into a structured `/docs` directory:
 
 ---
 
-**Last Updated:** January 7, 2026
+## 📝 **February 9, 2026 - Major Feature Documentation Update**
+
+Brought docs up to date with all features implemented since the Jan 7 reorganization:
+
+- ✅ **Writer lease (single-writer) system** — Principle 8 in ARCHITECTURE_PRINCIPLES.md; DB schema, RPCs, lease lifecycle, BroadcastChannel coordination, read-only overlay UX
+- ✅ **Autosave overhaul** — Intent-based saves, debouncing, guards documented in TIMESTAMP_SYNC_IMPLEMENTATION.md
+- ✅ **Cloud conflict handling** — Atomic saves via `save_project_if_unchanged`, silent pause for autosave conflicts, manual dialog for manual saves
+- ✅ **Stripe billing integration** — Expanded Stripe_billing_notes.md from raw notes to structured reference; Principle 9 in ARCHITECTURE_PRINCIPLES.md
+- ✅ **Workspace mode** — Local vs cloud gating for free plan users
+- ✅ **Email confirmation flow** — New state in UI_STATE_HANDLING.md
+- ✅ **Index.tsx state machine expansion** — New states: ConfirmEmailScreen, read-only overlay, WorkspaceChoiceModal, LockedProjectModal
+- ✅ **Updated testing checklists** — Multi-tab, lease takeover, workspace conflict, billing scenarios
+- ✅ **Updated all maintenance docs** — DOCUMENTATION_INDEX.md file tree, quick navigation, QUICK_REFERENCE.md dev how-tos
+
+**Files updated:**
+- `docs/architecture/ARCHITECTURE_PRINCIPLES.md`
+- `docs/architecture/UI_STATE_HANDLING.md`
+- `docs/sync-and-data/TIMESTAMP_SYNC_IMPLEMENTATION.md`
+- `docs/business/Stripe_billing_notes.md`
+- `docs/maintenance/DOCUMENTATION_INDEX.md`
+- `docs/maintenance/DOCUMENTATION_MAINTENANCE.md`
+- `docs/maintenance/QUICK_REFERENCE.md`
+- `docs/README.md`
+
+---
+
+## 📝 **February 9, 2026 - Docs Cleanup**
+
+- ✅ Removed literal secrets from docs (replaced with placeholders)
+- ✅ Trimmed UI_STATE_HANDLING.md (removed mockups, debug recipes, emergency fixes)
+- ✅ Slimmed DOCUMENTATION_INDEX.md (short entries, fewer paragraphs)
+- ✅ Added doc sanity checks + condensed test essentials to QUICK_REFERENCE.md
+- ✅ Added shot-flow-builder removal notes where referenced
+
+---
+
+**Last Updated:** February 9, 2026
 
 
 

@@ -16,6 +16,9 @@ The Index.tsx component is the state machine that renders appropriate UI based o
 ### Routes Are ONLY For:
 - `/` - Main application (Index.tsx) - **handles all UI states**
 - `/auth/callback` - OAuth callback handler (required for Google/GitHub/Apple login)
+- `/billing` - Subscription management page
+- `/billing/success` - Stripe checkout success redirect
+- `/billing/canceled` - Stripe checkout cancel redirect
 - `/privacy` - Static privacy policy
 - `/terms` - Static terms of service  
 - `*` - Catch-all that **auto-redirects** back to `/` (never shows 404 to users)
@@ -273,6 +276,16 @@ Notification: "Project was updated elsewhere. Loading latest version."
 - Update stores with results
 - Queue offline changes
 
+**Key Services:**
+- `AuthService` — Authentication, session management, email confirmation
+- `CloudSyncService` — Cloud save with optimistic concurrency, conflict detection
+- `ProjectService` — CRUD operations, atomic saves via `save_project_if_unchanged` RPC
+- `WriterLeaseService` — Single-writer lease lifecycle (acquire, renew, release, takeover)
+- `CloudAccessService` — Plan-based gating (free vs pro limits)
+- `WorkspaceModeService` — Local vs cloud workspace preference
+- `ProjectOpenGate` — Guards for project switching (auth, workspace mode, plan limits)
+- `BackgroundSyncService` — Offline queue replay on reconnection
+
 **Never:**
 - Make assumptions about UI state
 - Navigate or redirect users
@@ -378,7 +391,31 @@ Notification: "Project was updated elsewhere. Loading latest version."
 ✅ CLEAR MESSAGING, PATH TO SIGN BACK IN
 ```
 
-### 6. Template Background Flow
+### 6. Writer Lease Flow (Single-Writer Enforcement)
+```
+1. User opens cloud project
+2. WriterLeaseService.ensureWriter(projectId) called
+3. RPC claim_writer_lease checks: project ownership, lease availability
+4. If available → mode = 'writer', heartbeat starts (every 30s)
+5. If held by another → mode = 'read_only', overlay shown
+6. User can "Take over editing" (force claim + reload from cloud)
+7. BroadcastChannel notifies other tabs instantly
+8. On project switch → release lease, claim new one
+9. On tab close → release via fetch(keepalive: true)
+✅ ONLY ONE WRITER AT A TIME, READ-ONLY FOR OTHERS
+```
+
+### 7. Billing / Project Gating Flow
+```
+1. User tries to create cloud project
+2. CloudAccessService.getAccessState() checks plan
+3. If free user at limit (1 cloud project) → show UpgradeToProDialog
+4. If pro or under limit → allow creation
+5. Workspace mode enforced for free users with mixed projects
+✅ GATING ENFORCED AT BOTH UI AND SERVICE LAYER
+```
+
+### 8. Template Background Flow
 ```
 1. User sees empty state (unauthenticated or no projects)
 2. TemplateBackground renders dimmed storyboard template
@@ -652,11 +689,103 @@ To verify the separation works:
 
 ---
 
+## 🔒 Principle 8: Single-Writer Enforcement
+
+### Overview
+Only one browser tab/session may edit a cloud project at a time. This is enforced by a writer lease system at three levels: database RPC, service layer, and UI overlay.
+
+### Database Schema
+`project_data` table has two columns:
+- `writer_id` (TEXT) — UUID of the current writer tab
+- `writer_expires_at` (TIMESTAMPTZ) — Lease expiration (60 seconds from last claim/renewal)
+
+### RPCs
+- `claim_writer_lease(p_project_id, p_writer_id, p_force)` — Claims or force-claims a lease
+- `release_writer_lease(p_project_id, p_writer_id)` — Releases the lease
+- `save_project_if_unchanged(...)` — Validates writer lease during saves (if `p_writer_id` provided)
+
+### Lease Lifecycle
+1. **Acquire**: On project open, `WriterLeaseService.ensureWriter()` claims the lease
+2. **Renew**: Heartbeat every 30 seconds re-claims the lease
+3. **Release**: On project switch or tab close, lease released via RPC
+4. **Expiry**: Lease expires 60 seconds after last renewal; expired leases are available to claim
+
+### Enforcement Points
+- **Database**: `save_project_if_unchanged` rejects saves if `writer_id` doesn't match or lease expired
+- **Service**: `CloudSyncService.ensureWriterLeaseForSave()` blocks save attempts in read-only mode
+- **UI**: Read-only overlay prevents interaction when lease not held
+
+### BroadcastChannel (`storyboardflow-writer-lease`)
+- Same-browser tabs coordinate instantly without DB round-trip
+- When a tab takes over, it broadcasts `{type: 'TAKEOVER', projectId, newWriterId}`
+- Other tabs receive the message and transition to read-only immediately
+
+### Tab Identification
+- Each tab generates a `crypto.randomUUID()` on load (`src/utils/writerTabId.ts`)
+- This ID is used as the `writer_id` for all lease operations
+- Not persisted to storage — unique per tab session
+
+### Related Files
+- `supabase/migrations/20260209_add_writer_leases.sql`
+- `src/services/writerLeaseService.ts`
+- `src/store/writerLeaseStore.ts`
+- `src/utils/writerTabId.ts`
+
+---
+
+## 💳 Principle 9: Plan-Based Gating
+
+### Overview
+Cloud features are gated by subscription plan (free vs pro). Free users have a 1 cloud project limit. Pro users have unlimited cloud projects.
+
+### Plan Detection
+- Checked via `billing_subscriptions` table in Supabase
+- `status === 'active'` or `'trialing'` → Pro plan
+- Cached for 30 seconds (`CloudAccessService`)
+
+### Gating Rules
+| Action | Free | Pro |
+|--------|------|-----|
+| Read/write existing cloud projects | ✅ | ✅ |
+| Create new cloud project | 1 max | Unlimited |
+| Local projects | Unlimited | Unlimited |
+| Workspace mode | Must choose local OR cloud | Both |
+
+### Enforcement
+- `CloudAccessService.getAccessState()` — returns plan info and limits
+- `ProjectOpenGate.getProjectOpenState()` — checks before project switch
+- `projectCreationGate.canCreateProjectServerSide()` — checks before creation
+- UI: `UpgradeToProDialog`, `WorkspaceChoiceModal`, `LockedProjectModal`
+
+### Stripe Integration
+- Checkout: Supabase Edge Function `create-checkout-session`
+- Webhooks: Supabase Edge Function `stripe-webhook`
+- Events handled: `checkout.session.completed`, subscription CRUD events
+- Billing pages: `/billing`, `/billing/success`, `/billing/canceled`
+
+### Environment Variables (Edge Functions)
+- `STRIPE_SECRET_KEY` — Stripe API key (test or live)
+- `STRIPE_WEBHOOK_SECRET` — Webhook signing secret
+- `SITE_URL` — Redirect base URL
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SERVICE_ROLE_KEY`
+
+### Related Files
+- `src/config/billing.ts`
+- `src/services/cloudAccessService.ts`
+- `src/services/projectOpenGate.ts`
+- `src/services/workspaceModeService.ts`
+- `src/utils/projectCreationGate.ts`
+- `src/pages/billing/`
+- `supabase/functions/create-checkout-session/`
+- `supabase/functions/stripe-webhook/`
+
+---
+
 ## 📚 Related Documentation
 
 - **`../../.cursorrules`** - Specific rules for AI assistants
 - **`UI_STATE_HANDLING.md`** - Complete state matrix and transitions
-- **`../../shot-flow-builder/CLAUDE.md`** - Technical architecture and component details
+- **`shot-flow-builder` removed/merged (Feb 2026)** - Historical references only
 - **`../bugs-and-fixes/CRITICAL-BUG-REPORT.md`** - Historical data corruption issues and fixes
 - **`../sync-and-data/TIMESTAMP_SYNC_IMPLEMENTATION.md`** - Conflict resolution implementation
 - **`../bugs-and-fixes/DATA_LOSS_FIX_SUMMARY.md`** - Validation layers and protection mechanisms
@@ -664,7 +793,8 @@ To verify the separation works:
 
 ---
 
-*Last Updated: October 30, 2025*
-*Added Principle 7: Semantic Separation in Design Systems*
+*Last Updated: February 9, 2026*
+*Added Principle 8: Single-Writer Enforcement, Principle 9: Plan-Based Gating*
+*Updated routes, file responsibilities, and critical paths for billing and writer lease flows.*
 *This document should be reviewed and updated as the application evolves.*
 

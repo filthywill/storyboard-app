@@ -1,5 +1,7 @@
 # Image Editor Fix - Test Implementation V2
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical.
+
 **Date:** November 26, 2025  
 **Branch:** `test/image-editor-fix-v2`  
 **Status:** Testing
@@ -107,7 +109,7 @@ style={{
 If this doesn't work:
 
 ```bash
-cd /home/wsamatis/projects/storyboard-app-claude/shot-flow-builder
+cd /home/wsamatis/projects/storyboard-app-claude
 git checkout custom-styles
 ```
 

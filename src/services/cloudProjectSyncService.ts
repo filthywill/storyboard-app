@@ -1,12 +1,25 @@
-import { ProjectService } from './projectService';
+import { ProjectService, type ProjectData } from './projectService';
 import { CloudSyncService } from './cloudSyncService';
+import { CloudAccessService } from './cloudAccessService';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
-import { useAuthStore } from '@/store/authStore';
+import { createDefaultPage } from '@/store/pageStore';
 import { toast } from 'sonner';
 
 export class CloudProjectSyncService {
   private static isSyncing = false;
   private static isLoadingProject = false;
+  private static readonly DEFAULT_SHOT_NUMBER_FORMAT = '01';
+  private static readonly DEFAULT_TEMPLATE_SETTINGS = {
+    showLogo: true,
+    showProjectName: true,
+    showProjectInfo: true,
+    showClientAgency: true,
+    showJobInfo: true,
+    showActionText: true,
+    showScriptText: true,
+    showPageNumber: true,
+    shotNumberFormat: CloudProjectSyncService.DEFAULT_SHOT_NUMBER_FORMAT,
+  };
 
   /**
    * Sync project list from cloud after login
@@ -18,9 +31,9 @@ export class CloudProjectSyncService {
       return;
     }
 
-    const { isAuthenticated } = useAuthStore.getState();
-    if (!isAuthenticated) {
-      console.log('Not authenticated, skipping project list sync');
+    const access = await CloudAccessService.getAccessState();
+    if (!access.canReadCloud) {
+      console.log('Cloud access unavailable, skipping project list sync');
       return;
     }
 
@@ -37,14 +50,38 @@ export class CloudProjectSyncService {
       // Add cloud projects to local project manager
       const projectManager = useProjectManagerStore.getState();
       
-      cloudProjects.forEach(cloudProject => {
+      for (const cloudProject of cloudProjects) {
         projectManager.addCloudProject({
           id: cloudProject.id,
           name: cloudProject.name,
           shotCount: cloudProject.shot_count || 0,
           lastModified: cloudProject.data_updated_at || cloudProject.last_accessed_at || cloudProject.created_at
         });
-      });
+        let dataUpdatedAt = cloudProject.data_updated_at || null;
+        if (!dataUpdatedAt) {
+          try {
+            dataUpdatedAt = await ProjectService.getProjectUpdatedAt(cloudProject.id);
+          } catch (error) {
+            console.warn('Failed to fetch project_data.updated_at for project:', error);
+          }
+        }
+        if (import.meta.env.DEV) {
+          console.log('@@@ LIST ITEM', {
+            projectId: cloudProject.id,
+            baseCloudUpdatedAt: dataUpdatedAt,
+            source: dataUpdatedAt ? 'project_data.updated_at' : 'missing'
+          });
+        }
+        if (import.meta.env.DEV) {
+          console.log('@@@ BASE SET', {
+            projectId: cloudProject.id,
+            value: dataUpdatedAt,
+            source: 'cloudProjectSync.syncProjectList'
+          });
+        }
+        projectManager.setProjectCloudUpdatedAt(cloudProject.id, dataUpdatedAt || null);
+        CloudSyncService.markProjectAsCloudBacked(cloudProject.id);
+      }
       
       console.log('Project list sync completed');
     } catch (error) {
@@ -58,10 +95,18 @@ export class CloudProjectSyncService {
   /**
    * Load full project data from cloud when user selects it
    */
-  static async loadFullProject(projectId: string): Promise<void> {
+  static async loadFullProject(
+    projectId: string,
+    options?: { force?: boolean }
+  ): Promise<void> {
     if (this.isLoadingProject) {
       console.log('Project load already in progress');
       return;
+    }
+    const forceRefresh = options?.force ?? false;
+    const access = await CloudAccessService.getAccessState();
+    if (!access.canReadCloud) {
+      throw new Error('Not authenticated');
     }
 
     // Check if offline queue is being processed (prevent conflicts)
@@ -81,7 +126,7 @@ export class CloudProjectSyncService {
     const projectManager = useProjectManagerStore.getState();
     const project = projectManager.projects[projectId];
     
-    if (project?.isLocal && !project?.isCloudOnly) {
+    if (project?.isLocal && !project?.isCloudOnly && !forceRefresh) {
       console.log(`Project ${projectId} is already local, skipping cloud load`);
       return;
     }
@@ -112,19 +157,21 @@ export class CloudProjectSyncService {
         throw new Error(`Invalid project data received for ${projectId}`);
       }
       
+      const normalizedProjectData = this.ensureMinimumProjectShape(projectId, projectData);
+      
       console.log('Project data validated, pre-loading images...');
       
       // Pre-load all images from all pages
-      await this.preloadAllImages(projectId, projectData.shots);
+      await this.preloadAllImages(projectId, normalizedProjectData.shots);
       
       // Pre-load project logo if it exists
-      await this.preloadProjectLogo(projectId, projectData.projectSettings);
+      await this.preloadProjectLogo(projectId, normalizedProjectData.projectSettings);
       
       console.log('Project data validated, saving locally...');
       
       // Save to local storage ONLY (don't touch stores yet!)
       // The stores will be updated by switchToProject() after currentProjectId is set
-      await CloudSyncService.saveToLocalStorage(projectId, projectData);
+      await CloudSyncService.saveToLocalStorage(projectId, normalizedProjectData);
       
       // Mark project as local (so it's no longer "cloud only")
       const projectManager = useProjectManagerStore.getState();
@@ -134,13 +181,30 @@ export class CloudProjectSyncService {
         console.log(`Project ${projectId} not found in project manager, adding it...`);
         projectManager.addCloudProject({
           id: projectId,
-          name: projectData.projectSettings?.projectName || `Project ${projectId.slice(0, 8)}`,
-          shotCount: Object.keys(projectData.shots || {}).length,
+          name: normalizedProjectData.projectSettings?.projectName || `Project ${projectId.slice(0, 8)}`,
+          shotCount: Object.keys(normalizedProjectData.shots || {}).length,
           lastModified: new Date().toISOString()
         });
       }
       
       projectManager.markProjectAsLocal(projectId);
+      let resolvedUpdatedAt = normalizedProjectData.updatedAt || null;
+      if (!resolvedUpdatedAt) {
+        try {
+          resolvedUpdatedAt = await ProjectService.getProjectUpdatedAt(projectId);
+        } catch (error) {
+          console.warn('Failed to fetch project_data.updated_at after load:', error);
+        }
+      }
+      normalizedProjectData.updatedAt = resolvedUpdatedAt;
+      if (import.meta.env.DEV) {
+        console.log('@@@ BASE SET', {
+          projectId,
+          value: resolvedUpdatedAt,
+          source: 'cloudProjectSync.loadFullProject'
+        });
+      }
+      projectManager.setProjectCloudUpdatedAt(projectId, resolvedUpdatedAt || null);
       
       console.log('Full project saved to localStorage (ready for switchToProject to load)');
     } catch (error) {
@@ -149,6 +213,123 @@ export class CloudProjectSyncService {
     } finally {
       this.isLoadingProject = false;
     }
+  }
+
+  static async refreshProjectIfStale(projectId: string): Promise<void> {
+    const access = await CloudAccessService.getAccessState();
+    if (!access.canReadCloud) return;
+    if (!navigator.onLine) return;
+
+    const projectManager = useProjectManagerStore.getState();
+    const project = projectManager.projects[projectId];
+    const localRevision = project?.baseCloudUpdatedAt ?? null;
+
+    let serverUpdatedAt: string | null = null;
+    try {
+      serverUpdatedAt = await ProjectService.getProjectUpdatedAt(projectId);
+    } catch (error) {
+      console.warn('Failed to fetch server revision for project:', error);
+      return;
+    }
+
+    const toMs = (value: string | null) => (value ? new Date(value).getTime() : null);
+    const isSameMs = (a: string | null, b: string | null) => {
+      const aMs = toMs(a);
+      const bMs = toMs(b);
+      return aMs !== null && bMs !== null && aMs === bMs;
+    };
+
+    const decision =
+      serverUpdatedAt && localRevision && isSameMs(serverUpdatedAt, localRevision)
+        ? 'use_local'
+        : 'refresh_from_cloud';
+
+    console.log('@@@ OPEN REV CHECK', {
+      projectId,
+      localRevision,
+      serverUpdatedAt,
+      decision
+    });
+
+    if (serverUpdatedAt) {
+      if (import.meta.env.DEV) {
+        console.log('@@@ BASE SET', {
+          projectId,
+          value: serverUpdatedAt,
+          source: 'cloudProjectSync.refreshProjectIfStale'
+        });
+      }
+      projectManager.setProjectCloudUpdatedAt(projectId, serverUpdatedAt);
+    }
+
+    if (decision === 'refresh_from_cloud') {
+      await this.loadFullProject(projectId, { force: true });
+    }
+  }
+
+  private static ensureMinimumProjectShape(projectId: string, projectData: ProjectData): ProjectData {
+    let didNormalize = false;
+
+    const pages = Array.isArray(projectData.pages) ? projectData.pages : [];
+    const hasPages = pages.length > 0;
+    const normalizedPages = hasPages ? pages : [createDefaultPage('Page 1')];
+    if (!hasPages) {
+      didNormalize = true;
+    }
+
+    const shotOrder = Array.isArray(projectData.shotOrder) ? projectData.shotOrder : [];
+    if (!Array.isArray(projectData.shotOrder)) {
+      didNormalize = true;
+    }
+
+    const existingSettings = projectData.projectSettings ?? ({} as ProjectData['projectSettings']);
+    const existingTemplateSettings = existingSettings.templateSettings ?? {};
+    const normalizedShotFormat =
+      typeof existingTemplateSettings.shotNumberFormat === 'string' &&
+      existingTemplateSettings.shotNumberFormat.trim() !== ''
+        ? existingTemplateSettings.shotNumberFormat
+        : CloudProjectSyncService.DEFAULT_SHOT_NUMBER_FORMAT;
+
+    if (normalizedShotFormat !== existingTemplateSettings.shotNumberFormat) {
+      didNormalize = true;
+    }
+
+    const normalizedProjectName =
+      typeof existingSettings.projectName === 'string' &&
+      existingSettings.projectName.trim() !== ''
+        ? existingSettings.projectName
+        : `Project ${projectId.slice(0, 8)}`;
+
+    if (normalizedProjectName !== existingSettings.projectName) {
+      didNormalize = true;
+    }
+
+    if (didNormalize && import.meta.env.DEV) {
+      console.warn('[CloudProjectSyncService] Normalized project shape', { projectId });
+    }
+
+    if (!didNormalize) {
+      return projectData;
+    }
+
+    return {
+      ...projectData,
+      pages: normalizedPages,
+      shotOrder,
+      projectSettings: {
+        projectName: normalizedProjectName,
+        projectInfo: existingSettings.projectInfo ?? '',
+        projectLogoUrl: existingSettings.projectLogoUrl ?? null,
+        clientAgency: existingSettings.clientAgency ?? '',
+        jobInfo: existingSettings.jobInfo ?? '',
+        templateSettings: {
+          ...CloudProjectSyncService.DEFAULT_TEMPLATE_SETTINGS,
+          ...existingTemplateSettings,
+          shotNumberFormat: normalizedShotFormat,
+        },
+        storyboardTheme: existingSettings.storyboardTheme,
+      },
+    };
   }
 
   /**

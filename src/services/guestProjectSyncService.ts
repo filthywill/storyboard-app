@@ -2,8 +2,11 @@ import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { useAuthStore } from '@/store/authStore';
 import { ProjectService } from './projectService';
 import { CloudSyncService } from './cloudSyncService';
+import { CloudAccessService } from './cloudAccessService';
 import { toast } from 'sonner';
 import { LocalStorageManager } from '@/utils/localStorageManager';
+import { getProjectConflictState } from '@/utils/projectConflict';
+import { useProjectConflictStore } from '@/store/projectConflictStore';
 
 export class GuestProjectSyncService {
   private static isSyncing = false;
@@ -24,10 +27,33 @@ export class GuestProjectSyncService {
       return;
     }
 
+    const access = await CloudAccessService.getAccessState();
+    if (!access.canReadCloud) {
+      console.log('Cloud access unavailable, skipping guest project sync');
+      return;
+    }
+
+    if (!access.canCreateCloudProject) {
+      console.log('Cloud project limit reached, skipping guest project sync');
+      return;
+    }
+
+    if (useProjectConflictStore.getState().isOpen) {
+      console.log('Conflict dialog open, skipping guest project sync');
+      return;
+    }
+
     this.isSyncing = true;
 
     try {
       const projectManager = useProjectManagerStore.getState();
+      const conflictState = getProjectConflictState(projectManager.getAllProjects());
+
+      if (conflictState.hasConflict) {
+        console.log('Conflict state detected, skipping guest project sync');
+        return;
+      }
+
       // CRITICAL FIX: Only sync projects that are BOTH isLocal AND have actual data
       const localProjects = projectManager.getAllProjects().filter(p => {
         // Must be marked as local
@@ -47,6 +73,11 @@ export class GuestProjectSyncService {
 
       if (localProjects.length === 0) {
         console.log('No local projects to sync');
+        return;
+      }
+
+      if (access.plan === 'free' && access.cloudProjectLimit === 1 && localProjects.length > 1) {
+        console.warn('Multiple local projects detected on free plan, skipping auto-migration');
         return;
       }
 
@@ -178,19 +209,49 @@ export class GuestProjectSyncService {
 
           // Create or update cloud project
           if (cloudProject) {
-            await ProjectService.saveProject(localProject.id, projectData);
+            let baseUpdatedAt = cloudProject.data_updated_at || null;
+            if (!baseUpdatedAt) {
+              try {
+                baseUpdatedAt = await ProjectService.getProjectUpdatedAt(localProject.id);
+              } catch (error) {
+                console.warn('Failed to fetch project_data.updated_at for project:', error);
+              }
+            }
+            const updatedAt = await ProjectService.saveProject(
+              localProject.id,
+              projectData,
+              baseUpdatedAt
+            );
+            CloudSyncService.markProjectAsCloudBacked(localProject.id);
+            if (import.meta.env.DEV) {
+              console.log('@@@ BASE SET', {
+                projectId: localProject.id,
+                value: updatedAt,
+                source: 'guestProjectSync.updateCloudProject'
+              });
+            }
+            useProjectManagerStore.getState().setProjectCloudUpdatedAt(localProject.id, updatedAt);
             console.log(`Updated cloud project: ${localProject.name}`);
             
             // Migrate images if they exist
             await this.migrateImagesToCloud(localProject.id, projectData.shots);
           } else {
             // Create new cloud project with existing ID
-            await CloudSyncService.createCloudProject(
+            const createdUpdatedAt = await CloudSyncService.createCloudProject(
               localProject.id,
               localProject.name,
               localProject.description
             );
-            await ProjectService.saveProject(localProject.id, projectData);
+            CloudSyncService.markProjectAsCloudBacked(localProject.id);
+            const updatedAt = await ProjectService.saveProject(localProject.id, projectData, createdUpdatedAt);
+            if (import.meta.env.DEV) {
+              console.log('@@@ BASE SET', {
+                projectId: localProject.id,
+                value: updatedAt,
+                source: 'guestProjectSync.createCloudProject'
+              });
+            }
+            useProjectManagerStore.getState().setProjectCloudUpdatedAt(localProject.id, updatedAt);
             console.log(`Created cloud project: ${localProject.name}`);
             
             // Migrate images to cloud storage
@@ -221,7 +282,22 @@ export class GuestProjectSyncService {
                 }
               };
               
-              await ProjectService.saveProject(localProject.id, updatedProjectData);
+              const updatedAtAfterMigration = await ProjectService.saveProject(
+                localProject.id,
+                updatedProjectData,
+                createdUpdatedAt
+              );
+              if (import.meta.env.DEV) {
+                console.log('@@@ BASE SET', {
+                  projectId: localProject.id,
+                  value: updatedAtAfterMigration,
+                  source: 'guestProjectSync.migrateImages'
+                });
+              }
+              useProjectManagerStore.getState().setProjectCloudUpdatedAt(
+                localProject.id,
+                updatedAtAfterMigration
+              );
               console.log('Project updated with migrated image URLs');
             }
           }

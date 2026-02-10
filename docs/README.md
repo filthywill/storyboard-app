@@ -39,8 +39,8 @@ Feature implementation documentation
 - **PERCENTAGE_OFFSET_IMPLEMENTATION.md** - Offset system details
 
 ### 🔄 [`sync-and-data/`](sync-and-data/)
-Data synchronization and offline/online behavior
-- **TIMESTAMP_SYNC_IMPLEMENTATION.md** - Conflict resolution
+Data synchronization, offline/online behavior, autosave
+- **TIMESTAMP_SYNC_IMPLEMENTATION.md** - Conflict resolution, atomic saves, autosave architecture
 - **TESTING_GUIDE_TIMESTAMP_SYNC.md** - Sync testing scenarios
 - **BACKGROUND_SYSTEM_DOCUMENTATION.md** - Background system docs
 
@@ -84,8 +84,8 @@ Documentation maintenance and reference guides
 - **QUICK_REFERENCE.md** - Quick reference card
 
 ### 💼 [`business/`](business/)
-Business-related documentation
-- **Stripe_billing_notes.md** - Billing integration notes
+Business logic, billing, and security
+- **Stripe_billing_notes.md** - Complete Stripe billing reference (plans, gating, edge functions, env setup)
 - **SECURITY.md** - Security policies
 
 ### 📝 [`drafts/`](drafts/)
@@ -115,10 +115,14 @@ Work-in-progress documentation
 2. Read: [`architecture/UI_STATE_HANDLING.md`](architecture/UI_STATE_HANDLING.md) (emergency fixes)
 3. Check: Index.tsx state handling logic
 
+### "I'm working on billing or writer leases"
+1. Read: [`business/Stripe_billing_notes.md`](business/Stripe_billing_notes.md) (billing reference)
+2. Read: [`architecture/ARCHITECTURE_PRINCIPLES.md`](architecture/ARCHITECTURE_PRINCIPLES.md) (Principles 8-9)
+3. Read: [`architecture/UI_STATE_HANDLING.md`](architecture/UI_STATE_HANDLING.md) (read-only overlay, workspace states)
+
 ### "I'm adding a new feature"
 1. Read: [`architecture/ARCHITECTURE_PRINCIPLES.md`](architecture/ARCHITECTURE_PRINCIPLES.md)
 2. Read: [`../.cursorrules`](../.cursorrules)
-3. Read: [`../shot-flow-builder/CLAUDE.md`](../shot-flow-builder/CLAUDE.md) (kept at shot-flow-builder root)
 
 ---
 
@@ -177,21 +181,26 @@ Documentation should be updated **in the same session** as code changes.
 
 ## 📅 Recent Updates
 
+### February 9, 2026 - Major Feature Documentation Update
+- ✅ Writer lease (single-writer enforcement) — Principle 8
+- ✅ Plan-based gating / Stripe billing — Principle 9
+- ✅ Autosave overhaul (intent-based, atomic saves, conflict handling)
+- ✅ Email confirmation, workspace mode, read-only overlay states
+- ✅ Expanded billing notes to structured reference
+- ✅ Updated testing checklists and dev how-tos
+
 ### January 7, 2026 - Documentation Reorganization
 - ✅ Created structured `/docs` directory
 - ✅ Organized files into logical categories
 - ✅ Updated all path references
 - ✅ Maintained `.cursorrules` at root (required)
-- ✅ Improved discoverability and maintainability
 
 ### January 15, 2025 - Color System Migration
 - ✅ Completed Phases 4-6 color system migration
 - ✅ Migrated 11 components to centralized color system
-- ✅ Added new color categories (overlayButton, status glows, text variants)
 
 ### October 30, 2025 - Semantic Separation
 - ✅ Added semantic color separation to unified styling system
-- ✅ Introduced button.* and input.* color categories
 - ✅ Added Principle 7 to ARCHITECTURE_PRINCIPLES.md
 
 ---
@@ -204,7 +213,7 @@ Documentation should be updated **in the same session** as code changes.
 
 ---
 
-*Last Updated: January 7, 2026*
+*Last Updated: February 9, 2026*
 
 **Need help?** Start with the [Complete Documentation Index](maintenance/DOCUMENTATION_INDEX.md)
 

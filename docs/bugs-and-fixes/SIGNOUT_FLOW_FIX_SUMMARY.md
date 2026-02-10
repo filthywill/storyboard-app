@@ -1,5 +1,7 @@
 # Sign-Out Flow Fix - Dead-End Page Issue
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical; current equivalents are under repo root (e.g., `src/`, `docs/`).
+
 ## 🔴 Issue Resolved
 
 **Problem**: After signing out, users were landing on a "No Pages Found" dead-end screen instead of the Welcome screen.
@@ -47,7 +49,7 @@ The old code checked for "no pages found" BEFORE checking authentication status,
 
 ### Fix #1: Restructured Conditional Rendering in Index.tsx
 
-**File**: `shot-flow-builder/src/pages/Index.tsx`
+**File**: `src/pages/Index.tsx`
 
 **Changes**:
 - Moved all state-based conditionals to follow the official state decision tree from `../architecture/UI_STATE_HANDLING.md`
@@ -80,7 +82,7 @@ if (!isAuthenticated) {
 
 ### Fix #2: Clear All Projects on Sign-Out
 
-**File**: `shot-flow-builder/src/utils/projectSwitcher.ts`
+**File**: `src/utils/projectSwitcher.ts`
 
 **Changes**:
 - Modified `clearCurrentProjectData()` to also clear the entire projects list
@@ -102,7 +104,7 @@ if (!isAuthenticated) {
 
 ### Fix #3: Conditional initializeAppContent() Call
 
-**File**: `shot-flow-builder/src/pages/Index.tsx`
+**File**: `src/pages/Index.tsx`
 
 **Changes**:
 - Changed `initializeAppContent()` from unconditional call to conditional
@@ -128,14 +130,14 @@ if (!isAuthenticated) {
 
 ### Fix #4: Template Background Component
 
-**File**: `shot-flow-builder/src/components/TemplateBackground.tsx` (new)
+**File**: `src/components/TemplateBackground.tsx` (new)
 
 **Changes**:
 - Created dedicated `TemplateBackground` component for empty state display
 - Shows a visual storyboard template with empty shot placeholders
 - Replaces the problematic fake page approach that caused "Page Not Found" errors
 
-**File**: `shot-flow-builder/src/pages/Index.tsx`
+**File**: `src/pages/Index.tsx`
 
 **Changes**:
 - Replaced fake `emptyStatePage` with `TemplateBackground` component
@@ -265,19 +267,19 @@ Shows: "Sign In / Sign Up" + "Create Test Project"
 
 ## 📁 Files Modified
 
-1. **shot-flow-builder/src/pages/Index.tsx**
+1. **src/pages/Index.tsx**
    - Restructured conditional rendering to follow official state decision tree
    - Removed duplicate full-screen state handlers
    - Made `initializeAppContent()` conditional (guest users only)
    - Added explicit checks for all authentication states
    - Replaced fake page approach with `TemplateBackground` component
 
-2. **shot-flow-builder/src/utils/projectSwitcher.ts**
+2. **src/utils/projectSwitcher.ts**
    - Modified `clearCurrentProjectData()` to clear entire projects list
    - Added state reset for `projectManagerStore`
    - Added comments explaining the reasoning
 
-3. **shot-flow-builder/src/components/TemplateBackground.tsx** (new)
+3. **src/components/TemplateBackground.tsx** (new)
    - Created dedicated component for empty state background display
    - Shows visual storyboard template with empty shot placeholders
    - Follows existing component patterns and styling conventions

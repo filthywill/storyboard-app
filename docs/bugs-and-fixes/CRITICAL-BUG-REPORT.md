@@ -1,5 +1,7 @@
 # CRITICAL BUG REPORT: Data Corruption in Cloud Projects
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical; current equivalents are under repo root (e.g., `src/`, `docs/`).
+
 ## 🔴 **SEVERITY: CRITICAL** - Data Loss Bug
 
 ### Date Identified
@@ -79,7 +81,7 @@ When user logs in and selects GoogleTest:
 ## 🐛 The Bugs
 
 ### Bug #1: Unconditional `initializeAppContent()` Call
-**File**: `shot-flow-builder/src/pages/Index.tsx` line 54
+**File**: `src/pages/Index.tsx` line 54
 
 **Problem**: Called for ALL users during app initialization, creating phantom project data before a project is selected.
 
@@ -93,7 +95,7 @@ When user logs in and selects GoogleTest:
 **Impact**: Saves wrong data to wrong project
 
 ### Bug #3: No Save Validation
-**File**: `shot-flow-builder/src/services/cloudSyncService.ts`
+**File**: `src/services/cloudSyncService.ts`
 
 **Problem**: Doesn't validate that the data being saved matches the project it's being saved to
 

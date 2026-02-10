@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { renumberingOptimizer } from '@/utils/renumberingOptimizer';
 import { formatShotNumber } from '@/utils/formatShotNumber';
-import { triggerAutoSave, triggerImmediateSave } from '@/utils/autoSave';
 import { BackgroundSyncService } from '@/services/backgroundSyncService';
 
 export interface Shot {
@@ -140,9 +139,6 @@ export const useShotStore = create<ShotStore>()(
           state.shotOrder.push(shotId);
         });
         
-        // Trigger auto-save after creating shot
-        triggerAutoSave();
-        
         return shotId;
       },
 
@@ -199,8 +195,6 @@ export const useShotStore = create<ShotStore>()(
           }
         }
         
-        // Trigger immediate save for deletion (critical operation)
-        triggerImmediateSave();
       },
 
       updateShot: (shotId, updates) => {
@@ -238,8 +232,6 @@ export const useShotStore = create<ShotStore>()(
           }
         }
         
-        // Trigger auto-save after shot update
-        triggerAutoSave();
       },
 
       duplicateShot: (shotId) => {
@@ -265,9 +257,6 @@ export const useShotStore = create<ShotStore>()(
             state.shotOrder.push(newShotId);
           }
         });
-
-        // Trigger auto-save after duplicating shot
-        triggerAutoSave();
 
         return newShotId;
       },

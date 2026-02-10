@@ -12,12 +12,16 @@ export class StorageService {
     if (!user.data.user) throw new Error('Not authenticated')
     
     // Check if there's an existing image for this shot and clean it up
-    const { data: existingImage } = await supabase
+    const { data: existingImage, error: existingImageError } = await supabase
       .from('project_images')
       .select('storage_path')
       .eq('project_id', projectId)
       .eq('shot_id', shotId)
-      .single()
+      .maybeSingle()
+    
+    if (existingImageError) {
+      throw existingImageError;
+    }
     
     // Create unique file path: userId/projectId/shotId-timestamp.ext
     const fileExt = file.name.split('.').pop()
@@ -86,12 +90,16 @@ export class StorageService {
     if (!user.data.user) throw new Error('Not authenticated')
     
     // Check if there's an existing logo for this project and clean it up
-    const { data: existingLogo } = await supabase
+    const { data: existingLogo, error: existingLogoError } = await supabase
       .from('project_images')
       .select('storage_path')
       .eq('project_id', projectId)
       .eq('shot_id', 'project-logo')
-      .single()
+      .maybeSingle()
+    
+    if (existingLogoError) {
+      throw existingLogoError;
+    }
     
     // Create unique file path: userId/projectId/project-logo-timestamp.ext
     const fileExt = file.name.split('.').pop()
@@ -278,12 +286,16 @@ export class StorageService {
    */
   static async getProjectLogo(projectId: string): Promise<string | null> {
     try {
-      const { data: existingLogo } = await supabase
+      const { data: existingLogo, error: existingLogoError } = await supabase
         .from('project_images')
         .select('storage_path')
         .eq('project_id', projectId)
         .eq('shot_id', 'project-logo')
-        .single()
+        .maybeSingle()
+      
+      if (existingLogoError) {
+        throw existingLogoError;
+      }
       
       return existingLogo?.storage_path || null;
     } catch (error) {
@@ -298,12 +310,16 @@ export class StorageService {
   static async deleteProjectLogo(projectId: string): Promise<void> {
     try {
       // Get the existing logo record
-      const { data: existingLogo } = await supabase
+      const { data: existingLogo, error: existingLogoError } = await supabase
         .from('project_images')
         .select('storage_path')
         .eq('project_id', projectId)
         .eq('shot_id', 'project-logo')
-        .single()
+        .maybeSingle()
+      
+      if (existingLogoError) {
+        throw existingLogoError;
+      }
       
       if (existingLogo?.storage_path) {
         // Delete from storage

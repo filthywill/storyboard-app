@@ -8,11 +8,16 @@
  * - '001' = zero-pad to 3 digits, starts from 1
  * - '100' = zero-pad to 3 digits, starts from 100
  */
+const DEFAULT_SHOT_NUMBER_FORMAT = '01';
+
 export function formatShotNumber(
   position: number, 
-  format: string, 
+  format: string | null | undefined, 
   subShotLetter?: string
 ): string {
+  if (typeof format !== 'string' || format.trim() === '') {
+    format = DEFAULT_SHOT_NUMBER_FORMAT;
+  }
   // Parse the format to extract prefix, padding, and starting number
   const numericPartMatch = format.match(/\d+$/);
   
@@ -44,6 +49,9 @@ export function parseFormat(format: string): {
   padding: number;
   startingNumber: number;
 } {
+  if (typeof format !== 'string' || format.trim() === '') {
+    return { prefix: '', padding: 2, startingNumber: 1 };
+  }
   const numericPartMatch = format.match(/\d+$/);
   
   if (!numericPartMatch) {

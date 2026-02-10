@@ -15,6 +15,13 @@ import { useAuthStore } from '@/store/authStore';
 import { LocalStorageManager } from './localStorageManager';
 import { withOperation } from '@/utils/operations';
 import { Telemetry } from '@/utils/telemetry';
+import { toast } from 'sonner';
+import { getProjectOpenState } from '@/services/projectOpenGate';
+import { getWorkspaceMode, setWorkspaceMode } from '@/services/workspaceModeService';
+import { CloudAccessService } from '@/services/cloudAccessService';
+import { useCloudSaveConflictStore } from '@/store/cloudSaveConflictStore';
+import { setSavePaused } from '@/utils/autoSave';
+import { CloudProjectSyncService } from '@/services/cloudProjectSyncService';
 
 export class ProjectSwitcher {
   private static isSwitching = false;
@@ -29,7 +36,7 @@ export class ProjectSwitcher {
   /**
    * Save the current project data
    */
-  static async saveCurrentProject(): Promise<boolean> {
+  static async saveCurrentProject(isManual: boolean = true): Promise<boolean> {
     try {
       const projectManager = useProjectManagerStore.getState();
       const currentProjectId = projectManager.currentProjectId;
@@ -46,8 +53,17 @@ export class ProjectSwitcher {
       if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
         try {
           const { CloudSyncService } = await import('@/services/cloudSyncService');
-          await CloudSyncService.saveProject(currentProjectId, true);
-          console.log('Project saved to cloud successfully');
+          const result = await CloudSyncService.saveProject(currentProjectId, isManual);
+          if (result.ok) {
+            console.log('Project saved to cloud successfully');
+          } else {
+            console.warn('Cloud save skipped or failed:', result.reason);
+            Telemetry.event('project.save.cloud_failed', {
+              projectId: currentProjectId,
+              reason: result.reason,
+              queued: result.queued
+            });
+          }
         } catch (error) {
           console.warn('Failed to save to cloud, but local save succeeded:', error);
         }
@@ -64,10 +80,16 @@ export class ProjectSwitcher {
    * Switch to a different project
    * This saves current data and loads new project data
    */
-  static async switchToProject(projectId: string, skipSaveCurrent: boolean = false): Promise<boolean> {
+  static async switchToProject(
+    projectId: string,
+    skipSaveCurrent: boolean = false,
+    forceReload: boolean = false
+  ): Promise<boolean> {
     return withOperation<boolean>(async () => {
       Telemetry.event('project.switch.begin', { projectId, skipSaveCurrent });
       const endTimer = Telemetry.timer('project.switch.duration');
+      useCloudSaveConflictStore.getState().clearPause();
+      setSavePaused(false, 'project_switch');
 
       // Validate project exists
       const projectManager = useProjectManagerStore.getState();
@@ -81,10 +103,45 @@ export class ProjectSwitcher {
       // Get current project ID for comparison
       const currentProjectId = projectManager.currentProjectId;
       if (currentProjectId === projectId) {
-        console.log('Already on this project, no switch needed');
-        Telemetry.event('project.switch.noop', { projectId });
-        endTimer.end({ projectId, success: true, noop: true });
-        return true;
+        if (!forceReload) {
+          console.log('Already on this project, no switch needed');
+          Telemetry.event('project.switch.noop', { projectId });
+          endTimer.end({ projectId, success: true, noop: true });
+          return true;
+        }
+
+        console.log('🔄 Reloading current project from local storage...');
+        this.isSwitching = true;
+        try {
+          const loadSuccess = this.loadProjectData(projectId);
+          if (!loadSuccess) {
+            Telemetry.event('project.switch.error', { projectId, reason: 'reload-failed' });
+            endTimer.end({ projectId, success: false });
+            return false;
+          }
+          this.updateProjectMetadata(projectId, false);
+          try {
+            const { reconcileFromShotOrderNonHook } = await import('@/utils/reconcile');
+            reconcileFromShotOrderNonHook();
+          } catch (reconcileError) {
+            console.warn('Layout reconciliation failed:', reconcileError);
+          }
+          Telemetry.event('project.switch.reload', { projectId });
+          endTimer.end({ projectId, success: true, reload: true });
+          return true;
+        } finally {
+          this.isSwitching = false;
+        }
+      }
+
+      const openState = await getProjectOpenState(projectId);
+      if (!openState.allowed) {
+        Telemetry.event('project.switch.blocked', {
+          projectId,
+          reason: openState.reason
+        });
+        endTimer.end({ projectId, success: false, blocked: openState.reason });
+        return false;
       }
 
       console.log(`🔄 Starting project switch: ${currentProjectId} → ${projectId}`);
@@ -111,6 +168,17 @@ export class ProjectSwitcher {
       
       // Step 3: Load new project data with timeout protection
       try {
+        const targetProject = projectManager.projects[projectId];
+        const shouldCheckRevision =
+          (targetProject?.isCloudOnly || targetProject?.isCloudBacked) &&
+          import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true';
+        if (shouldCheckRevision) {
+          try {
+            await CloudProjectSyncService.refreshProjectIfStale(projectId);
+          } catch (error) {
+            console.warn('Failed to refresh project from cloud:', error);
+          }
+        }
         const loadSuccess = await Promise.race([
           new Promise<boolean>((resolve) => {
             const result = this.loadProjectData(projectId);
@@ -377,57 +445,67 @@ export class ProjectSwitcher {
   static async createAndSwitchToProject(name: string, description?: string): Promise<string | null> {
     try {
       const projectManager = useProjectManagerStore.getState();
-      
-      if (!projectManager.canCreateProject()) {
+  
+      // ✅ Declare ONCE, at the top
+      const { isAuthenticated } = useAuthStore.getState();
+  
+      // Optional: only enforce local gate for unauthenticated users
+      if (!isAuthenticated && !projectManager.canCreateProject()) {
         throw new Error(`Cannot create more than ${projectManager.maxProjects} projects`);
       }
-
+  
       // Save current project first (if any)
       const currentProjectId = projectManager.currentProjectId;
       if (currentProjectId) {
         this.saveCurrentProjectState(currentProjectId);
       }
-
+  
       let projectId: string;
-
-      // Apply default state directly to stores FIRST (don't load from localStorage)
+  
       this.applyDefaultStateToStores(name);
-      
-      // Check if cloud sync is enabled and user is authenticated
-      const { isAuthenticated } = useAuthStore.getState();
+  
       if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true' && isAuthenticated) {
         try {
-          // Try to create cloud project first
           const { CloudSyncService } = await import('@/services/cloudSyncService');
           projectId = await CloudSyncService.createProject(name, description);
-          console.log('Created cloud project:', projectId);
-          
-          // Create local project metadata with the same ID as cloud project
-          projectManager.createProjectWithId(projectId, name, description);
-        } catch (error) {
-          console.warn('Failed to create cloud project, falling back to local:', error);
-          // Fallback to local project
+          projectManager.createProjectWithId(projectId, name, description, true);
+        } catch (error: any) {
+          const isUpgradeRequired =
+            error?.code === "UPGRADE_REQUIRED" ||
+            error?.name === "UpgradeRequiredError" ||
+            String(error?.message || "").includes("Upgrade");
+  
+          if (isUpgradeRequired) {
+            throw error;
+          }
+  
           projectId = projectManager.createProject(name, description);
           this.initializeNewProjectWithDefaults(projectId, name);
         }
       } else {
-        // Create local project
         projectId = projectManager.createProject(name, description);
         this.initializeNewProjectWithDefaults(projectId, name);
       }
-      
-      // Update project manager to point to new project
+  
       projectManager.setCurrentProject(projectId);
-      
-      // Update project metadata
       this.updateProjectMetadata(projectId);
-
+  
       return projectId;
-    } catch (error) {
+    } catch (error: any) {
+      const isUpgradeRequired =
+        error?.code === "UPGRADE_REQUIRED" ||
+        error?.name === "UpgradeRequiredError" ||
+        String(error?.message || "").includes("Upgrade");
+  
+      if (isUpgradeRequired) {
+        throw error;
+      }
+  
       console.error('Error creating new project:', error);
       return null;
     }
   }
+  
 
   /**
    * Delete a project and handle cleanup with graceful fallback
@@ -490,8 +568,28 @@ export class ProjectSwitcher {
         console.log('Remaining projects:', remainingProjects.length);
         
         if (remainingProjects.length > 0) {
-          // Switch to the first remaining project
-          const fallbackProjectId = remainingProjects[0].id;
+          const accessState = await CloudAccessService.getAccessState();
+          const workspaceMode = getWorkspaceMode(accessState.userId);
+          const prefersCloud = workspaceMode === 'cloud';
+          const isCloudProject = (project: any) =>
+            project.isCloudOnly || project.isCloudBacked;
+
+          const preferred = remainingProjects.find((project) =>
+            prefersCloud ? isCloudProject(project) : !isCloudProject(project)
+          );
+          const fallbackProject = preferred ?? remainingProjects[0];
+          const fallbackProjectId = fallbackProject.id;
+
+          if (
+            accessState.isAuthenticated &&
+            accessState.userId &&
+            ((prefersCloud && !isCloudProject(fallbackProject)) ||
+              (!prefersCloud && isCloudProject(fallbackProject)))
+          ) {
+            const nextMode = isCloudProject(fallbackProject) ? 'cloud' : 'local';
+            setWorkspaceMode(nextMode, accessState.userId);
+          }
+
           try {
             const switchSuccess = this.loadProjectData(fallbackProjectId);
             if (switchSuccess) {
@@ -514,11 +612,17 @@ export class ProjectSwitcher {
             }
           }
         } else {
-          // This was the last project, clear current project ID
-          console.log('Last project deleted, clearing current project');
-          projectManager.setCurrentProject(null);
-          
-          // Don't create a fallback project - let empty state show
+          console.log('Last project deleted, creating a local fallback project');
+          const newProjectId = await this.createFallbackProject();
+          if (!newProjectId) {
+            console.error('Failed to create fallback project');
+            this.emergencyReset();
+          }
+
+          const accessState = await CloudAccessService.getAccessState();
+          if (accessState.isAuthenticated && accessState.userId) {
+            setWorkspaceMode('local', accessState.userId);
+          }
         }
       }
 

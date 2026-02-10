@@ -34,7 +34,7 @@ class BackgroundSyncServiceClass {
   private readonly BATCH_SIZE = 5;
   private readonly RETRY_DELAYS = [1000, 2000, 4000]; // 1s, 2s, 4s
   private deletedShots: Set<string> = new Set();
-  private isProcessingOfflineQueue = false;
+  private offlineQueueProcessing = false;
 
   constructor() {
     this.loadQueueFromStorage();
@@ -104,7 +104,7 @@ class BackgroundSyncServiceClass {
         const { CloudSyncService } = await import('@/services/cloudSyncService');
         if (CloudSyncService.hasQueuedChanges()) {
           console.log('Processing queued project data changes...');
-          this.isProcessingOfflineQueue = true;
+          this.offlineQueueProcessing = true;
           
           await CloudSyncService.replayQueue();
           console.log('✅ Queued project data changes synced to cloud');
@@ -114,11 +114,11 @@ class BackgroundSyncServiceClass {
           await new Promise(resolve => setTimeout(resolve, 5000));
           console.log('✅ Auto-save and cloud loading conflict prevention complete');
           
-          this.isProcessingOfflineQueue = false;
+          this.offlineQueueProcessing = false;
         }
       } catch (error) {
         console.error('Failed to process queued project data changes:', error);
-        this.isProcessingOfflineQueue = false;
+        this.offlineQueueProcessing = false;
       }
     });
 
@@ -231,11 +231,22 @@ class BackgroundSyncServiceClass {
           this.saveQueueToStorage();
           return;
         }
-        try {
-          await CloudSyncService.ensureCloudProjectRecord(item.projectId);
-        } catch {
-          // Leave as pending to retry later
-          item.status = 'pending';
+        const recordCheck = await CloudSyncService.checkCloudProjectRecord(item.projectId);
+        if (!recordCheck.exists) {
+          const errorCode = (recordCheck.error as any)?.code;
+          if (errorCode === '42501' || errorCode === 'CLOUD_PROJECT_LIMIT') {
+            item.status = 'failed';
+            item.error = 'cloud_access_denied';
+            this.saveQueueToStorage();
+            return;
+          }
+          if (recordCheck.error) {
+            item.status = 'pending';
+            this.saveQueueToStorage();
+            return;
+          }
+          item.status = 'failed';
+          item.error = 'project_not_cloud_backed';
           this.saveQueueToStorage();
           return;
         }
@@ -266,10 +277,22 @@ class BackgroundSyncServiceClass {
           this.saveQueueToStorage();
           return;
         }
-        try {
-          await CloudSyncService.ensureCloudProjectRecord(item.projectId);
-        } catch {
-          item.status = 'pending';
+        const recordCheck = await CloudSyncService.checkCloudProjectRecord(item.projectId);
+        if (!recordCheck.exists) {
+          const errorCode = (recordCheck.error as any)?.code;
+          if (errorCode === '42501' || errorCode === 'CLOUD_PROJECT_LIMIT') {
+            item.status = 'failed';
+            item.error = 'cloud_access_denied';
+            this.saveQueueToStorage();
+            return;
+          }
+          if (recordCheck.error) {
+            item.status = 'pending';
+            this.saveQueueToStorage();
+            return;
+          }
+          item.status = 'failed';
+          item.error = 'project_not_cloud_backed';
           this.saveQueueToStorage();
           return;
         }
@@ -413,7 +436,7 @@ class BackgroundSyncServiceClass {
    * Check if offline queue is being processed
    */
   public isProcessingOfflineQueue(): boolean {
-    return this.isProcessing;
+    return this.offlineQueueProcessing;
   }
 
   public retryFailed(): void {

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,6 +13,7 @@ import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styl
 import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 import { AuthModal } from '@/components/AuthModal';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
+import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
 import { 
   FolderOpen, 
   Plus, 
@@ -22,13 +24,26 @@ import {
   RotateCcw,
   Cloud,
   WifiOff,
-  ArrowUpDown
+  ArrowUpDown,
+  Lock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { StorageManager } from '@/utils/storageManager';
 import { LoadingModal } from '@/components/LoadingModal';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useAuthStore } from '@/store/authStore';
+import { canCreateProjectServerSide } from '@/utils/projectCreationGate';
+import { useProjectConflictStore } from '@/store/projectConflictStore';
+import { CloudAccessService, type CloudAccessState } from '@/services/cloudAccessService';
+import { getProjectOpenState, type ProjectKind } from '@/services/projectOpenGate';
+import {
+  getWorkspaceMode,
+  onWorkspaceModeChange,
+  setWorkspaceMode,
+  type WorkspaceMode,
+} from '@/services/workspaceModeService';
+import { WorkspaceChoiceModal } from '@/components/WorkspaceChoiceModal';
+import { LockedProjectModal } from '@/components/LockedProjectModal';
 
 export interface ProjectDropdownProps {
   /** Whether to use compact styling (for toolbars) */
@@ -48,18 +63,107 @@ export const ProjectDropdown = ({
     deleteProject,
     canCreateProject,
   } = useAppStore();
-  
+
+  const { isAuthenticated, user } = useAuthStore();
+  const { isOnline } = useNetworkStatus();
+  const navigate = useNavigate();
+
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [loadingProjectName, setLoadingProjectName] = useState('');
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { isOnline } = useNetworkStatus();
-  const { isAuthenticated } = useAuthStore();
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [showWorkspaceChoice, setShowWorkspaceChoice] = useState(false);
+  const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>(() =>
+    getWorkspaceMode(user?.id)
+  );
+  const [accessState, setAccessState] = useState<CloudAccessState | null>(null);
+  const [lockedProject, setLockedProject] = useState<{
+    id: string;
+    name: string;
+    requiredMode: WorkspaceMode;
+    projectKind: ProjectKind;
+  } | null>(null);
+  useEffect(() => {
+    setWorkspaceModeState(getWorkspaceMode(user?.id));
+    const unsubscribe = onWorkspaceModeChange((detail) => {
+      if (detail.userId === user?.id) {
+        setWorkspaceModeState(detail.mode);
+      }
+    });
+    return () => unsubscribe();
+  }, [user?.id]);
+
+  useEffect(() => {
+    let active = true;
+    if (!isAuthenticated) {
+      setAccessState(null);
+      setLockedProject(null);
+      setShowWorkspaceChoice(false);
+      return;
+    }
+    CloudAccessService.getAccessState()
+      .then((state) => {
+        if (active) setAccessState(state);
+      })
+      .catch(() => {
+        if (active) setAccessState(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, user?.id, allProjects.length]);
 
   // Get sorted projects
   const { getProjectsSortedBy } = useAppStore();
   const sortedProjects = getProjectsSortedBy(sortBy);
+  const visibleProjects = sortedProjects ?? [];
+  const hasLocalProjects = allProjects.some(
+    (project) => project.isLocal && !project.isCloudOnly && !project.isCloudBacked
+  );
+  const hasCloudProjects = allProjects.some(
+    (project) => project.isCloudOnly || project.isCloudBacked
+  );
+  const isWorkspaceConflict =
+    Boolean(isAuthenticated) &&
+    accessState?.plan === 'free' &&
+    !accessState?.canCreateCloudProject &&
+    hasLocalProjects &&
+    hasCloudProjects;
+
+  const shouldSuppressSwitchError = () => {
+    const { lastBlockedReason, clearBlockedReason } = useProjectConflictStore.getState();
+    if (lastBlockedReason) {
+      clearBlockedReason();
+      return true;
+    }
+    return false;
+  };
+
+  const handleRequestCreateProject = async () => {
+    if (!isAuthenticated) {
+      if (!canCreateProject()) {
+        setShowLimitDialog(true);
+        return;
+      }
+      onRequestCreate?.();
+      return;
+    }
+
+    try {
+      const canCreate = await canCreateProjectServerSide(user?.id);
+      if (!canCreate) {
+        setShowUpgradeDialog(true);
+        return;
+      }
+
+      onRequestCreate?.();
+    } catch (error) {
+      console.error("Project gate check failed:", error);
+      toast.error("Couldn't verify your plan. Please try again.");
+    }
+  };
 
   // Fallback if project system isn't ready yet
   if (!sortedProjects) {
@@ -73,10 +177,32 @@ export const ProjectDropdown = ({
 
   // Check storage usage
   const storageSummary = StorageManager.getStorageSummary();
+  const storageQuota = StorageManager.checkStorageQuota();
 
   // Enhanced project selection handler for cloud projects
   const handleProjectSelect = async (project: any) => {
     try {
+      const openState = await getProjectOpenState(project.id);
+      if (!openState.allowed) {
+        if (openState.reason === 'locked_workspace' && openState.requiredMode) {
+          setLockedProject({
+            id: project.id,
+            name: project.name,
+            requiredMode: openState.requiredMode,
+            projectKind: openState.projectKind ?? 'local',
+          });
+          return;
+        }
+
+        if (openState.reason === 'unauthenticated') {
+          setShowAuthModal(true);
+          return;
+        }
+
+        toast.error('This project is currently unavailable.');
+        return;
+      }
+
       // Check if it's a cloud-only project
       if (project.isCloudOnly) {
         // Check if online
@@ -96,12 +222,14 @@ export const ProjectDropdown = ({
 
           // Now switch to the project (loads from localStorage into stores)
           // Allow normal save of current project before switching
-          const success = await switchToProject(project.id, false);
+          const success = await switchToProject(project.id);
           
           if (success) {
             toast.success(`Loaded ${project.name}`);
           } else {
-            toast.error('Failed to switch to project');
+            if (!shouldSuppressSwitchError()) {
+              toast.error('Failed to switch to project');
+            }
           }
         } catch (error) {
           console.error('Failed to load cloud project:', error);
@@ -114,7 +242,9 @@ export const ProjectDropdown = ({
         // Regular local project switch
         const success = await switchToProject(project.id);
         if (!success) {
-          toast.error('Failed to switch to project');
+          if (!shouldSuppressSwitchError()) {
+            toast.error('Failed to switch to project');
+          }
         }
       }
     } catch (error) {
@@ -177,6 +307,38 @@ export const ProjectDropdown = ({
     }
   };
 
+  const handleWorkspaceChoice = async (mode: WorkspaceMode) => {
+    if (!user?.id) return;
+    setWorkspaceMode(mode, user.id);
+    setWorkspaceModeState(mode);
+    setShowWorkspaceChoice(false);
+
+    const target =
+      mode === 'cloud'
+        ? allProjects.find((project) => project.isCloudOnly || project.isCloudBacked)
+        : allProjects.find(
+            (project) => project.isLocal && !project.isCloudOnly && !project.isCloudBacked
+          );
+
+    if (target) {
+      await handleProjectSelect(target);
+    }
+  };
+
+  const handleLockedSwitch = async () => {
+    if (!lockedProject || !user?.id) {
+      setLockedProject(null);
+      return;
+    }
+    setWorkspaceMode(lockedProject.requiredMode, user.id);
+    setWorkspaceModeState(lockedProject.requiredMode);
+    const target = allProjects.find((project) => project.id === lockedProject.id);
+    setLockedProject(null);
+    if (target) {
+      await handleProjectSelect(target);
+    }
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -195,7 +357,7 @@ export const ProjectDropdown = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
           <div className="px-2 py-1 text-sm font-semibold text-white flex items-center justify-between">
-            <span>Projects ({sortedProjects.length}/{isAuthenticated ? '15' : '1'})</span>
+            <span>Projects ({visibleProjects.length}/{isAuthenticated ? '15' : '1'})</span>
             {/* Sort controls - moved to top right */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -214,7 +376,21 @@ export const ProjectDropdown = ({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {storageSummary.warning && (
+          {isWorkspaceConflict && isAuthenticated && (
+            <div className="px-2 py-1 text-xs text-white/80 flex items-center justify-between">
+              <span>
+                Workspace: {workspaceMode === 'cloud' ? 'Account' : 'Local'}
+              </span>
+              <button
+                type="button"
+                className="text-xs text-white/80 hover:text-white underline"
+                onClick={() => setShowWorkspaceChoice(true)}
+              >
+                Switch workspace
+              </button>
+            </div>
+          )}
+          {storageQuota.warning && (
             <div className="px-2 py-1 text-xs text-orange-400">
               Storage: {storageSummary.totalUsed.toFixed(1)}MB used
               {storageSummary.largestProject && (
@@ -224,7 +400,11 @@ export const ProjectDropdown = ({
           )}
           
           {/* Project list */}
-          {sortedProjects.map((project) => (
+          {visibleProjects.map((project) => {
+            const projectKind: ProjectKind =
+              project.isCloudOnly || project.isCloudBacked ? 'cloud' : 'local';
+            const isLocked = isWorkspaceConflict && workspaceMode !== projectKind;
+            return (
             <DropdownMenuItem
               key={project.id}
               data-project-id={project.id}
@@ -232,15 +412,31 @@ export const ProjectDropdown = ({
               disabled={project.isCloudOnly && !isOnline}
               className={`flex items-center justify-between p-1.5 ${
                 currentProject?.id === project.id ? 'bg-white/10' : ''
-              } ${project.isCloudOnly && !isOnline ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${project.isCloudOnly && !isOnline ? 'opacity-50 cursor-not-allowed' : ''} ${
+                isLocked ? 'opacity-70' : ''
+              }`}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <span className="truncate font-medium text-white">{project.name}</span>
                 {project.isCloudOnly && (
-                  <Cloud className="h-3 w-3 text-blue-400 flex-shrink-0" title="Cloud project" />
+                  <span title="Cloud project">
+                    <Cloud className="h-3 w-3 text-blue-400 flex-shrink-0" />
+                  </span>
+                )}
+                {!project.isCloudOnly && project.isCloudBacked && (
+                  <span title="Account project">
+                    <Cloud className="h-3 w-3 text-blue-400 flex-shrink-0" />
+                  </span>
                 )}
                 {project.isCloudOnly && !isOnline && (
-                  <WifiOff className="h-3 w-3 text-red-400 flex-shrink-0" title="Offline" />
+                  <span title="Offline">
+                    <WifiOff className="h-3 w-3 text-red-400 flex-shrink-0" />
+                  </span>
+                )}
+                {isLocked && (
+                  <span title="Locked workspace">
+                    <Lock className="h-3 w-3 text-yellow-400 flex-shrink-0" />
+                  </span>
                 )}
                 {project.id === currentProject?.id && (
                   <Check className="h-3 w-3 text-green-400 flex-shrink-0" />
@@ -270,9 +466,10 @@ export const ProjectDropdown = ({
                 </DropdownMenu>
               )}
             </DropdownMenuItem>
-          ))}
+          );
+          })}
           
-          {sortedProjects.length === 0 && (
+          {visibleProjects.length === 0 && (
             <div className="px-2 py-4 text-sm text-white/70 text-center">
               No projects yet
             </div>
@@ -280,20 +477,7 @@ export const ProjectDropdown = ({
           
           <div className="mt-2">
             <DropdownMenuItem 
-              onClick={() => {
-                // Check if user can create a project
-                if (!canCreateProject()) {
-                  // If not authenticated and at limit, show encouraging dialog
-                  if (!isAuthenticated) {
-                    setShowLimitDialog(true);
-                    return;
-                  }
-                  // For authenticated users, show error
-                  toast.error('Maximum number of projects reached');
-                  return;
-                }
-                onRequestCreate?.();
-              }}
+              onClick={() => void handleRequestCreateProject()}
               className="py-1.5"
               style={{
                 ...getGlassmorphismStyles('buttonAccent'),
@@ -321,12 +505,37 @@ export const ProjectDropdown = ({
         isVisible={isLoadingProject} 
         message={`Loading ${loadingProjectName}...`}
       />
+
+      <WorkspaceChoiceModal
+        isOpen={showWorkspaceChoice}
+        onClose={() => setShowWorkspaceChoice(false)}
+        onKeepLocal={() => void handleWorkspaceChoice('local')}
+        onSwitchToCloud={() => void handleWorkspaceChoice('cloud')}
+        onUpgrade={() => navigate('/billing')}
+      />
+
+      <LockedProjectModal
+        isOpen={Boolean(lockedProject)}
+        onClose={() => setLockedProject(null)}
+        onSwitchWorkspace={() => void handleLockedSwitch()}
+        onUpgrade={() => navigate('/billing')}
+        projectName={lockedProject?.name}
+        requiredMode={lockedProject?.requiredMode ?? 'local'}
+        projectKind={lockedProject?.projectKind ?? 'local'}
+        currentMode={workspaceMode}
+      />
       
       {/* Project Limit Dialog */}
       <ProjectLimitDialog
         isOpen={showLimitDialog}
         onClose={() => setShowLimitDialog(false)}
         onSignIn={() => setShowAuthModal(true)}
+      />
+
+      <UpgradeToProDialog
+        isOpen={showUpgradeDialog}
+        onClose={() => setShowUpgradeDialog(false)}
+        onUpgrade={() => navigate("/billing")}
       />
       
       {/* Auth Modal */}

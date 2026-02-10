@@ -1,5 +1,7 @@
 # Color System Migration Summary - Phases 4-6
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical; current equivalents are under repo root (e.g., `src/`, `docs/`).
+
 **Migration Date:** January 15, 2025  
 **Phases Completed:** 4, 5, 6  
 **Total Components Migrated:** 11  
@@ -323,7 +325,7 @@ These components intentionally use hardcoded colors or are theme-aware:
 
 ### **Key Documentation:**
 - `../styling/UNIFIED_COLOR_SYSTEM_IMPLEMENTATION.md` - Main color system reference
-- `shot-flow-builder/src/styles/glassmorphism-styles.ts` - Single source of truth for colors
+- `src/styles/glassmorphism-styles.ts` - Single source of truth for colors
 
 ---
 

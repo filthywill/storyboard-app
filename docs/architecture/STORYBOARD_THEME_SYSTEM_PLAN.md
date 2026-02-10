@@ -1,5 +1,7 @@
 # Storyboard Theme System - Implementation Plan
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical; current equivalents are under repo root (e.g., `src/`, `docs/`).
+
 **Date:** December 2024  
 **Purpose:** User-customizable styling for storyboard visual elements  
 **Status:** ✅ **PHASES 1-3 COMPLETE** | 🔄 **PHASE 4 (TESTING) IN PROGRESS**
@@ -639,7 +641,7 @@ export const ThemeEditorModal: React.FC<ThemeEditorModalProps> = ({
 ## 📂 File Structure
 
 ```
-shot-flow-builder/src/
+src/
 ├── styles/
 │   ├── glassmorphism-styles.ts      (existing - app UI colors)
 │   └── storyboardTheme.ts           (NEW - user-customizable themes)

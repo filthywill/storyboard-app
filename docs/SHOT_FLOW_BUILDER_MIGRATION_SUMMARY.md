@@ -1,5 +1,7 @@
 # Shot-Flow-Builder Documentation Migration Summary
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical.
+
 **Date:** January 7, 2026  
 **Migration Type:** Consolidation to Root `/docs` Directory
 
@@ -215,4 +217,5 @@ Successfully consolidated **22 markdown files** from `shot-flow-builder/` into t
 
 *Migration completed: January 7, 2026*
 *All references verified and updated*
+
 

@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShotGrid } from './ShotGrid';
 import { GridSizeSelector } from './GridSizeSelector';
 import { AspectRatioSelector } from './AspectRatioSelector';
 import { StartNumberSelector } from './StartNumberSelector';
 import { useAppStore, Shot } from '@/store';
+import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,6 +41,10 @@ import { PDFExportModal } from './PDFExportModal';
 import { BatchLoadModal } from './BatchLoadModal';
 import { ShotListLoadModal } from './ShotListLoadModal';
 import { ImageEditorModal } from './ImageEditorModal';
+import { ProjectLimitDialog } from './ProjectLimitDialog';
+import { UpgradeToProDialog } from './UpgradeToProDialog';
+import { AuthModal } from './AuthModal';
+import { canCreateProjectServerSide } from '@/utils/projectCreationGate';
 import { exportManager } from '@/utils/export/exportManager';
 import ErrorBoundary from './ErrorBoundary';
 import {
@@ -95,6 +101,8 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     createProject
   } = useAppStore();
   
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuthStore();
   const page = getPageById(pageId);
   const pageIndex = pages.findIndex(p => p.id === pageId);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -107,6 +115,9 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [editingShot, setEditingShot] = useState<Shot | null>(null);
   const [batchInsertPosition, setBatchInsertPosition] = useState<number | null>(null);
   
@@ -119,6 +130,31 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const handleThemeToolbarToggle = (open: boolean) => {
     setIsThemeToolbarOpen(open);
     localStorage.setItem('themeToolbarOpen', String(open));
+  };
+  
+  // Handler to gate modal opening based on project limits
+  const handleRequestCreateProject = async () => {
+    if (!isAuthenticated) {
+      if (!canCreateProject()) {
+        setShowLimitDialog(true);
+        return;
+      }
+      setShowCreateProjectDialog(true);
+      return;
+    }
+
+    try {
+      const canCreate = await canCreateProjectServerSide(user?.id);
+      if (!canCreate) {
+        setShowUpgradeDialog(true);
+        return;
+      }
+
+      setShowCreateProjectDialog(true);
+    } catch (error) {
+      console.error("Project gate check failed:", error);
+      toast.error("Couldn't verify your plan. Please try again.");
+    }
   };
   
   // Drag and drop state
@@ -411,8 +447,19 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
       } else {
         toast.error('Failed to create project');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating project:', error);
+      
+      // Check for upgrade required error
+      if (error.code === 'UPGRADE_REQUIRED') {
+        toast.error(error.message);
+        setShowCreateProjectDialog(false);
+        setNewProjectName('');
+        setNewProjectDescription('');
+        navigate('/billing');
+        return;
+      }
+      
       toast.error('Failed to create project');
     }
   };
@@ -544,8 +591,9 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
                       }}
                       onMouseDown={(e) => {
                         // Blur immediately after mousedown to prevent focus border
-                        setTimeout(() => e.currentTarget.blur(), 0);
-                      }}
+                        const el = e.currentTarget as HTMLElement | null;
+                        setTimeout(() => el?.blur?.(), 0);
+                                              }}
                     >
                       <Palette size={16} className={TOOLBAR_STYLES.iconClasses} />
                       {isThemeToolbarOpen ? (
@@ -567,7 +615,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         <div className="flex gap-2">
           <ProjectDropdown 
             compact 
-            onRequestCreate={() => setShowCreateProjectDialog(true)}
+            onRequestCreate={() => void handleRequestCreateProject()}
           />
           <Button
             variant="outline"
@@ -807,6 +855,28 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Project Limit Dialog */}
+        <ProjectLimitDialog
+          isOpen={showLimitDialog}
+          onClose={() => setShowLimitDialog(false)}
+          onSignIn={() => {
+            setShowLimitDialog(false);
+            setShowAuthModal(true);
+          }}
+        />
+
+        <UpgradeToProDialog
+          isOpen={showUpgradeDialog}
+          onClose={() => setShowUpgradeDialog(false)}
+          onUpgrade={() => navigate("/billing")}
+        />
+
+        {/* Auth Modal */}
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+        />
     </div>
   );
 };

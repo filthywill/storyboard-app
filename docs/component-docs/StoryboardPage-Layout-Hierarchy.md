@@ -1,3 +1,5 @@
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical; current equivalents are under repo root (e.g., `src/`, `docs/`).
+
  - we are going to create an independant and user customizable color system specifically for the ShotGrid.tsx (including ShotCard.tsx), PageTabs.tsx, and MasterHeader.tsx which will manage the appearance of those componenets and everything they contain.
 
 Start with Phase 1. Once finished, we will proceed with Phase 2 (excluding any changes to ShotCard.tsx). We will skip Phase 3 entirely as we don't user the SyncStatusIndicator anymore and we will develop the independant customizable color system for the remaining components.
@@ -145,7 +147,7 @@ This container wraps around:
 <details>
 <summary><strong>📍 Page Number Location (Click to expand)</strong></summary>
 
-**File**: `shot-flow-builder/src/components/ShotGrid.tsx`  
+**File**: `src/components/ShotGrid.tsx`  
 **Lines**: 187-221  
 **Display**: "Page X" in bottom-right corner  
 **Control**: `templateSettings.showPageNumber` setting

@@ -17,7 +17,7 @@ import { useUIStore } from './uiStore';
 import { useProjectManagerStore } from './projectManagerStore';
 import { useShallow } from 'zustand/react/shallow';
 import ProjectSwitcher from '@/utils/projectSwitcher';
-import { registerAutoSave, enableBatchMode, disableBatchMode } from '@/utils/autoSave';
+import { registerAutoSave, beginIntent, endIntent } from '@/utils/autoSave';
 
 // Extend window interface for auto-save timeout
 declare global {
@@ -40,6 +40,14 @@ export const useAppStore = () => {
   const projectStore = useProjectStore();
   const uiStore = useUIStore();
   const projectManagerStore = useProjectManagerStore();
+  const runIntent = <T>(reason: string, fn: () => T): T => {
+    beginIntent(reason);
+    try {
+      return fn();
+    } finally {
+      endIntent(reason);
+    }
+  };
   
   // Enhanced redistribution function that handles both overflow and backflow
   const redistributeShotsAcrossPages = () => {
@@ -161,27 +169,26 @@ export const useAppStore = () => {
     pages: pageStore.pages,
     activePageId: pageStore.activePageId,
     createPage: (name?: string, preserveActivePage = false) => {
-      const { pages } = getPageStore();
-      const pageId = pageStore.createPage(name); // Automatic numbering handled in pageStore
-      
-      // Apply the same grid settings as existing pages (global setting)
-      if (pages.length > 0) {
-        const firstPage = pages[0];
-        pageStore.updateGridSize(pageId, firstPage.gridRows, firstPage.gridCols);
-        pageStore.updatePageAspectRatio(pageId, firstPage.aspectRatio);
-      }
-      
-      return pageId;
+      return runIntent('create_page', () => {
+        const { pages } = getPageStore();
+        const pageId = pageStore.createPage(name); // Automatic numbering handled in pageStore
+        
+        // Apply the same grid settings as existing pages (global setting)
+        if (pages.length > 0) {
+          const firstPage = pages[0];
+          pageStore.updateGridSize(pageId, firstPage.gridRows, firstPage.gridCols);
+          pageStore.updatePageAspectRatio(pageId, firstPage.aspectRatio);
+        }
+        
+        return pageId;
+      });
     },
     deletePage: (pageId: string) => {
-      // Get the page to be deleted
-      const page = pageStore.getPageById(pageId);
-      if (!page) return;
-      
-      // Enable batch mode to prevent auto-save spam during page deletion
-      enableBatchMode();
-      
-      try {
+      return runIntent('delete_page', () => {
+        // Get the page to be deleted
+        const page = pageStore.getPageById(pageId);
+        if (!page) return;
+        
         // Delete all shots on this page from the shot store
         page.shots.forEach(shotId => {
           shotStore.deleteShot(shotId);
@@ -196,17 +203,11 @@ export const useAppStore = () => {
         
         // Redistribute remaining shots across pages
         redistributeShotsAcrossPages();
-      } finally {
-        // Disable batch mode and trigger a single auto-save for all changes
-        disableBatchMode();
-      }
+      });
     },
     setActivePage: pageStore.setActivePage,
     updateGridSize: (pageId: string, rows: number, cols: number) => {
-      // Enable batch mode to prevent auto-save spam during grid size update
-      enableBatchMode();
-      
-      try {
+      return runIntent('update_grid', () => {
         // Apply grid size to ALL pages (global setting)
         const { pages } = getPageStore();
         pages.forEach(page => {
@@ -214,25 +215,16 @@ export const useAppStore = () => {
         });
         // Trigger redistribution after grid size change to handle backflow
         setTimeout(() => redistributeShotsAcrossPages(), 0);
-      } finally {
-        // Disable batch mode and trigger a single auto-save for all changes
-        disableBatchMode();
-      }
+      });
     },
     updatePageAspectRatio: (pageId: string, aspectRatio: string) => {
-      // Enable batch mode to prevent auto-save spam during aspect ratio update
-      enableBatchMode();
-      
-      try {
+      return runIntent('update_aspect_ratio', () => {
         // Apply aspect ratio to ALL pages (global setting)
         const { pages } = getPageStore();
         pages.forEach(page => {
           pageStore.updatePageAspectRatio(page.id, aspectRatio);
         });
-      } finally {
-        // Disable batch mode and trigger a single auto-save for all changes
-        disableBatchMode();
-      }
+      });
     },
     getActivePage: pageStore.getActivePage,
     getPageById: pageStore.getPageById,
@@ -244,76 +236,98 @@ export const useAppStore = () => {
     shots: shotStore.shots,
     shotOrder: shotStore.shotOrder,
     createShot: () => {
-      const shotId = shotStore.createShot();
-      // Renumber shots after creation
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      return shotId;
+      return runIntent('create_shot', () => {
+        const shotId = shotStore.createShot();
+        // Renumber shots after creation
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        return shotId;
+      });
     },
     deleteShot: (shotId: string) => {
-      // Remove from all pages first
-      const { pages } = getPageStore();
-      pages.forEach(page => {
-        if (page.shots.includes(shotId)) {
-          pageStore.removeShotFromPage(page.id, shotId);
-        }
+      return runIntent('delete_shot', () => {
+        // Remove from all pages first
+        const { pages } = getPageStore();
+        pages.forEach(page => {
+          if (page.shots.includes(shotId)) {
+            pageStore.removeShotFromPage(page.id, shotId);
+          }
+        });
+        
+        // Remove from shot store (this also updates global order)
+        shotStore.deleteShot(shotId);
+        
+        // Renumber shots after deletion
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        
+        // Redistribute remaining shots across pages
+        redistributeShotsAcrossPages();
       });
-      
-      // Remove from shot store (this also updates global order)
-      shotStore.deleteShot(shotId);
-      
-      // Renumber shots after deletion
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      
-      // Redistribute remaining shots across pages
-      redistributeShotsAcrossPages();
     },
-    updateShot: shotStore.updateShot,
+    updateShot: (shotId: string, updates: any) => {
+      return runIntent('update_shot', () => {
+        shotStore.updateShot(shotId, updates);
+      });
+    },
     duplicateShot: (shotId: string) => {
-      const newShotId = shotStore.duplicateShot(shotId);
-      // Renumber shots after duplication
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      return newShotId;
+      return runIntent('duplicate_shot', () => {
+        const newShotId = shotStore.duplicateShot(shotId);
+        // Renumber shots after duplication
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        return newShotId;
+      });
     },
     createSubShot: (originalShotId: string) => {
-      const subShotId = shotStore.createSubShot(originalShotId);
-      // Renumber shots after sub-shot creation
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      return subShotId;
+      return runIntent('create_sub_shot', () => {
+        const subShotId = shotStore.createSubShot(originalShotId);
+        // Renumber shots after sub-shot creation
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        return subShotId;
+      });
     },
     removeFromSubGroup: (shotId: string) => {
-      shotStore.removeFromSubGroup(shotId);
-      // Renumber shots after removing from sub-group
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      return runIntent('remove_sub_group', () => {
+        shotStore.removeFromSubGroup(shotId);
+        // Renumber shots after removing from sub-group
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      });
     },
     setShotOrder: (shotIds: string[]) => {
-      shotStore.setShotOrder(shotIds);
-      // Renumber shots after reordering
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      return runIntent('set_shot_order', () => {
+        shotStore.setShotOrder(shotIds);
+        // Renumber shots after reordering
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      });
     },
     renumberAllShots: () => {
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShots(templateSettings.shotNumberFormat);
+      return runIntent('renumber_shots', () => {
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShots(templateSettings.shotNumberFormat);
+      });
     },
     renumberAllShotsImmediate: () => {
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      return runIntent('renumber_shots', () => {
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+      });
     },
     getShotById: shotStore.getShotById,
     getShotsById: shotStore.getShotsById,
     getSubGroupShots: shotStore.getSubGroupShots,
     insertShotIntoSubGroup: (shotId: string, targetGroupId: string, insertPosition: number) => {
-      shotStore.insertShotIntoSubGroup(shotId, targetGroupId, insertPosition);
-      // Renumber shots after inserting into sub-group
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      // Redistribute shots across pages to update visual positions
-      redistributeShotsAcrossPages();
+      return runIntent('insert_sub_group', () => {
+        shotStore.insertShotIntoSubGroup(shotId, targetGroupId, insertPosition);
+        // Renumber shots after inserting into sub-group
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        // Redistribute shots across pages to update visual positions
+        redistributeShotsAcrossPages();
+      });
     },
 
     // Project management
@@ -325,15 +339,51 @@ export const useAppStore = () => {
     jobInfo: projectStore.jobInfo,
     templateSettings: projectStore.templateSettings,
     storyboardTheme: projectStore.storyboardTheme,
-    setProjectName: projectStore.setProjectName,
-    setProjectInfo: projectStore.setProjectInfo,
-    setProjectLogo: projectStore.setProjectLogo,
-    setClientAgency: projectStore.setClientAgency,
-    setJobInfo: projectStore.setJobInfo,
-    setTemplateSetting: projectStore.setTemplateSetting,
-    setTemplateSettings: projectStore.setTemplateSettings,
-    resetTemplateSettings: projectStore.resetTemplateSettings,
-    setStoryboardTheme: projectStore.setStoryboardTheme,
+    setProjectName: (name: string) => {
+      return runIntent('set_project_name', () => {
+        projectStore.setProjectName(name);
+      });
+    },
+    setProjectInfo: (info: string) => {
+      return runIntent('set_project_info', () => {
+        projectStore.setProjectInfo(info);
+      });
+    },
+    setProjectLogo: (file: File | null) => {
+      return runIntent('set_project_logo', () => {
+        projectStore.setProjectLogo(file);
+      });
+    },
+    setClientAgency: (name: string) => {
+      return runIntent('set_client_agency', () => {
+        projectStore.setClientAgency(name);
+      });
+    },
+    setJobInfo: (info: string) => {
+      return runIntent('set_job_info', () => {
+        projectStore.setJobInfo(info);
+      });
+    },
+    setTemplateSetting: (setting: keyof typeof projectStore.templateSettings, value: boolean | string) => {
+      return runIntent('set_template_setting', () => {
+        projectStore.setTemplateSetting(setting, value);
+      });
+    },
+    setTemplateSettings: (settings: Partial<typeof projectStore.templateSettings>) => {
+      return runIntent('set_template_settings', () => {
+        projectStore.setTemplateSettings(settings);
+      });
+    },
+    resetTemplateSettings: () => {
+      return runIntent('reset_template_settings', () => {
+        projectStore.resetTemplateSettings();
+      });
+    },
+    setStoryboardTheme: (theme: any) => {
+      return runIntent('set_storyboard_theme', () => {
+        projectStore.setStoryboardTheme(theme);
+      });
+    },
 
     // UI state
     isDragging: uiStore.isDragging,
@@ -346,118 +396,128 @@ export const useAppStore = () => {
 
     // Utility methods for cross-store operations
     addShot: (pageId: string, position?: number) => {
-      // Create shot without adding to global order yet
-      const shotId = shotStore.createShot();
-      
-      if (position !== undefined) {
-        // Calculate global position for insertion
-        const { pages } = getPageStore();
-        const pageIndex = pages.findIndex(p => p.id === pageId);
-        if (pageIndex !== -1) {
-          const page = pages[pageIndex];
-          const pageCapacity = page.gridRows * page.gridCols;
-          const globalPosition = (pageIndex * pageCapacity) + position;
-          
-          // Insert at specific global position
-          const { shotOrder } = getShotStore();
-          const newShotOrder = [...shotOrder];
-          // Remove the shot that was just added to the end
-          newShotOrder.pop();
-          // Insert at the correct position
-          newShotOrder.splice(globalPosition, 0, shotId);
-          shotStore.setShotOrder(newShotOrder);
-          
-          // Renumber shots after insertion
+      return runIntent('add_shot', () => {
+        // Create shot without adding to global order yet
+        const shotId = shotStore.createShot();
+        
+        if (position !== undefined) {
+          // Calculate global position for insertion
+          const { pages } = getPageStore();
+          const pageIndex = pages.findIndex(p => p.id === pageId);
+          if (pageIndex !== -1) {
+            const page = pages[pageIndex];
+            const pageCapacity = page.gridRows * page.gridCols;
+            const globalPosition = (pageIndex * pageCapacity) + position;
+            
+            // Insert at specific global position
+            const { shotOrder } = getShotStore();
+            const newShotOrder = [...shotOrder];
+            // Remove the shot that was just added to the end
+            newShotOrder.pop();
+            // Insert at the correct position
+            newShotOrder.splice(globalPosition, 0, shotId);
+            shotStore.setShotOrder(newShotOrder);
+            
+            // Renumber shots after insertion
+            const { templateSettings } = getProjectStore();
+            shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+            
+            // Redistribute shots across pages
+            redistributeShotsAcrossPages();
+          }
+        } else {
+          // Just add to the end of the current page
+          pageStore.addShotToPage(pageId, shotId, position);
+          // Renumber shots after adding
           const { templateSettings } = getProjectStore();
           shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-          
-          // Redistribute shots across pages
           redistributeShotsAcrossPages();
         }
-      } else {
-        // Just add to the end of the current page
-        pageStore.addShotToPage(pageId, shotId, position);
-        // Renumber shots after adding
-        const { templateSettings } = getProjectStore();
-        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-        redistributeShotsAcrossPages();
-      }
-      
-      return shotId;
+        
+        return shotId;
+      });
     },
 
     addSubShot: (pageId: string, shotId: string) => {
-      const subShotId = shotStore.createSubShot(shotId);
-      
-      // Find the correct position in the page to insert the sub-shot
-      const { pages } = getPageStore();
-      const page = pages.find(p => p.id === pageId);
-      if (page) {
-        const originalShotIndex = page.shots.indexOf(shotId);
-        if (originalShotIndex !== -1) {
-          // Insert the sub-shot right after the original shot in the page
-          pageStore.addShotToPage(pageId, subShotId, originalShotIndex + 1);
+      return runIntent('add_sub_shot', () => {
+        const subShotId = shotStore.createSubShot(shotId);
+        
+        // Find the correct position in the page to insert the sub-shot
+        const { pages } = getPageStore();
+        const page = pages.find(p => p.id === pageId);
+        if (page) {
+          const originalShotIndex = page.shots.indexOf(shotId);
+          if (originalShotIndex !== -1) {
+            // Insert the sub-shot right after the original shot in the page
+            pageStore.addShotToPage(pageId, subShotId, originalShotIndex + 1);
+          } else {
+            // Fallback: add to the end of the page
+            pageStore.addShotToPage(pageId, subShotId);
+          }
         } else {
           // Fallback: add to the end of the page
           pageStore.addShotToPage(pageId, subShotId);
         }
-      } else {
-        // Fallback: add to the end of the page
-        pageStore.addShotToPage(pageId, subShotId);
-      }
-      
-      // Renumber shots after adding sub-shot
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      
-      // Redistribute shots across pages to handle overflow
-      redistributeShotsAcrossPages();
-      
-      return subShotId;
+        
+        // Renumber shots after adding sub-shot
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        
+        // Redistribute shots across pages to handle overflow
+        redistributeShotsAcrossPages();
+        
+        return subShotId;
+      });
     },
 
     reorderShots: (pageId: string, shotIds: string[]) => {
-      // Update the specific page's shot order
-      pageStore.reorderShotsInPage(pageId, shotIds);
-      
-      // Build the complete global shot order by combining all pages
-      const { pages } = getPageStore();
-      const allShotIds: string[] = [];
-      
-      pages.forEach(page => {
-        if (page.id === pageId) {
-          // Use the new shotIds for this page
-          allShotIds.push(...shotIds);
-        } else {
-          // Use existing shotIds for other pages
-          allShotIds.push(...page.shots);
-        }
+      return runIntent('reorder_shots', () => {
+        // Update the specific page's shot order
+        pageStore.reorderShotsInPage(pageId, shotIds);
+        
+        // Build the complete global shot order by combining all pages
+        const { pages } = getPageStore();
+        const allShotIds: string[] = [];
+        
+        pages.forEach(page => {
+          if (page.id === pageId) {
+            // Use the new shotIds for this page
+            allShotIds.push(...shotIds);
+          } else {
+            // Use existing shotIds for other pages
+            allShotIds.push(...page.shots);
+          }
+        });
+        
+        // Update the global shot order
+        shotStore.setShotOrder(allShotIds);
+        
+        // Renumber shots after reordering
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
       });
-      
-      // Update the global shot order
-      shotStore.setShotOrder(allShotIds);
-      
-      // Renumber shots after reordering
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
     },
     
     moveShot: (shotId: string, targetPosition: number) => {
-      shotStore.moveShot(shotId, targetPosition);
-      // Renumber shots after movement
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      // Automatically redistribute shots across pages after movement
-      redistributeShotsAcrossPages();
+      return runIntent('move_shot', () => {
+        shotStore.moveShot(shotId, targetPosition);
+        // Renumber shots after movement
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        // Automatically redistribute shots across pages after movement
+        redistributeShotsAcrossPages();
+      });
     },
     
     moveShotGroup: (groupId: string, targetPosition: number) => {
-      shotStore.moveShotGroup(groupId, targetPosition);
-      // Renumber shots after movement
-      const { templateSettings } = getProjectStore();
-      shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
-      // Automatically redistribute shots across pages after movement
-      redistributeShotsAcrossPages();
+      return runIntent('move_shot_group', () => {
+        shotStore.moveShotGroup(groupId, targetPosition);
+        // Renumber shots after movement
+        const { templateSettings } = getProjectStore();
+        shotStore.renumberAllShotsImmediate(templateSettings.shotNumberFormat);
+        // Automatically redistribute shots across pages after movement
+        redistributeShotsAcrossPages();
+      });
     },
     
     getGlobalShotIndex: shotStore.getGlobalShotIndex,
@@ -624,7 +684,7 @@ export const useAppStore = () => {
     
     // Save current project
     saveCurrentProject: async () => {
-      return await ProjectSwitcher.saveCurrentProject();
+      return await ProjectSwitcher.saveCurrentProject(true);
     },
 
     // Auto-save current project (call this after any data changes)
@@ -636,7 +696,7 @@ export const useAppStore = () => {
       window.autoSaveTimeout = setTimeout(() => {
         const { currentProjectId } = getProjectManagerStore();
         if (!currentProjectId) return; // Skip auto-save when no project is selected
-        ProjectSwitcher.saveCurrentProject();
+        ProjectSwitcher.saveCurrentProject(false);
       }, 2000); // Save 2 seconds after last change
     },
     
@@ -658,12 +718,12 @@ registerAutoSave(
     window.autoSaveTimeout = setTimeout(async () => {
       const { currentProjectId } = getProjectManagerStore();
       if (!currentProjectId) return; // Skip auto-save when no project is selected
-      await ProjectSwitcher.saveCurrentProject();
+      await ProjectSwitcher.saveCurrentProject(false);
     }, 2000);
   },
   // Immediate save callback
   async () => {
-    await ProjectSwitcher.saveCurrentProject();
+    await ProjectSwitcher.saveCurrentProject(false);
   }
 );
 

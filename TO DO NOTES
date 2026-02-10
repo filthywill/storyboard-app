@@ -1,5 +1,59 @@
 TO DO NOTES
 
+
+-Guest user creates project, then signs up
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-When user is on page as a guest, make an obvious "Sign Up" path, currently the top right button just says "Sign In"
+    + Likely have a banner persistent at the top that says "In order to save your project you must Create An Account" with a link to create an account.
+
+-Project Dropdown - right now only has "delete" option under triple dot menu, also need a Rename option
+
+-Fix dialog proimpt when guest logs in but isn't PRO: Guest-NonPro-Dialog.png
+
+-Account being logged out and told it's been logged in elsewhere after being idle for a short time
+
+-new account when created needs to notify the user that they need to confirm their account through email
+(Currently logs them straight in and logs them out if they don't confirm)
+    + email confirmation still comes from Supabase, needs branding
+-new account landing screen is located in Notes folder: New-Account-landing-screen.png
+-new account logged out quickly, given error that they were logged in elsewhere, screenshot in Notes folder: New-Account_loggedout-fast.png
+(Could be from not clicking email confirm for account)
+
+-log in landing page has "Create New Project" button, and says "Or select an existing project from the menu above" but there is no project list above.
+(Reference: New-Account-landing-screen.png)
+
+-When logging into a new/different account, when accessing the project list it seems to have a bunch of projects that were saved locally, but not associated with the current/different account that just logged in (This is confgusing)
+    + double check this, may be fixed
+
+-acknowledge typescript file with database columns doesnt currently include shot_count
+
+-fix image size too large message (add auto compression)
+
+-PDF export should use project name as the default file naming convention (project name with  dashes instead of spaces)
+-PDF export Shot Number font deviates from template
+-PDF Export label styling (black vs gray/opaque) deviates from template, as well as spacing
+-PDF Export canvas size is much larger than needed (check adjustability)
+
+-batch load images modal/dialog needs tweaks
+    + UI is too spaced out
+    + Numbering Pattern box/setting is uneditable
+
+-UI is missing aspect ratio setting for 19:6
+
 -notification banner has white button "Extend Session"
 
 -review color/borders throughout app since we removed global ovverrides
@@ -57,3 +111,6 @@ https://shaicreative.ai/everything-you-need-to-know-about-boords-in-2025/
 
 KROCK
 https://www.youtube.com/watch?v=SB6rEbsh9oo
+
+
+

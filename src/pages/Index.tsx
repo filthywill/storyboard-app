@@ -1,21 +1,47 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageTabs } from '@/components/PageTabs';
 import { StoryboardPage } from '@/components/StoryboardPage';
 import ProjectSelector from '@/components/ProjectSelector';
 import { useAppStore } from '@/store';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useAuthStore } from '@/store/authStore';
+import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { DataValidator } from '@/utils/dataValidator';
 import { toast } from 'sonner';
 import { EmptyProjectState } from '@/components/EmptyProjectState';
 import { AuthModal } from '@/components/AuthModal';
+import { ConfirmEmailScreen } from '@/components/ConfirmEmailScreen';
+import { CloudSaveConflictDialog } from '@/components/CloudSaveConflictDialog';
 import { ProjectPickerModal } from '@/components/ProjectPickerModal';
 import { LoggedOutElsewhereScreen } from '@/components/LoggedOutElsewhereScreen';
 import { TemplateBackground } from '@/components/TemplateBackground';
+import { WorkspaceChoiceModal } from '@/components/WorkspaceChoiceModal';
+import { LockedProjectModal } from '@/components/LockedProjectModal';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
+import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
 import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
+import { setSavePaused } from '@/utils/autoSave';
+import { canCreateProjectServerSide } from '@/utils/projectCreationGate';
+import { getProjectConflictState } from '@/utils/projectConflict';
+import { useProjectConflictStore } from '@/store/projectConflictStore';
+import { useCloudSaveConflictStore } from '@/store/cloudSaveConflictStore';
+import { useWriterLeaseStore } from '@/store/writerLeaseStore';
+import { supabase } from '@/lib/supabase';
+import { CloudAccessService } from '@/services/cloudAccessService';
+import { getProjectOpenState } from '@/services/projectOpenGate';
+import { WriterLeaseService } from '@/services/writerLeaseService';
+import {
+  computeDefaultWorkspaceMode,
+  getStoredWorkspaceMode,
+  getWorkspaceMode,
+  onWorkspaceModeChange,
+  setWorkspaceMode,
+  type WorkspaceMode,
+} from '@/services/workspaceModeService';
 
 const Index = () => {
   const { 
@@ -33,14 +59,262 @@ const Index = () => {
     canCreateProject
   } = useAppStore();
   
-  const { isAuthenticated, isLoading: authLoading, initialize: initializeAuth } = useAuthStore();
+  const navigate = useNavigate();
+  const {
+    isAuthenticated,
+    authStatus,
+    isLoading: authLoading,
+    initialize: initializeAuth,
+    user
+  } = useAuthStore();
   const authStore = useAuthStore();
+  const cloudSaveConflict = useCloudSaveConflictStore();
+  const writerLease = useWriterLeaseStore();
+  const previousProjectIdRef = useRef<string | null>(null);
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoadingCloudProjects, setIsLoadingCloudProjects] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>('local');
+  const [showWorkspaceChoiceModal, setShowWorkspaceChoiceModal] = useState(false);
+  const [isTakeoverPending, setIsTakeoverPending] = useState(false);
+  const [takeoverError, setTakeoverError] = useState<string | null>(null);
+  const [lockedProject, setLockedProject] = useState<{
+    id: string;
+    name: string;
+    requiredMode: WorkspaceMode;
+    projectKind: 'local' | 'cloud';
+  } | null>(null);
+
+  const conflictState = useMemo(() => getProjectConflictState(allProjects), [allProjects]);
+  const isReadOnlyLease =
+    writerLease.mode === 'read_only' && writerLease.projectId === currentProject?.id;
+  const showReadOnlyOverlay = Boolean(
+    currentProject?.id && (isReadOnlyLease || isTakeoverPending)
+  );
   
+  useEffect(() => {
+    setWorkspaceModeState(getWorkspaceMode(user?.id));
+    const unsubscribe = onWorkspaceModeChange((detail) => {
+      if (detail.userId === user?.id) {
+        setWorkspaceModeState(detail.mode);
+      }
+    });
+    return () => unsubscribe();
+  }, [user?.id]);
+  
+  // Handler to gate modal opening based on project limits
+  const handleRequestCreateProject = async () => {
+    if (!isAuthenticated) {
+      if (!canCreateProject()) {
+        setShowLimitDialog(true);
+        return;
+      }
+      setShowCreateProjectDialog(true);
+      return;
+    }
+
+    try {
+      const canCreate = await canCreateProjectServerSide(user?.id);
+      if (!canCreate) {
+        setShowUpgradeDialog(true);
+        return;
+      }
+
+      setShowCreateProjectDialog(true);
+    } catch (error) {
+      console.error("Project gate check failed:", error);
+      toast.error("Couldn't verify your plan. Please try again.");
+    }
+  };
+
+  const handlePickerCreateNew = async () => {
+    if (!isAuthenticated) {
+      setShowProjectPicker(false);
+      void handleRequestCreateProject();
+      return;
+    }
+
+    try {
+      const canCreate = await canCreateProjectServerSide(user?.id);
+      if (!canCreate) {
+        setShowUpgradeDialog(true);
+        return;
+      }
+
+      setShowProjectPicker(false);
+      setShowCreateProjectDialog(true);
+    } catch (error) {
+      console.error("Project gate check failed:", error);
+      toast.error("Couldn't verify your plan. Please try again.");
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!user?.email) return;
+    try {
+      const { AuthService } = await import('@/services/authService');
+      await AuthService.resendConfirmationEmail(user.email);
+      toast.success('Confirmation email sent');
+    } catch (error) {
+      console.error('Failed to resend confirmation email:', error);
+      toast.error('Failed to resend confirmation email');
+    }
+  };
+
+  const handleChangeEmail = async () => {
+    try {
+      const { AuthService } = await import('@/services/authService');
+      await AuthService.signOut();
+      setShowAuthModal(true);
+    } catch (error) {
+      console.error('Failed to sign out for email change:', error);
+      toast.error('Failed to change email');
+    }
+  };
+
+  const handleCheckConfirmed = async () => {
+    try {
+      const { AuthService } = await import('@/services/authService');
+      const refreshedUser = await AuthService.getCurrentUser();
+
+      if (refreshedUser && (refreshedUser.email_confirmed_at || refreshedUser.confirmed_at)) {
+        const normalizedUser = {
+          id: refreshedUser.id,
+          email: refreshedUser.email ?? null,
+          name: refreshedUser.user_metadata?.display_name,
+          avatar_url: refreshedUser.user_metadata?.avatar_url,
+          email_confirmed_at: refreshedUser.email_confirmed_at,
+          confirmed_at: refreshedUser.confirmed_at,
+        };
+        useAuthStore.getState().setUser(normalizedUser);
+        await AuthService.ensureUserProfile(refreshedUser);
+        const { CloudAccessService } = await import('@/services/cloudAccessService');
+        CloudAccessService.clearCache();
+        toast.success('Email confirmed — project saved to your account.');
+        return;
+      }
+
+      toast.error('Email not confirmed yet. Please check your inbox.');
+    } catch (error) {
+      console.error('Confirmation check failed:', error);
+      toast.error('Could not verify confirmation status');
+    }
+  };
+
+  const reloadProjectFromCloud = async (projectId: string) => {
+    const { CloudProjectSyncService } = await import('@/services/cloudProjectSyncService');
+    await CloudProjectSyncService.loadFullProject(projectId, { force: true });
+    const { ProjectSwitcher } = await import('@/utils/projectSwitcher');
+    await ProjectSwitcher.switchToProject(projectId, true, true);
+  };
+
+  const handleReloadFromCloud = async () => {
+    const projectId = cloudSaveConflict.projectId;
+    if (!projectId) {
+      cloudSaveConflict.close();
+      cloudSaveConflict.clearPause();
+      setSavePaused(false, 'reload_no_project');
+      return;
+    }
+    try {
+      await reloadProjectFromCloud(projectId);
+    } catch (error) {
+      console.error('Failed to reload project from cloud:', error);
+      toast.error('Failed to reload project from cloud');
+    } finally {
+      cloudSaveConflict.close();
+      cloudSaveConflict.clearPause();
+      setSavePaused(false, 'reload_complete');
+    }
+  };
+
+  const handleTakeOverEditing = async () => {
+    if (!currentProject?.id) return;
+    if (isTakeoverPending) return;
+    setIsTakeoverPending(true);
+    setTakeoverError(null);
+    const projectId = currentProject.id;
+    try {
+      const { data, error } = await supabase.rpc('claim_writer_lease', {
+        p_project_id: projectId,
+        p_writer_id: WriterLeaseService.getWriterId(),
+        p_force: true
+      });
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.debug('[lease] takeover failed', {
+            projectId,
+            error
+          });
+        }
+        setTakeoverError('Could not claim editing rights.');
+        return;
+      }
+      const payload = Array.isArray(data) ? data[0] : data;
+      const ok = Boolean(payload?.ok);
+      if (!ok) {
+        if (import.meta.env.DEV) {
+          console.debug('[lease] takeover denied', {
+            projectId,
+            reason: payload?.reason ?? null,
+            holder: payload?.holder ?? null
+          });
+        }
+        setTakeoverError('Editing is still active elsewhere.');
+        return;
+      }
+
+      if (import.meta.env.DEV) {
+        console.debug('[takeover] claimed lease', { projectId });
+      }
+
+      if (import.meta.env.DEV) {
+        console.debug('[takeover] starting reload', { projectId });
+      }
+      await reloadProjectFromCloud(projectId);
+      if (import.meta.env.DEV) {
+        const baseCloudUpdatedAt =
+          useProjectManagerStore.getState().projects[projectId]?.baseCloudUpdatedAt ?? null;
+        console.debug('[takeover] reload complete', {
+          projectId,
+          baseCloudUpdatedAt
+        });
+      }
+
+      const activate = await WriterLeaseService.claimLease(projectId, {
+        force: true,
+        source: 'takeover_activate'
+      });
+      if (!activate.ok) {
+        if (import.meta.env.DEV) {
+          console.debug('[lease] takeover activation failed', {
+            projectId,
+            reason: activate.reason,
+            holder: activate.holder
+          });
+        }
+        setTakeoverError('Unable to enable editing after reload.');
+        return;
+      }
+
+      WriterLeaseService.broadcastTakeover(projectId);
+
+      if (import.meta.env.DEV) {
+        console.debug('[takeover] unlocked', { projectId });
+      }
+      setTakeoverError(null);
+    } catch (error) {
+      console.error('Failed to reload project from cloud:', error);
+      toast.error('Failed to reload project from cloud');
+      setTakeoverError('Reload failed. Please try again.');
+    } finally {
+      setIsTakeoverPending(false);
+    }
+  };
+
   // Initialize app with robust error handling
   useEffect(() => {
     const initializeApp = async () => {
@@ -143,32 +417,191 @@ const Index = () => {
   
   // Sync project list and guest projects when user becomes authenticated
   useEffect(() => {
-    if (isAuthenticated && import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
-      setIsLoadingCloudProjects(true);
-      
-      // First, sync any local guest projects to cloud
-      import('@/services/guestProjectSyncService').then(({ GuestProjectSyncService }) => {
-        GuestProjectSyncService.syncGuestProjectsToCloud().catch(error => {
-          console.error('Failed to sync guest projects:', error);
-        });
-      });
-
-      // Then, sync cloud project list
-      import('@/services/cloudProjectSyncService').then(({ CloudProjectSyncService }) => {
-        CloudProjectSyncService.syncProjectList()
-          .catch(error => {
-            console.error('Failed to sync project list:', error);
-          })
-          .finally(() => {
-            setIsLoadingCloudProjects(false);
-            // After loading completes, check if we need to show project picker
-            if (!currentProject && allProjects.length > 0) {
-              setShowProjectPicker(true);
-            }
-          });
-      });
+    if (
+      !isAuthenticated ||
+      authStatus !== 'authenticated_confirmed' ||
+      import.meta.env.VITE_CLOUD_SYNC_ENABLED !== 'true'
+    ) {
+      return;
     }
-  }, [isAuthenticated]);
+
+    let cancelled = false;
+
+    const syncCloudProjects = async () => {
+      setIsLoadingCloudProjects(true);
+      try {
+        const { CloudAccessService } = await import('@/services/cloudAccessService');
+        const access = await CloudAccessService.getAccessState();
+        if (!access.canReadCloud) {
+          return;
+        }
+
+        const { CloudProjectSyncService } = await import('@/services/cloudProjectSyncService');
+        await CloudProjectSyncService.syncProjectList();
+
+        if (cancelled) return;
+
+        const projectManager = useProjectManagerStore.getState();
+        const conflictState = getProjectConflictState(projectManager.getAllProjects());
+        const hasWorkspaceConflict =
+          access.plan === 'free' &&
+          !access.canCreateCloudProject &&
+          conflictState.localProjects.length > 0 &&
+          conflictState.cloudProjects.length > 0;
+
+        if (!hasWorkspaceConflict && access.canCreateCloudProject) {
+          const { GuestProjectSyncService } = await import('@/services/guestProjectSyncService');
+          await GuestProjectSyncService.syncGuestProjectsToCloud();
+        }
+      } catch (error) {
+        console.error('Failed to sync cloud projects:', error);
+      } finally {
+        if (cancelled) return;
+        setIsLoadingCloudProjects(false);
+        // After loading completes, check if we need to show project picker
+        const projectManager = useProjectManagerStore.getState();
+        const latestProjects = projectManager.getAllProjects();
+        const latestCurrentProject = projectManager.getCurrentProject();
+        if (!latestCurrentProject && latestProjects.length > 0) {
+          setShowProjectPicker(true);
+        }
+      }
+    };
+
+    void syncCloudProjects();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authStatus, user?.id]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id || isLoadingCloudProjects) {
+      setWorkspaceModeState('local');
+      setShowWorkspaceChoiceModal(false);
+      setLockedProject(null);
+      return;
+    }
+
+    let active = true;
+    const initializeWorkspaceMode = async () => {
+      const access = await CloudAccessService.getAccessState();
+      const { localProjects, cloudProjects } = conflictState;
+      const hasLocalProjects = localProjects.length > 0;
+      const hasCloudProjects = cloudProjects.length > 0;
+      const hasWorkspaceConflict =
+        access.plan === 'free' &&
+        !access.canCreateCloudProject &&
+        hasLocalProjects &&
+        hasCloudProjects;
+
+      const storedMode = getStoredWorkspaceMode(user.id);
+
+      if (hasWorkspaceConflict && !storedMode) {
+        if (active) {
+          setShowWorkspaceChoiceModal(true);
+        }
+        return;
+      }
+
+      const storedModeValid =
+        storedMode === 'cloud' ? hasCloudProjects : storedMode === 'local' ? hasLocalProjects : false;
+      const nextMode =
+        storedMode && storedModeValid
+          ? storedMode
+          : computeDefaultWorkspaceMode(access, hasLocalProjects, hasCloudProjects);
+
+      if (active) {
+        setWorkspaceModeState(nextMode);
+      }
+
+      if (!storedMode || !storedModeValid) {
+        setWorkspaceMode(nextMode, user.id);
+      }
+    };
+
+    void initializeWorkspaceMode();
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, user?.id, isLoadingCloudProjects, conflictState]);
+
+  const openProjectWithGate = async (projectId: string) => {
+    const project = allProjects.find((item) => item.id === projectId);
+    if (!project) return;
+
+    const openState = await getProjectOpenState(projectId);
+    if (!openState.allowed) {
+      if (openState.reason === 'locked_workspace' && openState.requiredMode) {
+        setLockedProject({
+          id: projectId,
+          name: project.name,
+          requiredMode: openState.requiredMode,
+          projectKind: openState.projectKind ?? 'local',
+        });
+        return;
+      }
+      if (openState.reason === 'unauthenticated') {
+        setShowAuthModal(true);
+        return;
+      }
+      toast.error('This project is currently unavailable.');
+      return;
+    }
+
+    try {
+      if (project.isCloudOnly) {
+        const { CloudProjectSyncService } = await import('@/services/cloudProjectSyncService');
+        await CloudProjectSyncService.loadFullProject(projectId);
+      }
+
+      const success = await switchToProject(projectId);
+      if (!success && !shouldSuppressSwitchError()) {
+        toast.error('Failed to load project');
+      }
+    } catch (error) {
+      console.error('Error loading project:', error);
+      toast.error('Failed to load project from cloud');
+    }
+  };
+
+  const handleWorkspaceChoice = async (mode: WorkspaceMode) => {
+    if (!user?.id) return;
+    setWorkspaceMode(mode, user.id);
+    setWorkspaceModeState(mode);
+    setShowWorkspaceChoiceModal(false);
+
+    const target =
+      mode === 'cloud'
+        ? allProjects.find((project) => project.isCloudOnly || project.isCloudBacked)
+        : allProjects.find(
+            (project) => project.isLocal && !project.isCloudOnly && !project.isCloudBacked
+          );
+
+    if (target) {
+      await openProjectWithGate(target.id);
+    }
+  };
+
+  const handleLockedSwitch = async () => {
+    if (!lockedProject || !user?.id) {
+      setLockedProject(null);
+      return;
+    }
+    setWorkspaceMode(lockedProject.requiredMode, user.id);
+    setWorkspaceModeState(lockedProject.requiredMode);
+    const target = lockedProject.id;
+    setLockedProject(null);
+    await openProjectWithGate(target);
+  };
+
+  const shouldSuppressSwitchError = () => {
+    const { lastBlockedReason, clearBlockedReason } = useProjectConflictStore.getState();
+    if (lastBlockedReason) {
+      clearBlockedReason();
+      return true;
+    }
+    return false;
+  };
 
   // Show project picker for authenticated users with no current project (after loading)
   useEffect(() => {
@@ -178,10 +611,47 @@ const Index = () => {
       setShowProjectPicker(false);
     }
   }, [isAuthenticated, isLoadingCloudProjects, currentProject, allProjects.length]);
+
+  useEffect(() => {
+    const nextProjectId = currentProject?.id ?? null;
+    const previousProjectId = previousProjectIdRef.current;
+
+    if (previousProjectId && previousProjectId !== nextProjectId) {
+      void WriterLeaseService.releaseLease(previousProjectId, { source: 'switch' });
+    }
+
+    previousProjectIdRef.current = nextProjectId;
+
+    if (!nextProjectId) {
+      WriterLeaseService.clearLeaseState();
+      return;
+    }
+
+    const isCloudProject = Boolean(currentProject?.isCloudOnly || currentProject?.isCloudBacked);
+    if (
+      !isAuthenticated ||
+      import.meta.env.VITE_CLOUD_SYNC_ENABLED !== 'true' ||
+      !isCloudProject
+    ) {
+      WriterLeaseService.clearLeaseState();
+      return;
+    }
+
+    void WriterLeaseService.ensureWriter(nextProjectId, { source: 'open' });
+  }, [
+    currentProject?.id,
+    currentProject?.isCloudOnly,
+    currentProject?.isCloudBacked,
+    isAuthenticated
+  ]);
   
   // Session validation and real-time session monitoring
   useEffect(() => {
-    if (isAuthenticated && import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
+    if (
+      isAuthenticated &&
+      authStatus === 'authenticated_confirmed' &&
+      import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true'
+    ) {
       const { user } = useAuthStore.getState();
       // Periodic session validation (every 5 minutes)
       const validateSession = async () => {
@@ -314,7 +784,7 @@ const Index = () => {
         }
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authStatus]);
   
   // Handle active page validation separately
   useEffect(() => {
@@ -348,7 +818,19 @@ const Index = () => {
     );
   }
 
-  // STEP 3: Handle cloud project loading for authenticated users
+  // STEP 3: Handle unconfirmed email state
+  if (authStatus === 'authenticated_unconfirmed') {
+    return (
+      <ConfirmEmailScreen
+        email={user?.email ?? ''}
+        onResend={handleResendConfirmation}
+        onChangeEmail={handleChangeEmail}
+        onCheckConfirmed={handleCheckConfirmed}
+      />
+    );
+  }
+
+  // STEP 4: Handle cloud project loading for authenticated users
   if (isAuthenticated && isLoadingCloudProjects) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -388,7 +870,7 @@ const Index = () => {
             </div>
             <div className="flex items-end gap-4">
               <ProjectSelector 
-                onRequestCreate={() => setShowCreateProjectDialog(true)}
+                onRequestCreate={() => void handleRequestCreateProject()}
                 showCreateDialog={showCreateProjectDialog}
                 onCloseCreateDialog={() => setShowCreateProjectDialog(false)}
               />
@@ -419,9 +901,25 @@ const Index = () => {
                   <div className="text-white/80">
                     {activePage && `Last updated: ${new Date(activePage.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                   </div>
-                  <div className="text-white/80">
-                    {isAuthenticated ? 'Auto-saved to cloud' : 'Auto-saved to local storage'}
-                  </div>
+                  {cloudSaveConflict.status === 'paused_conflict' &&
+                  cloudSaveConflict.projectId === currentProject?.id ? (
+                    <div className="text-white/90 flex items-center gap-2">
+                      <span>Saving paused — reload to sync with cloud.</span>
+                      <Button
+                        className="h-7 px-2 text-xs"
+                        style={getGlassmorphismStyles('buttonAccent')}
+                        onClick={() => void handleReloadFromCloud()}
+                      >
+                        Reload from cloud
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-white/80">
+                      {isAuthenticated
+                        ? 'Auto-saved locally (syncs to cloud when available)'
+                        : 'Auto-saved to local storage'}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -431,19 +929,46 @@ const Index = () => {
             <TemplateBackground />
           </div>
         ) : null}
+
+        {showReadOnlyOverlay && (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/50"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div
+              className="w-full max-w-md mx-4 rounded-xl p-6 text-center shadow-2xl"
+              style={getGlassmorphismStyles('dark')}
+            >
+              <h2 className="text-lg font-semibold text-white mb-2">
+                {isTakeoverPending
+                  ? 'Taking over editing...'
+                  : 'This project is being edited elsewhere.'}
+              </h2>
+              <p className="text-sm text-white/70 mb-5">
+                {isTakeoverPending
+                  ? 'Reloading the latest cloud version.'
+                  : 'To prevent overwriting work, editing is disabled here.'}
+              </p>
+              {takeoverError && (
+                <p className="text-xs text-white/80 mb-4">{takeoverError}</p>
+              )}
+              <Button
+                className="h-9 px-4 text-sm"
+                style={getGlassmorphismStyles('buttonAccent')}
+                onClick={() => void handleTakeOverEditing()}
+                disabled={isTakeoverPending}
+              >
+                {isTakeoverPending ? 'Taking over…' : 'Take over editing'}
+              </Button>
+            </div>
+          </div>
+        )}
         
         {/* Empty State Overlay for authenticated users with no projects */}
         {isAuthenticated && allProjects.length === 0 && !isLoadingCloudProjects && (
           <EmptyProjectState 
             isAuthenticated={true}
-            onCreateProject={() => {
-              // Check if user can create a project
-              if (!canCreateProject()) {
-                toast.error('Maximum number of projects reached');
-                return;
-              }
-              setShowCreateProjectDialog(true);
-            }}
+            onCreateProject={() => void handleRequestCreateProject()}
             onSignIn={() => setShowAuthModal(true)}
           />
         )}
@@ -453,14 +978,7 @@ const Index = () => {
       {!isAuthenticated && !currentProject && (
         <EmptyProjectState 
           isAuthenticated={false}
-          onCreateProject={() => {
-            // Check if user can create a project
-            if (!canCreateProject()) {
-              setShowLimitDialog(true);
-              return;
-            }
-            setShowCreateProjectDialog(true);
-          }}
+          onCreateProject={() => void handleRequestCreateProject()}
           onSignIn={() => setShowAuthModal(true)}
         />
       )}
@@ -469,6 +987,32 @@ const Index = () => {
       <AuthModal 
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
+      />
+
+      <WorkspaceChoiceModal
+        isOpen={showWorkspaceChoiceModal}
+        onClose={() => setShowWorkspaceChoiceModal(false)}
+        onKeepLocal={() => void handleWorkspaceChoice('local')}
+        onSwitchToCloud={() => void handleWorkspaceChoice('cloud')}
+        onUpgrade={() => navigate('/billing')}
+      />
+
+      <LockedProjectModal
+        isOpen={Boolean(lockedProject)}
+        onClose={() => setLockedProject(null)}
+        onSwitchWorkspace={() => void handleLockedSwitch()}
+        onUpgrade={() => navigate('/billing')}
+        projectName={lockedProject?.name}
+        requiredMode={lockedProject?.requiredMode ?? 'local'}
+        projectKind={lockedProject?.projectKind ?? 'local'}
+        currentMode={workspaceMode}
+      />
+
+      <CloudSaveConflictDialog
+        isOpen={cloudSaveConflict.isOpen}
+        hasLocalChanges={cloudSaveConflict.hasLocalChanges}
+        onReload={() => void handleReloadFromCloud()}
+        onClose={() => cloudSaveConflict.close()}
       />
       
       {/* Project Picker Modal - for authenticated users with projects but no active project */}
@@ -482,46 +1026,10 @@ const Index = () => {
           }))}
           onSelectProject={async (projectId) => {
             setShowProjectPicker(false);
-            
-            // Find the project to check if it's cloud-only
-            const project = allProjects.find(p => p.id === projectId);
-            
-            try {
-              if (project?.isCloudOnly) {
-                // Load full project from cloud first
-                const { CloudProjectSyncService } = await import('@/services/cloudProjectSyncService');
-                await CloudProjectSyncService.loadFullProject(projectId);
-                console.log('Cloud project data loaded, switching to project...');
-              }
-              
-              // Switch to the selected project
-              const success = await switchToProject(projectId);
-              if (success) {
-                console.log(`Successfully switched to project: ${project?.name || projectId}`);
-              } else {
-                console.error('Failed to switch to project');
-                toast.error('Failed to load project');
-              }
-            } catch (error) {
-              console.error('Error loading project:', error);
-              toast.error('Failed to load project from cloud');
-            }
+            await openProjectWithGate(projectId);
           }}
           onCreateNew={() => {
-            // Check if user can create a project
-            if (!canCreateProject()) {
-              // If not authenticated and at limit, show encouraging dialog
-              if (!isAuthenticated) {
-                setShowProjectPicker(false);
-                setShowLimitDialog(true);
-                return;
-              }
-              // For authenticated users, show error
-              toast.error('Maximum number of projects reached');
-              return;
-            }
-            setShowProjectPicker(false);
-            setShowCreateProjectDialog(true);
+            void handlePickerCreateNew();
           }}
         />
       )}
@@ -534,6 +1042,12 @@ const Index = () => {
           setShowLimitDialog(false);
           setShowAuthModal(true);
         }}
+      />
+
+      <UpgradeToProDialog
+        isOpen={showUpgradeDialog}
+        onClose={() => setShowUpgradeDialog(false)}
+        onUpgrade={() => navigate("/billing")}
       />
       
     </div>

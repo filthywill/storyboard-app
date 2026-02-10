@@ -1,5 +1,7 @@
 # Data Loss Prevention Fix - Summary
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical; current equivalents are under repo root (e.g., `src/`, `docs/`).
+
 ## Issue Description
 **Critical Bug**: When logging in from a new browser/location, the `syncGuestProjectsToCloud()` function would sync ALL local projects to the cloud, including projects that weren't currently open. If a non-current project's localStorage was missing or empty, it would overwrite valid cloud data with empty data, causing permanent data loss.
 
@@ -140,12 +142,12 @@ Added database-level validation as final safety check:
 ## Code Changes Summary
 
 ### Modified Files
-1. `shot-flow-builder/src/services/guestProjectSyncService.ts`
+1. `src/services/guestProjectSyncService.ts`
    - Added 5 validation checks before syncing
    - Added cloud comparison logic
    - Improved error logging and user feedback
 
-2. `shot-flow-builder/src/services/projectService.ts`
+2. `src/services/projectService.ts`
    - Added `shotOrder` to ProjectData interface
    - Added database-level validation in `saveProject()`
    - Prevents overwriting valid cloud data with empty data
@@ -172,10 +174,10 @@ This fix implements **defense in depth**:
 4. **Sync Conflict Resolution UI**: Show user when conflicts detected and let them choose
 
 ## Related Files
-- `shot-flow-builder/src/services/guestProjectSyncService.ts` - Main fix
-- `shot-flow-builder/src/services/projectService.ts` - Safety layer
-- `shot-flow-builder/src/utils/localStorageManager.ts` - Data retrieval
-- `shot-flow-builder/src/services/cloudSyncService.ts` - Existing validation
+- `src/services/guestProjectSyncService.ts` - Main fix
+- `src/services/projectService.ts` - Safety layer
+- `src/utils/localStorageManager.ts` - Data retrieval
+- `src/services/cloudSyncService.ts` - Existing validation
 
 ---
 

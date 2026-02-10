@@ -4,6 +4,10 @@ import { authRateLimiter } from '@/utils/rateLimiter'
 
 export class AuthService {
   private static currentSessionId: string | null = null;
+  private static isUserConfirmed(user: any): boolean {
+    return Boolean(user?.email_confirmed_at || user?.confirmed_at);
+  }
+
   static async signUp(email: string, password: string, displayName?: string) {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -17,13 +21,9 @@ export class AuthService {
     
     if (error) throw error
     
-    // Create user profile
-    if (data.user) {
-      await supabase.from('user_profiles').insert({
-        id: data.user.id,
-        email: data.user.email,
-        display_name: displayName
-      })
+    // Create user profile only if confirmed (avoid 401s for unconfirmed users)
+    if (data.user && this.isUserConfirmed(data.user)) {
+      await this.ensureUserProfile(data.user, displayName);
     }
     
     return data
@@ -304,6 +304,12 @@ export class AuthService {
 
   static async initializeSessionManagement(): Promise<void> {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && !this.isUserConfirmed(user)) {
+        console.log('Skipping session management for unconfirmed user');
+        return;
+      }
+
       // Clean up expired sessions on app start
       await this.cleanupExpiredSessions();
       
@@ -325,6 +331,9 @@ export class AuthService {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        if (!this.isUserConfirmed(user)) {
+          return;
+        }
         // Check if we have an existing active session for this user
         const { data: existingSessions } = await supabase
           .from('user_sessions')
@@ -345,6 +354,40 @@ export class AuthService {
       }
     } catch (error) {
       console.error('Error initializing current session:', error);
+    }
+  }
+
+  static async ensureUserProfile(user: any, displayName?: string): Promise<void> {
+    if (!user?.id) return;
+    const display =
+      displayName ||
+      user.user_metadata?.display_name ||
+      user.user_metadata?.full_name ||
+      null;
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .upsert(
+        {
+          id: user.id,
+          email: user.email,
+          display_name: display
+        },
+        { onConflict: 'id' }
+      );
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  static async resendConfirmationEmail(email: string): Promise<void> {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email
+    });
+    if (error) {
+      throw error;
     }
   }
 }

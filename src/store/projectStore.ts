@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import ObjectURLManager from '@/utils/objectURLManager';
-import { triggerAutoSave } from '@/utils/autoSave';
 import { StoryboardTheme, getDefaultTheme, migrateTheme } from '@/styles/storyboardTheme';
 
 export interface TemplateSettings {
@@ -81,8 +80,6 @@ export const useProjectStore = create<ProjectStore>()(
           state.projectName = name;
         });
         
-        // Trigger auto-save after changing project name
-        triggerAutoSave();
       },
 
       setProjectInfo: (info) => {
@@ -90,8 +87,6 @@ export const useProjectStore = create<ProjectStore>()(
           state.projectInfo = info;
         });
         
-        // Trigger auto-save after changing project info
-        triggerAutoSave();
       },
 
       setProjectLogo: (file) => {
@@ -101,13 +96,6 @@ export const useProjectStore = create<ProjectStore>()(
           state.projectLogoFile = file;
         });
         
-        // Only trigger auto-save if we have a valid file
-        if (file && file instanceof File) {
-          triggerAutoSave();
-        } else if (file === null) {
-          // Logo was removed - trigger auto-save to delete from cloud
-          triggerAutoSave();
-        }
       },
 
       setClientAgency: (name) => {
@@ -115,8 +103,6 @@ export const useProjectStore = create<ProjectStore>()(
           state.clientAgency = name;
         });
         
-        // Trigger auto-save after changing client/agency
-        triggerAutoSave();
       },
 
       setJobInfo: (info) => {
@@ -124,8 +110,6 @@ export const useProjectStore = create<ProjectStore>()(
           state.jobInfo = info;
         });
         
-        // Trigger auto-save after changing job info
-        triggerAutoSave();
       },
 
       // Template settings
@@ -134,8 +118,6 @@ export const useProjectStore = create<ProjectStore>()(
           (state.templateSettings as any)[setting] = value;
         });
         
-        // Trigger auto-save after changing template setting
-        triggerAutoSave();
       },
 
       setTemplateSettings: (settings) => {
@@ -156,8 +138,6 @@ export const useProjectStore = create<ProjectStore>()(
           state.storyboardTheme = theme;
         });
         
-        // Trigger auto-save after changing theme
-        triggerAutoSave();
       },
 
       // Utility methods

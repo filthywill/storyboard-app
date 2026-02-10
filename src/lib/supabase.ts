@@ -66,6 +66,8 @@ export interface Database {
           ui_settings: any
           created_at: string
           updated_at: string
+          writer_id: string | null
+          writer_expires_at: string | null
         }
         Insert: Omit<Database['public']['Tables']['project_data']['Row'], 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['project_data']['Insert']>

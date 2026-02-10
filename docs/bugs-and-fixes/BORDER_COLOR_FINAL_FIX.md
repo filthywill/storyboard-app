@@ -1,5 +1,7 @@
 # Border Color Final Fix - Diagnostic Guide
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical.
+
 ## Current State
 
 ### What We Did
@@ -29,7 +31,7 @@
 ## Diagnostic Steps
 
 ### Step 1: Open Test File
-1. Navigate to `shot-flow-builder/BORDER_COLOR_TEST.html`
+1. Navigate to the legacy border color test file (removed/merged Feb 2026).
 2. Open in browser
 3. **All boxes should show their specified colors** (red, blue, green, magenta)
 

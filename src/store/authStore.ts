@@ -4,14 +4,19 @@ import { AuthService } from '@/services/authService';
 
 interface User {
   id: string;
-  email: string;
+  email?: string | null;
   name?: string;
   avatar_url?: string;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
 }
+
+export type AuthStatus = 'guest' | 'authenticated_confirmed' | 'authenticated_unconfirmed';
 
 interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
+  authStatus: AuthStatus;
   isLoading: boolean;
   error: string | null;
   logoutReason: 'none' | 'expired' | 'other_session';
@@ -31,11 +36,18 @@ interface AuthState {
   clearError: () => void;
 }
 
+const deriveAuthStatus = (user: User | null): AuthStatus => {
+  if (!user) return 'guest';
+  const isConfirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
+  return isConfirmed ? 'authenticated_confirmed' : 'authenticated_unconfirmed';
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       isAuthenticated: false,
       user: null,
+      authStatus: 'guest',
       isLoading: false,
       error: null,
       logoutReason: 'none',
@@ -43,6 +55,7 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ 
         user, 
         isAuthenticated: !!user,
+        authStatus: deriveAuthStatus(user),
         error: null 
       }),
       
@@ -58,7 +71,13 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const data = await AuthService.signUp(email, password, displayName);
-          set({ user: data.user, isAuthenticated: !!data.user, isLoading: false });
+          const user = data.user as User | null;
+          set({
+            user,
+            isAuthenticated: !!user,
+            authStatus: deriveAuthStatus(user),
+            isLoading: false
+          });
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
           throw error;
@@ -69,7 +88,13 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const data = await AuthService.signIn(email, password);
-          set({ user: data.user, isAuthenticated: !!data.user, isLoading: false });
+          const user = data.user as User | null;
+          set({
+            user,
+            isAuthenticated: !!user,
+            authStatus: deriveAuthStatus(user),
+            isLoading: false
+          });
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
           throw error;
@@ -80,7 +105,13 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           await AuthService.signOut();
-          set({ user: null, isAuthenticated: false, isLoading: false, logoutReason: 'none' });
+          set({
+            user: null,
+            isAuthenticated: false,
+            authStatus: 'guest',
+            isLoading: false,
+            logoutReason: 'none'
+          });
           
           // Clear all current project data on manual sign-out
           try {
@@ -133,11 +164,20 @@ export const useAuthStore = create<AuthState>()(
         
         try {
           const user = await AuthService.getCurrentUser();
-          set({ user, isAuthenticated: !!user, isLoading: false });
+          set({
+            user,
+            isAuthenticated: !!user,
+            authStatus: deriveAuthStatus(user as User | null),
+            isLoading: false
+          });
           
           // Listen for auth changes
           AuthService.onAuthStateChange((user) => {
-            set({ user, isAuthenticated: !!user });
+            set({
+              user,
+              isAuthenticated: !!user,
+              authStatus: deriveAuthStatus(user as User | null)
+            });
           });
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
@@ -149,6 +189,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
         user: state.user,
+        authStatus: state.authStatus,
       }),
     }
   )

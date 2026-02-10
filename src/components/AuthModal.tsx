@@ -33,7 +33,6 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     try {
       if (isSignUp) {
         await signUp(email, password, displayName)
-        toast.success('Account created! Please check your email.')
       } else {
         await signIn(email, password)
         toast.success('Signed in successfully!')

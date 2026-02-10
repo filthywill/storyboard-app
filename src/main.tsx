@@ -2,11 +2,16 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { getAppBackgroundCSSVars, getColor } from './styles/glassmorphism-styles'
+import { getWriterTabId } from '@/utils/writerTabId'
+import { WriterLeaseService } from '@/services/writerLeaseService'
 
 // Prevent Radix UI from adding padding-right to body when dropdowns open
 // Radix adds padding to compensate for scrollbar, but we use scrollbar-gutter: stable
 // This creates a double gutter, so we prevent it by watching for style changes
 if (typeof window !== 'undefined') {
+  getWriterTabId();
+  WriterLeaseService.initialize();
+
   const setupBodyObserver = () => {
     const body = document.body;
     if (!body) {

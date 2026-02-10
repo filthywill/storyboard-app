@@ -1,5 +1,7 @@
 # Documentation Migration Summary
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical.
+
 **Date:** January 7, 2026  
 **Migration Type:** Documentation Reorganization (Option A - Safe Migration with Path Updates)
 
@@ -61,7 +63,7 @@
 - SECURITY.md
 
 **Drafts (1 file):**
-- Drafting an onboarding prompt. Checking
+- Drafting_an_onboarding_prompt_Checking.md
 
 ### 3. Updated All Path References
 
@@ -197,4 +199,5 @@ All documentation has been successfully reorganized with zero breaking changes. 
 ---
 
 *Migration completed: January 7, 2026*
+
 

@@ -1,5 +1,7 @@
 # Background System Documentation
 
+> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical; current equivalents are under repo root (e.g., `src/`, `docs/`).
+
 ## 🎨 Overview
 
 The application uses a sophisticated multi-layer background system that creates a dark, atmospheric "aurora" effect with grain/noise texture. The system consists of four main layers:
@@ -14,10 +16,10 @@ The application uses a sophisticated multi-layer background system that creates 
 ## 📍 File Location
 
 **Primary Implementation:**
-- `shot-flow-builder/src/index.css` (lines 109-270)
+- `src/index.css` (lines 109-270)
 
 **Color System (Centralized):**
-- `shot-flow-builder/src/styles/glassmorphism-styles.ts` - Gradient colors and base colors (COLOR_PALETTE.appBackground)
+- `src/styles/glassmorphism-styles.ts` - Gradient colors and base colors (COLOR_PALETTE.appBackground)
 
 **Note:** Some controls (grain opacity, filter overlay) are edited directly in CSS for immediate effect, while gradient colors are centralized in TypeScript.
 
@@ -27,7 +29,7 @@ The application uses a sophisticated multi-layer background system that creates 
 
 ### Layer 1: HTML Base Background
 
-```110:118:shot-flow-builder/src/index.css
+```110:118:src/index.css
 html {
   /* Force scrollbar to always be visible - prevents layout shifts */
   overflow-y: scroll !important;
@@ -49,7 +51,7 @@ html {
 
 ### Layer 2: Body Gradient Background
 
-```212:237:shot-flow-builder/src/index.css
+```212:237:src/index.css
   body {
     @apply text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -119,7 +121,7 @@ html {
 
 ### Layer 3: Noise/Grain Texture Overlay
 
-```239:253:shot-flow-builder/src/index.css
+```239:253:src/index.css
   /* Grainy noise texture overlay for pixelated color transitions */
   /* Adjust opacity here to control grain intensity (0 = invisible, 1 = full intensity) */
   body::before {
@@ -182,7 +184,7 @@ The SVG uses SVG filters to generate procedural noise:
 
 ### Layer 4: Filter Overlay
 
-```255:270:shot-flow-builder/src/index.css
+```255:270:src/index.css
   /* Filter overlay layer - for brightness/darkness/tint control */
   /* Adjust background-color here to control brightness/darkness/tint */
   /* Examples: rgba(0, 0, 0, 0.2) = darken, rgba(255, 255, 255, 0.1) = lighten, rgba(100, 50, 200, 0.15) = tint */
