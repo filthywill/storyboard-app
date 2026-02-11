@@ -5,19 +5,25 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 // CORS
 const ALLOWED_ORIGINS = new Set<string>([
+  "https://www.storyboardflow.com",
+  "https://storyboardflow.com",
   "http://localhost:8080",
-  // add production origin(s) later
+  "http://localhost:3000",
 ]);
 
-function corsHeaders(req: Request) {
+function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("Origin") ?? "";
-  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : "http://localhost:8080";
-  return {
-    "Access-Control-Allow-Origin": allowOrigin,
+  const headers: Record<string, string> = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
   };
+  if (ALLOWED_ORIGINS.has(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  } else {
+    headers["Access-Control-Allow-Origin"] = "null";
+  }
+  return headers;
 }
 
 // Env

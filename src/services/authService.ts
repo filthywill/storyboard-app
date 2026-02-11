@@ -2,6 +2,15 @@ import { supabase } from '@/lib/supabase'
 import { SecurityNotificationService } from './securityNotificationService'
 import { authRateLimiter } from '@/utils/rateLimiter'
 
+/** Canonical site URL for auth redirects (e.g. confirmation emails). Uses VITE_SITE_URL in production. */
+function getSiteUrl(): string {
+  const raw = import.meta.env.VITE_SITE_URL
+  if (raw && typeof raw === 'string') {
+    return raw.replace(/\/+$/, '')
+  }
+  return typeof window !== 'undefined' ? window.location.origin : ''
+}
+
 export class AuthService {
   private static currentSessionId: string | null = null;
   private static isUserConfirmed(user: any): boolean {
@@ -68,7 +77,7 @@ export class AuthService {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${getSiteUrl()}/auth/callback`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent'
@@ -84,7 +93,7 @@ export class AuthService {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${getSiteUrl()}/auth/callback`
       }
     })
     
@@ -96,7 +105,7 @@ export class AuthService {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'apple',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${getSiteUrl()}/auth/callback`
       }
     })
     
