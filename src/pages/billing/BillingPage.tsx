@@ -131,19 +131,26 @@ async function openPortal(setPortalLoading: (v: boolean) => void) {
 export default function BillingPage() {
   const [billing, setBilling] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
 
-  const refreshBilling = useCallback(() => {
-    setLoading(true);
+  const refreshBilling = useCallback((opts?: { showFullScreen?: boolean }) => {
+    const showFullScreen = opts?.showFullScreen ?? false;
+    if (showFullScreen) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     fetchBillingStatus().then((data) => {
       setBilling(data);
-      setLoading(false);
+      if (showFullScreen) setLoading(false);
+      else setRefreshing(false);
     });
   }, []);
 
   // Load billing on mount; if returning from Stripe (params in URL), refresh and clean URL
   useEffect(() => {
-    refreshBilling();
+    refreshBilling({ showFullScreen: true });
     if (hasStripeReturnParams()) {
       clearStripeReturnParams();
     }
@@ -182,10 +189,11 @@ export default function BillingPage() {
 
           <button
             type="button"
-            onClick={() => refreshBilling()}
-            className="text-sm text-muted-foreground underline hover:text-foreground"
+            disabled={refreshing}
+            onClick={() => refreshBilling({ showFullScreen: false })}
+            className="text-sm text-muted-foreground underline hover:text-foreground disabled:opacity-50 disabled:pointer-events-none"
           >
-            Refresh status
+            {refreshing ? "Refreshing…" : "Refresh status"}
           </button>
 
           <Button
@@ -217,10 +225,11 @@ export default function BillingPage() {
 
             <button
               type="button"
-              onClick={() => refreshBilling()}
-              className="text-sm text-muted-foreground underline hover:text-foreground"
+              disabled={refreshing}
+              onClick={() => refreshBilling({ showFullScreen: false })}
+              className="text-sm text-muted-foreground underline hover:text-foreground disabled:opacity-50 disabled:pointer-events-none"
             >
-              Refresh status
+              {refreshing ? "Refreshing…" : "Refresh status"}
             </button>
           </div>
         </>
