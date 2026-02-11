@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { BILLING } from "@/config/billing";
 import { supabase } from "@/lib/supabase";
@@ -27,6 +27,45 @@ async function fetchBillingStatus() {
   }
 
   return data;
+}
+
+// Display-only message for non-Pro status (no state transitions)
+function getNonProStatusMessage(status: string | undefined): string | null {
+  if (!status) return null;
+  switch (status) {
+    case "canceled":
+      return "Your subscription has ended.";
+    case "past_due":
+    case "unpaid":
+      return "Your subscription payment failed. Please resubscribe or update billing.";
+    case "incomplete":
+    case "incomplete_expired":
+      return "Subscription setup incomplete. Please try again.";
+    default:
+      return `Status: ${status}`;
+  }
+}
+
+// Check if URL suggests return from Stripe (checkout or portal)
+function hasStripeReturnParams(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.has("session_id") || params.has("checkout") || params.has("portal")
+  );
+}
+
+// Remove Stripe return params from URL without navigation
+function clearStripeReturnParams(): void {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("session_id") && !params.has("checkout") && !params.has("portal"))
+    return;
+  params.delete("session_id");
+  params.delete("checkout");
+  params.delete("portal");
+  const search = params.toString();
+  const url =
+    window.location.pathname + (search ? `?${search}` : "") + window.location.hash;
+  window.history.replaceState({}, "", url);
 }
 
 // 2) Existing: start checkout (now also refresh billing state after returning later)
@@ -94,16 +133,25 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
 
-  // Load billing state once when the page loads
-  useEffect(() => {
+  const refreshBilling = useCallback(() => {
+    setLoading(true);
     fetchBillingStatus().then((data) => {
       setBilling(data);
       setLoading(false);
     });
   }, []);
 
-  // Decide if user is Pro
+  // Load billing on mount; if returning from Stripe (params in URL), refresh and clean URL
+  useEffect(() => {
+    refreshBilling();
+    if (hasStripeReturnParams()) {
+      clearStripeReturnParams();
+    }
+  }, [refreshBilling]);
+
+  // Decide if user is Pro (unchanged gating logic)
   const isPro = billing?.status === "active" || billing?.status === "trialing";
+  const nonProMessage = !isPro && billing ? getNonProStatusMessage(billing.status) : null;
   
 
   // This is the "JSX return"
@@ -132,6 +180,14 @@ export default function BillingPage() {
             Status: <span className="font-medium">{billing?.status ?? "unknown"}</span>
           </p>
 
+          <button
+            type="button"
+            onClick={() => refreshBilling()}
+            className="text-sm text-muted-foreground underline hover:text-foreground"
+          >
+            Refresh status
+          </button>
+
           <Button
             variant="secondary"
             disabled={portalLoading}
@@ -142,9 +198,15 @@ export default function BillingPage() {
         </>
       ) : (
         <>
+          {nonProMessage && (
+            <p className="text-sm text-muted-foreground" role="status">
+              {nonProMessage}
+            </p>
+          )}
+
           <p>Unlock Pro features with a monthly or annual subscription.</p>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={() => startCheckout(BILLING.proMonthlyPriceId)}>
               Go Pro (Monthly)
             </Button>
@@ -152,6 +214,14 @@ export default function BillingPage() {
             <Button variant="secondary" onClick={() => startCheckout(BILLING.proAnnualPriceId)}>
               Go Pro (Annual)
             </Button>
+
+            <button
+              type="button"
+              onClick={() => refreshBilling()}
+              className="text-sm text-muted-foreground underline hover:text-foreground"
+            >
+              Refresh status
+            </button>
           </div>
         </>
       )}
