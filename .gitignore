@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.*
 
+# Local-only notes (do not push to GitHub)
+TO DO NOTES
+

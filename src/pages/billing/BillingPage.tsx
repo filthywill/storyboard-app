@@ -59,11 +59,40 @@ async function startCheckout(priceId: string) {
   window.location.href = data.url;
 }
 
-// 3) THIS is your component
+// 3) Open Stripe Customer Portal (manage payment, cancel, invoices)
+// Note: openPortal receives setPortalLoading so the button can be disabled during the request.
+async function openPortal(setPortalLoading: (v: boolean) => void) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) {
+    alert("You are not logged in. Please log in again.");
+    return;
+  }
+
+  setPortalLoading(true);
+  try {
+    const { data, error } = await supabase.functions.invoke("create-portal-session", {});
+
+    if (error) {
+      alert(`Could not open billing portal: ${error.message}`);
+      return;
+    }
+
+    if (!data?.url) {
+      alert(typeof data?.error === "string" ? data.error : "No portal URL returned.");
+      return;
+    }
+
+    window.location.href = data.url;
+  } finally {
+    setPortalLoading(false);
+  }
+}
+
+// 4) THIS is your component
 export default function BillingPage() {
-  // This is the "state" I was referring to
   const [billing, setBilling] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   // Load billing state once when the page loads
   useEffect(() => {
@@ -105,9 +134,10 @@ export default function BillingPage() {
 
           <Button
             variant="secondary"
-            onClick={() => window.open("https://dashboard.stripe.com/test/subscriptions", "_blank")}
+            disabled={portalLoading}
+            onClick={() => openPortal(setPortalLoading)}
           >
-            Manage billing (for now)
+            {portalLoading ? "Opening…" : "Manage billing"}
           </Button>
         </>
       ) : (
