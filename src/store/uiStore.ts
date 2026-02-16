@@ -63,4 +63,4 @@ export const useUIStore = create<UIState & UIActions>()(
       version: 2,
     }
   )
-); 
+);

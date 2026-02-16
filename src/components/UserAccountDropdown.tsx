@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getColor } from '@/styles/glassmorphism-styles';
-import { LogOut } from 'lucide-react';
+import { CreditCard, LogOut } from 'lucide-react';
 import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
+
+/** Matches AppHeader auth button height — keeps trigger alignment identical on all routes */
+const TRIGGER_HEIGHT_PX = 28;
 
 export const UserAccountDropdown: React.FC = () => {
   const { user, signOut } = useAuthStore();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!user) return null;
@@ -26,10 +29,12 @@ export const UserAccountDropdown: React.FC = () => {
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
-          className="text-base px-2 py-1 rounded transition-colors"
+          className="inline-flex items-center leading-none px-2 rounded transition-colors"
           style={{ 
+            height: TRIGGER_HEIGHT_PX,
             fontFamily: '"Gabarito", sans-serif',
-            fontWeight: 600,
+            fontWeight: 400,
+            fontSize: '0.9rem',
             ...getGlassmorphismStyles('button')
           }}
         >
@@ -72,6 +77,19 @@ export const UserAccountDropdown: React.FC = () => {
             {user.email}
           </div>
           
+          {/* Billing */}
+          <Button
+            size="sm"
+            onClick={() => {
+              setIsOpen(false);
+              navigate('/billing');
+            }}
+            className="w-full mb-2"
+            style={getGlassmorphismStyles('button')}
+          >
+            <CreditCard className="w-4 h-4 mr-2" />
+            Billing
+          </Button>
           {/* Sign Out Button */}
           <Button
             size="sm"

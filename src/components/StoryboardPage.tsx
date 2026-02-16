@@ -43,7 +43,7 @@ import { ShotListLoadModal } from './ShotListLoadModal';
 import { ImageEditorModal } from './ImageEditorModal';
 import { ProjectLimitDialog } from './ProjectLimitDialog';
 import { UpgradeToProDialog } from './UpgradeToProDialog';
-import { AuthModal } from './AuthModal';
+import { useAuthModalStore } from '@/store/authModalStore';
 import { canCreateProjectServerSide } from '@/utils/projectCreationGate';
 import { exportManager } from '@/utils/export/exportManager';
 import ErrorBoundary from './ErrorBoundary';
@@ -116,7 +116,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
   const [showLimitDialog, setShowLimitDialog] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const { openAuthModal } = useAuthModalStore();
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [editingShot, setEditingShot] = useState<Shot | null>(null);
   const [batchInsertPosition, setBatchInsertPosition] = useState<number | null>(null);
@@ -862,7 +862,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
           onClose={() => setShowLimitDialog(false)}
           onSignIn={() => {
             setShowLimitDialog(false);
-            setShowAuthModal(true);
+            openAuthModal();
           }}
         />
 
@@ -872,11 +872,6 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
           onUpgrade={() => navigate("/billing")}
         />
 
-        {/* Auth Modal */}
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-        />
     </div>
   );
 };

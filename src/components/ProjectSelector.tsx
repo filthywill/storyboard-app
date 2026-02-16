@@ -21,7 +21,7 @@ import {
 import { UserAccountDropdown } from '@/components/UserAccountDropdown';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
-import { AuthModal } from '@/components/AuthModal';
+import { useAuthModalStore } from '@/store/authModalStore';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
@@ -31,12 +31,19 @@ export interface ProjectSelectorProps {
   onRequestCreate?: () => void;
   showCreateDialog?: boolean;
   onCloseCreateDialog?: () => void;
+  /**
+   * Whether to render the auth UI (Sign In button / UserAccountDropdown)
+   * Set to false when using with AppHeader (which handles auth UI)
+   * @default true
+   */
+  renderAuthUI?: boolean;
 }
 
 export const ProjectSelector = ({ 
   onRequestCreate,
   showCreateDialog: externalShowCreateDialog,
-  onCloseCreateDialog
+  onCloseCreateDialog,
+  renderAuthUI = true
 }: ProjectSelectorProps = {}) => {
   const {
     canCreateProject,
@@ -45,7 +52,7 @@ export const ProjectSelector = ({
   
   const navigate = useNavigate();
   const { isAuthenticated, user, signOut } = useAuthStore();
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const { openAuthModal } = useAuthModalStore();
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
@@ -136,34 +143,32 @@ export const ProjectSelector = ({
 
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Auth Button */}
-      {import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true' && (
-        <>
-          {!isAuthenticated ? (
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className="text-base px-2 py-1 rounded transition-colors flex items-center gap-2"
-              style={{ 
-                fontFamily: '"Gabarito", sans-serif',
-                fontWeight: 600,
-                ...getGlassmorphismStyles('button')
-              }}
-            >
-              <LogIn className="h-4 w-4" />
-              Sign In
-            </button>
-          ) : (
-            <UserAccountDropdown />
+    <>
+      {renderAuthUI && (
+        <div className="flex items-center gap-2">
+          {/* Auth Button */}
+          {import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true' && (
+            <>
+              {!isAuthenticated ? (
+                <button
+                  onClick={openAuthModal}
+                  className="text-base px-2 py-1 rounded transition-colors flex items-center gap-2"
+                  style={{ 
+                    fontFamily: '"Gabarito", sans-serif',
+                    fontWeight: 600,
+                    ...getGlassmorphismStyles('button')
+                  }}
+                >
+                  <LogIn className="h-4 w-4" />
+                  Sign In
+                </button>
+              ) : (
+                <UserAccountDropdown />
+              )}
+            </>
           )}
-        </>
+        </div>
       )}
-
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
 
       {/* Create Project Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -229,18 +234,12 @@ export const ProjectSelector = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
       
       {/* Project Limit Dialog */}
       <ProjectLimitDialog
         isOpen={showLimitDialog}
         onClose={() => setShowLimitDialog(false)}
-        onSignIn={() => setShowAuthModal(true)}
+        onSignIn={openAuthModal}
       />
 
       <UpgradeToProDialog
@@ -248,7 +247,7 @@ export const ProjectSelector = ({
         onClose={() => setShowUpgradeDialog(false)}
         onUpgrade={() => navigate('/billing')}
       />
-    </div>
+    </>
   );
 };
 

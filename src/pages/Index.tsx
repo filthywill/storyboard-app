@@ -3,17 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { PageTabs } from '@/components/PageTabs';
 import { StoryboardPage } from '@/components/StoryboardPage';
 import ProjectSelector from '@/components/ProjectSelector';
+import { AppHeader } from '@/components/layout/AppHeader';
 import { useAppStore } from '@/store';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatShotNumber } from '@/utils/formatShotNumber';
-import { OfflineBanner } from '@/components/OfflineBanner';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { DataValidator } from '@/utils/dataValidator';
 import { toast } from 'sonner';
 import { EmptyProjectState } from '@/components/EmptyProjectState';
-import { AuthModal } from '@/components/AuthModal';
 import { ConfirmEmailScreen } from '@/components/ConfirmEmailScreen';
 import { CloudSaveConflictDialog } from '@/components/CloudSaveConflictDialog';
 import { ProjectPickerModal } from '@/components/ProjectPickerModal';
@@ -34,6 +33,7 @@ import { supabase } from '@/lib/supabase';
 import { CloudAccessService } from '@/services/cloudAccessService';
 import { getProjectOpenState } from '@/services/projectOpenGate';
 import { WriterLeaseService } from '@/services/writerLeaseService';
+import { useAuthModalStore } from '@/store/authModalStore';
 import {
   computeDefaultWorkspaceMode,
   getStoredWorkspaceMode,
@@ -68,11 +68,11 @@ const Index = () => {
     user
   } = useAuthStore();
   const authStore = useAuthStore();
+  const { openAuthModal } = useAuthModalStore();
   const cloudSaveConflict = useCloudSaveConflictStore();
   const writerLease = useWriterLeaseStore();
   const previousProjectIdRef = useRef<string | null>(null);
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoadingCloudProjects, setIsLoadingCloudProjects] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
@@ -168,7 +168,7 @@ const Index = () => {
     try {
       const { AuthService } = await import('@/services/authService');
       await AuthService.signOut();
-      setShowAuthModal(true);
+      openAuthModal();
     } catch (error) {
       console.error('Failed to sign out for email change:', error);
       toast.error('Failed to change email');
@@ -541,7 +541,7 @@ const Index = () => {
         return;
       }
       if (openState.reason === 'unauthenticated') {
-        setShowAuthModal(true);
+        openAuthModal();
         return;
       }
       toast.error('This project is currently unavailable.');
@@ -803,7 +803,7 @@ const Index = () => {
 
   // STEP 1: Handle forced logout (session expired or logged out from another device)
   if (authStore.logoutReason === 'expired' || authStore.logoutReason === 'other_session') {
-    return <LoggedOutElsewhereScreen onSignIn={() => setShowAuthModal(true)} />;
+    return <LoggedOutElsewhereScreen onSignIn={openAuthModal} />;
   }
 
   // STEP 2: Handle auth loading
@@ -846,38 +846,16 @@ const Index = () => {
   // The EmptyProjectState will show as an overlay when appropriate
   return (
     <div className="min-h-screen flex flex-col relative" style={{ position: 'relative', zIndex: 2 }}>
-      {/* Header Section (includes banner + main header) */}
-      <div className="pt-6" style={getGlassmorphismStyles('header')}>
-        {/* Offline Banner */}
-        <OfflineBanner onSignIn={() => setShowAuthModal(true)} />
-        
-        {/* Main Header */}
-        <div className="max-w-7xl mx-auto px-6 pt-0 pb-2">
-          <div className="flex items-end justify-between">
-            <div>
-              <img 
-                src="/storyboardflow-whc_01.png" 
-                alt="Storyboard Flow" 
-                className="h-4 object-contain"
-                style={{
-                  imageRendering: 'auto',
-                  maxWidth: 'none',
-                  width: 'auto',
-                  height: '48px',
-                  filter: 'none'
-                }}
-              />
-            </div>
-            <div className="flex items-end gap-4">
-              <ProjectSelector 
-                onRequestCreate={() => void handleRequestCreateProject()}
-                showCreateDialog={showCreateProjectDialog}
-                onCloseCreateDialog={() => setShowCreateProjectDialog(false)}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Header Section (unified AppHeader) */}
+      <AppHeader />
+      
+      {/* Project management dialogs (handled by ProjectSelector without rendering auth UI) */}
+      <ProjectSelector 
+        renderAuthUI={false}
+        onRequestCreate={() => void handleRequestCreateProject()}
+        showCreateDialog={showCreateProjectDialog}
+        onCloseCreateDialog={() => setShowCreateProjectDialog(false)}
+      />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 flex-grow w-full relative">
@@ -969,7 +947,7 @@ const Index = () => {
           <EmptyProjectState 
             isAuthenticated={true}
             onCreateProject={() => void handleRequestCreateProject()}
-            onSignIn={() => setShowAuthModal(true)}
+            onSignIn={openAuthModal}
           />
         )}
       </main>
@@ -979,15 +957,9 @@ const Index = () => {
         <EmptyProjectState 
           isAuthenticated={false}
           onCreateProject={() => void handleRequestCreateProject()}
-          onSignIn={() => setShowAuthModal(true)}
+          onSignIn={openAuthModal}
         />
       )}
-      
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
 
       <WorkspaceChoiceModal
         isOpen={showWorkspaceChoiceModal}
@@ -1040,7 +1012,7 @@ const Index = () => {
         onClose={() => setShowLimitDialog(false)}
         onSignIn={() => {
           setShowLimitDialog(false);
-          setShowAuthModal(true);
+          openAuthModal();
         }}
       />
 

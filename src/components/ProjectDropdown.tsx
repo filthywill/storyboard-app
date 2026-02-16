@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
-import { AuthModal } from '@/components/AuthModal';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
 import { 
@@ -44,6 +43,7 @@ import {
 } from '@/services/workspaceModeService';
 import { WorkspaceChoiceModal } from '@/components/WorkspaceChoiceModal';
 import { LockedProjectModal } from '@/components/LockedProjectModal';
+import { useAuthModalStore } from '@/store/authModalStore';
 
 export interface ProjectDropdownProps {
   /** Whether to use compact styling (for toolbars) */
@@ -67,12 +67,12 @@ export const ProjectDropdown = ({
   const { isAuthenticated, user } = useAuthStore();
   const { isOnline } = useNetworkStatus();
   const navigate = useNavigate();
+  const { openAuthModal } = useAuthModalStore();
 
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [loadingProjectName, setLoadingProjectName] = useState('');
   const [showLimitDialog, setShowLimitDialog] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [showWorkspaceChoice, setShowWorkspaceChoice] = useState(false);
   const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>(() =>
@@ -195,7 +195,7 @@ export const ProjectDropdown = ({
         }
 
         if (openState.reason === 'unauthenticated') {
-          setShowAuthModal(true);
+          openAuthModal();
           return;
         }
 
@@ -529,7 +529,7 @@ export const ProjectDropdown = ({
       <ProjectLimitDialog
         isOpen={showLimitDialog}
         onClose={() => setShowLimitDialog(false)}
-        onSignIn={() => setShowAuthModal(true)}
+        onSignIn={openAuthModal}
       />
 
       <UpgradeToProDialog
@@ -538,11 +538,6 @@ export const ProjectDropdown = ({
         onUpgrade={() => navigate("/billing")}
       />
       
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
     </>
   );
 };
