@@ -237,13 +237,15 @@ export class GuestProjectSyncService {
             await this.migrateImagesToCloud(localProject.id, projectData.shots);
           } else {
             // Create new cloud project with existing ID
-            const createdUpdatedAt = await CloudSyncService.createCloudProject(
+            await CloudSyncService.createCloudProject(
               localProject.id,
               localProject.name,
               localProject.description
             );
             CloudSyncService.markProjectAsCloudBacked(localProject.id);
-            const updatedAt = await ProjectService.saveProject(localProject.id, projectData, createdUpdatedAt);
+            // Seed save: omit optimistic concurrency so first write to new project never conflicts
+            console.log('[GuestProjectSync] Seed save (expectedUpdatedAt=null) for newly created cloud project', localProject.id);
+            const updatedAt = await ProjectService.saveProject(localProject.id, projectData, null);
             if (import.meta.env.DEV) {
               console.log('@@@ BASE SET', {
                 projectId: localProject.id,
@@ -285,7 +287,7 @@ export class GuestProjectSyncService {
               const updatedAtAfterMigration = await ProjectService.saveProject(
                 localProject.id,
                 updatedProjectData,
-                createdUpdatedAt
+                updatedAt
               );
               if (import.meta.env.DEV) {
                 console.log('@@@ BASE SET', {

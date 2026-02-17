@@ -639,6 +639,7 @@ export class CloudSyncService {
       }
 
       let hasCloudRecord = await this.isProjectCloudBacked(id);
+      let justCreatedCloudRecord = false;
       if (!hasCloudRecord) {
         if (!access.canCreateCloudProject) {
           const denyReason: CloudSaveFailureReason =
@@ -665,6 +666,7 @@ export class CloudSyncService {
           }
           useProjectManagerStore.getState().setProjectCloudUpdatedAt(id, createdUpdatedAt);
           hasCloudRecord = true;
+          justCreatedCloudRecord = true;
         } catch (error) {
           const reason = this.getCloudFailureReason(error);
           return { ...baseResult, localSaved: true, reason, error };
@@ -725,8 +727,14 @@ export class CloudSyncService {
       ): Promise<{ updatedAt: string; expectedUpdatedAt: string | null; rpc: any }> => {
         const baseCloudUpdatedAtNow =
           useProjectManagerStore.getState().projects[id]?.baseCloudUpdatedAt ?? null;
-        const expectedForCall =
-          overrideExpected !== undefined ? overrideExpected : baseCloudUpdatedAtNow;
+        let expectedForCall: string | null;
+        if (justCreatedCloudRecord) {
+          expectedForCall = null;
+          justCreatedCloudRecord = false;
+        } else {
+          expectedForCall =
+            overrideExpected !== undefined ? overrideExpected : baseCloudUpdatedAtNow;
+        }
         lastExpectedForCall = expectedForCall;
         const lastSuccessfulUpdatedAt = this.lastSuccessfulUpdatedAt.get(id) ?? null;
 
