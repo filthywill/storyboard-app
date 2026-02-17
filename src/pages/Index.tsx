@@ -43,6 +43,9 @@ import {
   type WorkspaceMode,
 } from '@/services/workspaceModeService';
 
+const AUTH_BROADCAST_CHANNEL = 'sbflow_auth';
+const AUTH_CONFIRMED_STALE_MS = 60_000;
+
 const Index = () => {
   const { 
     activePageId, 
@@ -94,7 +97,19 @@ const Index = () => {
   const showReadOnlyOverlay = Boolean(
     currentProject?.id && (isReadOnlyLease || isTakeoverPending)
   );
+  const isUnconfirmedEmail = authStatus === 'authenticated_unconfirmed';
+  const confirmOverlayRef = useRef<HTMLDivElement | null>(null);
+  const handleCheckConfirmedRef = useRef<() => Promise<void>>(async () => {});
+  const [isConfirmingEmail, setIsConfirmingEmail] = useState(false);
+  const isMountedRef = useRef(true);
   
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     setWorkspaceModeState(getWorkspaceMode(user?.id));
     const unsubscribe = onWorkspaceModeChange((detail) => {
@@ -203,6 +218,62 @@ const Index = () => {
       toast.error('Could not verify confirmation status');
     }
   };
+
+  // Keep ref updated to avoid stale closures in broadcast listener
+  handleCheckConfirmedRef.current = handleCheckConfirmed;
+
+  // Listen for auth confirmation events from the confirmation tab.
+  // Safety: ignore unless we are currently in authenticated_unconfirmed state.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!('BroadcastChannel' in window)) return;
+
+    const channel = new BroadcastChannel(AUTH_BROADCAST_CHANNEL);
+    const onMessage = async (event: MessageEvent) => {
+      const payload = (event as any)?.data;
+      if (!payload || payload.type !== 'AUTH_CONFIRMED') return;
+
+      const at = typeof payload.at === 'number' ? payload.at : null;
+      if (at !== null && Date.now() - at > AUTH_CONFIRMED_STALE_MS) {
+        return;
+      }
+
+      // Do NOT rely on effect closure values (authStatus can change).
+      const currentStatus = useAuthStore.getState().authStatus;
+      if (currentStatus !== 'authenticated_unconfirmed') return;
+
+      if (isMountedRef.current) setIsConfirmingEmail(true);
+      try {
+        await handleCheckConfirmedRef.current();
+      } finally {
+        if (isMountedRef.current) setIsConfirmingEmail(false);
+      }
+    };
+
+    channel.addEventListener('message', onMessage);
+    return () => {
+      channel.removeEventListener('message', onMessage);
+      channel.close();
+    };
+  }, []);
+
+  // When showing the unconfirmed overlay, focus it to keep keyboard interactions contained.
+  useEffect(() => {
+    if (!isUnconfirmedEmail) return;
+    confirmOverlayRef.current?.focus();
+  }, [isUnconfirmedEmail]);
+
+  // Lock background scrolling while the unconfirmed overlay is shown.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!isUnconfirmedEmail) return;
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    body.style.overflow = 'hidden';
+    return () => {
+      body.style.overflow = prevOverflow;
+    };
+  }, [isUnconfirmedEmail]);
 
   const reloadProjectFromCloud = async (projectId: string) => {
     const { CloudProjectSyncService } = await import('@/services/cloudProjectSyncService');
@@ -818,19 +889,7 @@ const Index = () => {
     );
   }
 
-  // STEP 3: Handle unconfirmed email state
-  if (authStatus === 'authenticated_unconfirmed') {
-    return (
-      <ConfirmEmailScreen
-        email={user?.email ?? ''}
-        onResend={handleResendConfirmation}
-        onChangeEmail={handleChangeEmail}
-        onCheckConfirmed={handleCheckConfirmed}
-      />
-    );
-  }
-
-  // STEP 4: Handle cloud project loading for authenticated users
+  // STEP 3: Handle cloud project loading for authenticated users
   if (isAuthenticated && isLoadingCloudProjects) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -846,182 +905,226 @@ const Index = () => {
   // The EmptyProjectState will show as an overlay when appropriate
   return (
     <div className="min-h-screen flex flex-col relative" style={{ position: 'relative', zIndex: 2 }}>
-      {/* Header Section (unified AppHeader) */}
-      <AppHeader />
-      
-      {/* Project management dialogs (handled by ProjectSelector without rendering auth UI) */}
-      <ProjectSelector 
-        renderAuthUI={false}
-        onRequestCreate={() => void handleRequestCreateProject()}
-        showCreateDialog={showCreateProjectDialog}
-        onCloseCreateDialog={() => setShowCreateProjectDialog(false)}
-      />
+      <div
+        aria-hidden={isUnconfirmedEmail ? true : undefined}
+        style={
+          isUnconfirmedEmail
+            ? { pointerEvents: 'none', userSelect: 'none' }
+            : undefined
+        }
+      >
+        {/* Header Section (unified AppHeader) */}
+        <AppHeader />
+        
+        {/* Project management dialogs (handled by ProjectSelector without rendering auth UI) */}
+        <ProjectSelector 
+          renderAuthUI={false}
+          onRequestCreate={() => void handleRequestCreateProject()}
+          showCreateDialog={showCreateProjectDialog}
+          onCloseCreateDialog={() => setShowCreateProjectDialog(false)}
+        />
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8 flex-grow w-full relative">
-        {activePage ? (
-          <>
-            <StoryboardPage pageId={activePage.id} />
-            
-            {/* Status Footer - positioned below StoryboardPage */}
-            <div className="mt-2" style={{
-              backgroundColor: 'rgba(1, 1, 1, 0.2)',
-              backdropFilter: 'blur(0.5px)',
-              WebkitBackdropFilter: 'blur(0.5px)',
-              border: '1px solid rgba(1, 1, 1, 0.05)',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-              fontFamily: '"Open Sans", sans-serif',
-              color: 'black',
-              borderRadius: '8px',
-            }}>
-              <div className="px-6 py-1">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="text-white/80">
-                    {activePage && `Last updated: ${new Date(activePage.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-                  </div>
-                  {cloudSaveConflict.status === 'paused_conflict' &&
-                  cloudSaveConflict.projectId === currentProject?.id ? (
-                    <div className="text-white/90 flex items-center gap-2">
-                      <span>Saving paused — reload to sync with cloud.</span>
-                      <Button
-                        className="h-7 px-2 text-xs"
-                        style={getGlassmorphismStyles('buttonAccent')}
-                        onClick={() => void handleReloadFromCloud()}
-                      >
-                        Reload from cloud
-                      </Button>
-                    </div>
-                  ) : (
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-6 py-8 flex-grow w-full relative">
+          {activePage ? (
+            <>
+              <StoryboardPage pageId={activePage.id} />
+              
+              {/* Status Footer - positioned below StoryboardPage */}
+              <div className="mt-2" style={{
+                backgroundColor: 'rgba(1, 1, 1, 0.2)',
+                backdropFilter: 'blur(0.5px)',
+                WebkitBackdropFilter: 'blur(0.5px)',
+                border: '1px solid rgba(1, 1, 1, 0.05)',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                fontFamily: '"Open Sans", sans-serif',
+                color: 'black',
+                borderRadius: '8px',
+              }}>
+                <div className="px-6 py-1">
+                  <div className="flex items-center justify-between text-sm">
                     <div className="text-white/80">
-                      {isAuthenticated
-                        ? 'Auto-saved locally (syncs to cloud when available)'
-                        : 'Auto-saved to local storage'}
+                      {activePage && `Last updated: ${new Date(activePage.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                     </div>
-                  )}
+                    {cloudSaveConflict.status === 'paused_conflict' &&
+                    cloudSaveConflict.projectId === currentProject?.id ? (
+                      <div className="text-white/90 flex items-center gap-2">
+                        <span>Saving paused — reload to sync with cloud.</span>
+                        <Button
+                          className="h-7 px-2 text-xs"
+                          style={getGlassmorphismStyles('buttonAccent')}
+                          onClick={() => void handleReloadFromCloud()}
+                        >
+                          Reload from cloud
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-white/80">
+                        {isAuthenticated
+                          ? 'Auto-saved locally (syncs to cloud when available)'
+                          : 'Auto-saved to local storage'}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+            </>
+          ) : shouldShowTemplate ? (
+            <div className={!currentProject ? "opacity-30 pointer-events-none" : ""}>
+              <TemplateBackground />
             </div>
-          </>
-        ) : shouldShowTemplate ? (
-          <div className={!currentProject ? "opacity-30 pointer-events-none" : ""}>
-            <TemplateBackground />
-          </div>
-        ) : null}
+          ) : null}
 
-        {showReadOnlyOverlay && (
-          <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/50"
-            style={{ pointerEvents: 'auto' }}
-          >
+          {showReadOnlyOverlay && (
             <div
-              className="w-full max-w-md mx-4 rounded-xl p-6 text-center shadow-2xl"
-              style={getGlassmorphismStyles('dark')}
+              className="fixed inset-0 z-40 flex items-center justify-center bg-black/50"
+              style={{ pointerEvents: 'auto' }}
             >
-              <h2 className="text-lg font-semibold text-white mb-2">
-                {isTakeoverPending
-                  ? 'Taking over editing...'
-                  : 'This project is being edited elsewhere.'}
-              </h2>
-              <p className="text-sm text-white/70 mb-5">
-                {isTakeoverPending
-                  ? 'Reloading the latest cloud version.'
-                  : 'To prevent overwriting work, editing is disabled here.'}
-              </p>
-              {takeoverError && (
-                <p className="text-xs text-white/80 mb-4">{takeoverError}</p>
-              )}
-              <Button
-                className="h-9 px-4 text-sm"
-                style={getGlassmorphismStyles('buttonAccent')}
-                onClick={() => void handleTakeOverEditing()}
-                disabled={isTakeoverPending}
+              <div
+                className="w-full max-w-md mx-4 rounded-xl p-6 text-center shadow-2xl"
+                style={getGlassmorphismStyles('dark')}
               >
-                {isTakeoverPending ? 'Taking over…' : 'Take over editing'}
-              </Button>
+                <h2 className="text-lg font-semibold text-white mb-2">
+                  {isTakeoverPending
+                    ? 'Taking over editing...'
+                    : 'This project is being edited elsewhere.'}
+                </h2>
+                <p className="text-sm text-white/70 mb-5">
+                  {isTakeoverPending
+                    ? 'Reloading the latest cloud version.'
+                    : 'To prevent overwriting work, editing is disabled here.'}
+                </p>
+                {takeoverError && (
+                  <p className="text-xs text-white/80 mb-4">{takeoverError}</p>
+                )}
+                <Button
+                  className="h-9 px-4 text-sm"
+                  style={getGlassmorphismStyles('buttonAccent')}
+                  onClick={() => void handleTakeOverEditing()}
+                  disabled={isTakeoverPending}
+                >
+                  {isTakeoverPending ? 'Taking over…' : 'Take over editing'}
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          
+          {/* Empty State Overlay for authenticated users with no projects */}
+          {isAuthenticated && allProjects.length === 0 && !isLoadingCloudProjects && (
+            <EmptyProjectState 
+              isAuthenticated={true}
+              onCreateProject={() => void handleRequestCreateProject()}
+              onSignIn={openAuthModal}
+            />
+          )}
+        </main>
         
-        {/* Empty State Overlay for authenticated users with no projects */}
-        {isAuthenticated && allProjects.length === 0 && !isLoadingCloudProjects && (
+        {/* Full-screen EmptyProjectState overlay for unauthenticated users with no current project */}
+        {!isAuthenticated && !currentProject && (
           <EmptyProjectState 
-            isAuthenticated={true}
+            isAuthenticated={false}
             onCreateProject={() => void handleRequestCreateProject()}
             onSignIn={openAuthModal}
           />
         )}
-      </main>
-      
-      {/* Full-screen EmptyProjectState overlay for unauthenticated users with no current project */}
-      {!isAuthenticated && !currentProject && (
-        <EmptyProjectState 
-          isAuthenticated={false}
-          onCreateProject={() => void handleRequestCreateProject()}
-          onSignIn={openAuthModal}
+
+        <WorkspaceChoiceModal
+          isOpen={showWorkspaceChoiceModal}
+          onClose={() => setShowWorkspaceChoiceModal(false)}
+          onKeepLocal={() => void handleWorkspaceChoice('local')}
+          onSwitchToCloud={() => void handleWorkspaceChoice('cloud')}
+          onUpgrade={() => navigate('/billing')}
         />
-      )}
 
-      <WorkspaceChoiceModal
-        isOpen={showWorkspaceChoiceModal}
-        onClose={() => setShowWorkspaceChoiceModal(false)}
-        onKeepLocal={() => void handleWorkspaceChoice('local')}
-        onSwitchToCloud={() => void handleWorkspaceChoice('cloud')}
-        onUpgrade={() => navigate('/billing')}
-      />
+        <LockedProjectModal
+          isOpen={Boolean(lockedProject)}
+          onClose={() => setLockedProject(null)}
+          onSwitchWorkspace={() => void handleLockedSwitch()}
+          onUpgrade={() => navigate('/billing')}
+          projectName={lockedProject?.name}
+          requiredMode={lockedProject?.requiredMode ?? 'local'}
+          projectKind={lockedProject?.projectKind ?? 'local'}
+          currentMode={workspaceMode}
+        />
 
-      <LockedProjectModal
-        isOpen={Boolean(lockedProject)}
-        onClose={() => setLockedProject(null)}
-        onSwitchWorkspace={() => void handleLockedSwitch()}
-        onUpgrade={() => navigate('/billing')}
-        projectName={lockedProject?.name}
-        requiredMode={lockedProject?.requiredMode ?? 'local'}
-        projectKind={lockedProject?.projectKind ?? 'local'}
-        currentMode={workspaceMode}
-      />
-
-      <CloudSaveConflictDialog
-        isOpen={cloudSaveConflict.isOpen}
-        hasLocalChanges={cloudSaveConflict.hasLocalChanges}
-        onReload={() => void handleReloadFromCloud()}
-        onClose={() => cloudSaveConflict.close()}
-      />
-      
-      {/* Project Picker Modal - for authenticated users with projects but no active project */}
-      {showProjectPicker && isAuthenticated && (
-        <ProjectPickerModal
-          projects={allProjects.map(p => ({
-            id: p.id,
-            name: p.name,
-            shotCount: p.shotCount,
-            isCloudOnly: p.isCloudOnly
-          }))}
-          onSelectProject={async (projectId) => {
-            setShowProjectPicker(false);
-            await openProjectWithGate(projectId);
-          }}
-          onCreateNew={() => {
-            void handlePickerCreateNew();
+        <CloudSaveConflictDialog
+          isOpen={cloudSaveConflict.isOpen}
+          hasLocalChanges={cloudSaveConflict.hasLocalChanges}
+          onReload={() => void handleReloadFromCloud()}
+          onClose={() => cloudSaveConflict.close()}
+        />
+        
+        {/* Project Picker Modal - for authenticated users with projects but no active project */}
+        {showProjectPicker && isAuthenticated && (
+          <ProjectPickerModal
+            projects={allProjects.map(p => ({
+              id: p.id,
+              name: p.name,
+              shotCount: p.shotCount,
+              isCloudOnly: p.isCloudOnly
+            }))}
+            onSelectProject={async (projectId) => {
+              setShowProjectPicker(false);
+              await openProjectWithGate(projectId);
+            }}
+            onCreateNew={() => {
+              void handlePickerCreateNew();
+            }}
+          />
+        )}
+        
+        {/* Project Limit Dialog - for unauthenticated users hitting project limit */}
+        <ProjectLimitDialog
+          isOpen={showLimitDialog}
+          onClose={() => setShowLimitDialog(false)}
+          onSignIn={() => {
+            setShowLimitDialog(false);
+            openAuthModal();
           }}
         />
-      )}
-      
-      {/* Project Limit Dialog - for unauthenticated users hitting project limit */}
-      <ProjectLimitDialog
-        isOpen={showLimitDialog}
-        onClose={() => setShowLimitDialog(false)}
-        onSignIn={() => {
-          setShowLimitDialog(false);
-          openAuthModal();
-        }}
-      />
 
-      <UpgradeToProDialog
-        isOpen={showUpgradeDialog}
-        onClose={() => setShowUpgradeDialog(false)}
-        onUpgrade={() => navigate("/billing")}
-      />
-      
+        <UpgradeToProDialog
+          isOpen={showUpgradeDialog}
+          onClose={() => setShowUpgradeDialog(false)}
+          onUpgrade={() => navigate("/billing")}
+        />
+      </div>
+
+      {isUnconfirmedEmail && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
+          ref={confirmOverlayRef}
+          onKeyDownCapture={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <div className="relative">
+            {isConfirmingEmail && (
+              <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-center pt-6">
+                <div
+                  className="flex items-center gap-3 rounded-lg px-4 py-2 shadow-2xl"
+                  style={getGlassmorphismStyles('dark')}
+                >
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white/80"></div>
+                  <div className="text-sm text-white/80">Checking confirmation…</div>
+                </div>
+              </div>
+            )}
+
+            <div style={isConfirmingEmail ? { pointerEvents: 'none' } : undefined}>
+              <ConfirmEmailScreen
+                email={user?.email ?? ''}
+                onResend={handleResendConfirmation}
+                onChangeEmail={handleChangeEmail}
+                onCheckConfirmed={handleCheckConfirmed}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
