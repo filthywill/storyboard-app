@@ -102,6 +102,7 @@ const Index = () => {
   const handleCheckConfirmedRef = useRef<() => Promise<void>>(async () => {});
   const [isConfirmingEmail, setIsConfirmingEmail] = useState(false);
   const isMountedRef = useRef(true);
+  const [isStorageCritical, setIsStorageCritical] = useState(false);
   
   useEffect(() => {
     isMountedRef.current = true;
@@ -389,12 +390,17 @@ const Index = () => {
   // Initialize app with robust error handling
   useEffect(() => {
     const initializeApp = async () => {
+      let onLoadReport: ReturnType<typeof DataValidator.validateOnLoad> | null = null;
       try {
         console.log('Starting app initialization...');
         
         // Initialize localStorage manager first
         const { LocalStorageManager } = await import('@/utils/localStorageManager');
         LocalStorageManager.initialize();
+
+        // Validate storage early (non-destructive). If critical, gate any auto-open/switch behaviors.
+        onLoadReport = DataValidator.validateOnLoad();
+        if (isMountedRef.current) setIsStorageCritical(Boolean(onLoadReport?.critical));
         
         // Small delay to ensure everything is ready
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -402,6 +408,9 @@ const Index = () => {
         // Initialize project system separately (non-blocking)
         setTimeout(async () => {
           try {
+            if (onLoadReport?.critical) {
+              return;
+            }
             await initializeProjectSystem();
           } catch (error) {
             console.error('Error initializing project system:', error);
@@ -413,7 +422,6 @@ const Index = () => {
         if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
           try {
             await initializeAuth();
-            DataValidator.validateOnLoad();
           } catch (error) {
             console.error('Error initializing auth:', error);
             // Don't block the app if auth fails
@@ -446,6 +454,12 @@ const Index = () => {
         // If not authenticated, create default project structure
         setTimeout(() => {
           const authState = useAuthStore.getState();
+          if (onLoadReport?.critical) {
+            toast.error(
+              "Storage issue detected. We've backed up the affected data. Please return to your original tab and avoid creating new projects until recovered."
+            );
+            return;
+          }
           if (!authState.isAuthenticated && !authState.isLoading) {
             console.log('Guest user detected - initializing default app content...');
             initializeAppContent();
@@ -489,6 +503,7 @@ const Index = () => {
   // Sync project list and guest projects when user becomes authenticated
   useEffect(() => {
     if (
+      isStorageCritical ||
       !isAuthenticated ||
       authStatus !== 'authenticated_confirmed' ||
       import.meta.env.VITE_CLOUD_SYNC_ENABLED !== 'true'

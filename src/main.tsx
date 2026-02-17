@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 
 const AUTH_BROADCAST_CHANNEL = 'sbflow_auth';
 const CONFIRM_HANDLED_KEY = 'sbflow_confirm_handled';
+const CONFIRM_COMPLETE_FLAG = 'confirmComplete';
 
 function isSupabaseAuthArtifactPresent(): boolean {
   if (typeof window === 'undefined') return false;
@@ -27,6 +28,16 @@ function isSupabaseAuthArtifactPresent(): boolean {
   return hashLooksLikeSupabase || searchLooksLikeOAuthOrMagic;
 }
 
+function isConfirmCompleteMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(CONFIRM_COMPLETE_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function broadcastAuthConfirmed(): void {
   if (typeof window === 'undefined') return;
   if (!('BroadcastChannel' in window)) return;
@@ -42,9 +53,9 @@ function broadcastAuthConfirmed(): void {
 function clearAuthArtifactsFromUrl(): void {
   if (typeof window === 'undefined') return;
   // Only clear artifacts after session is confirmed.
-  // Keep it simple and stable: remove hash + search by replacing to "/".
+  // Keep it simple and stable: remove hash + search by replacing to a safe landing URL.
   try {
-    window.history.replaceState(null, '', '/');
+    window.history.replaceState(null, '', `/?${CONFIRM_COMPLETE_FLAG}=1`);
   } catch {
     // best-effort only
   }
@@ -60,10 +71,19 @@ function ConfirmationCompleteScreen() {
         </p>
         <button
           className="mt-5 w-full h-10 rounded-md bg-white/10 hover:bg-white/15 text-white text-sm font-medium border border-white/15"
-          onClick={() => window.location.replace('/')}
+          onClick={() => {
+            try {
+              window.close();
+            } catch {
+              // ignored
+            }
+          }}
         >
-          Go to StoryboardFlow
+          Close this tab
         </button>
+        <p className="mt-3 text-xs text-white/60">
+          If this tab doesn’t close, just switch back to your original StoryboardFlow tab. Continuing here may not recover unsynced local work.
+        </p>
       </div>
     </div>
   );
@@ -303,6 +323,20 @@ async function waitForSessionUser(timeoutMs: number): Promise<boolean> {
 }
 
 async function bootstrap(): Promise<void> {
+  // Safe landing mode: never boot the full app here.
+  if (isConfirmCompleteMode()) {
+    // Attempt to close again (may be blocked)
+    setTimeout(() => {
+      try {
+        window.close();
+      } catch {
+        // ignored
+      }
+    }, 200);
+    root.render(<ConfirmationCompleteScreen />);
+    return;
+  }
+
   const hasArtifacts = isSupabaseAuthArtifactPresent();
   if (!hasArtifacts) {
     renderApp();

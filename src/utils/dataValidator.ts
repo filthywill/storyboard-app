@@ -19,6 +19,22 @@ export interface ValidationResult {
 
 export class DataValidator {
   /**
+   * Non-destructive localStorage validation report (on load).
+   * IMPORTANT: validateOnLoad must never delete/overwrite app data automatically.
+   */
+  private static lastOnLoadReport: {
+    ok: boolean;
+    critical: boolean;
+    checkedKeys: string[];
+    issues: Array<{
+      key: string;
+      status: 'ok' | 'skipped' | 'parse_failed' | 'invalid';
+      reason?: string;
+      proposedRepair?: unknown;
+    }>;
+  } | null = null;
+
+  /**
    * Comprehensive project data validation
    */
   static validateProjectData(data: any): ValidationResult {
@@ -307,49 +323,242 @@ export class DataValidator {
   /**
    * Validate localStorage data on app load
    */
-  static validateOnLoad(): void {
-    const keys = ['page-storage', 'shot-storage', 'project-storage', 'ui-storage']
-    
-    keys.forEach(key => {
-      try {
-        const data = localStorage.getItem(key)
-        if (data) {
-          const parsed = JSON.parse(data)
-          
-          // Zustand persist stores have a 'state' property that contains the actual data
-          // We need to extract the state before validating
-          const stateData = parsed.state || parsed
-          
-          // Skip validation if the state is empty/default
-          if (key === 'page-storage' && (!stateData.pages || stateData.pages.length === 0)) {
-            return // Empty state is valid
-          }
-          
-          const validation = this.validateProjectData(stateData)
-          
-          if (!validation.valid) {
-            console.error(`Corrupted data in ${key}:`, validation.errors)
-            
-            // Attempt auto-repair
-            if (validation.data) {
-              const repaired = this.autoRepair(validation.data)
-              // Preserve the zustand persist structure
-              if (parsed.state) {
-                parsed.state = repaired
-                localStorage.setItem(key, JSON.stringify(parsed))
-              } else {
-                localStorage.setItem(key, JSON.stringify(repaired))
-              }
-              console.log(`Auto-repaired data in ${key}`)
-            }
-          }
+  static validateOnLoad(): {
+    ok: boolean;
+    critical: boolean;
+    checkedKeys: string[];
+    issues: Array<{
+      key: string;
+      status: 'ok' | 'skipped' | 'parse_failed' | 'invalid';
+      reason?: string;
+      proposedRepair?: unknown;
+    }>;
+  } {
+    const baseKeys = ['page-storage', 'shot-storage', 'project-storage', 'ui-store'];
+    const projectKeyPrefixes = [
+      'page-storage-project-',
+      'shot-storage-project-',
+      'project-storage-project-',
+      'ui-store-project-'
+    ];
+
+    const keys: string[] = [];
+    baseKeys.forEach((k) => keys.push(k));
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (projectKeyPrefixes.some((prefix) => k.startsWith(prefix))) {
+          keys.push(k);
         }
-      } catch (error) {
-        console.error(`Failed to parse data in ${key}:`, error)
-        // Clear corrupted data
-        localStorage.removeItem(key)
-        console.log(`Cleared corrupted data in ${key}`)
       }
-    })
+    } catch {
+      // Ignore enumeration failures (non-critical)
+    }
+
+    const uniqKeys = Array.from(new Set(keys));
+    const issues: Array<{
+      key: string;
+      status: 'ok' | 'skipped' | 'parse_failed' | 'invalid';
+      reason?: string;
+      proposedRepair?: unknown;
+    }> = [];
+
+    const nowIso = () => new Date().toISOString();
+    const indexKeyFor = (key: string) => `corrupt-backup-index:${key}`;
+    const backupKeyFor = (key: string, iso: string) => `corrupt-backup:${key}:${iso}`;
+    const capBackups = 3;
+
+    const addBackup = (key: string, raw: string, why: string) => {
+      try {
+        const iso = nowIso();
+        const backupKey = backupKeyFor(key, iso);
+        localStorage.setItem(backupKey, raw);
+
+        let index: string[] = [];
+        try {
+          const existing = localStorage.getItem(indexKeyFor(key));
+          if (existing) {
+            const parsed = JSON.parse(existing);
+            if (Array.isArray(parsed)) index = parsed.filter((x) => typeof x === 'string');
+          }
+        } catch {
+          index = [];
+        }
+
+        index.unshift(backupKey);
+        const keep = index.slice(0, capBackups);
+        const drop = index.slice(capBackups);
+        drop.forEach((dropKey) => {
+          try {
+            localStorage.removeItem(dropKey);
+          } catch {
+            // ignore
+          }
+        });
+        localStorage.setItem(indexKeyFor(key), JSON.stringify(keep));
+
+        console.warn(`[DataValidator] Backed up potentially corrupt storage key "${key}" (${why}) to "${backupKey}"`);
+      } catch (e) {
+        console.warn(`[DataValidator] Failed to backup storage key "${key}"`, e);
+      }
+    };
+
+    const kindForKey = (key: string): 'page' | 'shot' | 'project' | 'ui' | 'unknown' => {
+      if (key.startsWith('page-storage')) return 'page';
+      if (key.startsWith('shot-storage')) return 'shot';
+      if (key.startsWith('project-storage')) return 'project';
+      if (key.startsWith('ui-store')) return 'ui';
+      return 'unknown';
+    };
+
+    const validatePageStore = (stateData: any) => {
+      const pages = stateData?.pages;
+      if (!Array.isArray(pages)) return { ok: false, reason: 'pages_not_array' };
+      for (const p of pages) {
+        if (!p || typeof p !== 'object' || typeof p.id !== 'string') {
+          return { ok: false, reason: 'page_missing_id' };
+        }
+      }
+      return { ok: true };
+    };
+    const repairPageStore = (stateData: any) => ({
+      pages: Array.isArray(stateData?.pages) ? stateData.pages : [],
+      activePageId: typeof stateData?.activePageId === 'string' ? stateData.activePageId : null
+    });
+
+    const validateShotStore = (stateData: any) => {
+      const shots = stateData?.shots;
+      if (!shots || typeof shots !== 'object') return { ok: false, reason: 'shots_not_object' };
+      const shotOrder = stateData?.shotOrder;
+      if (shotOrder !== undefined && !Array.isArray(shotOrder)) {
+        return { ok: false, reason: 'shotOrder_not_array' };
+      }
+      return { ok: true };
+    };
+    const repairShotStore = (stateData: any) => ({
+      shots: stateData?.shots && typeof stateData.shots === 'object' ? stateData.shots : {},
+      shotOrder: Array.isArray(stateData?.shotOrder) ? stateData.shotOrder : []
+    });
+
+    const validateProjectStore = (stateData: any) => {
+      const name = stateData?.projectName;
+      if (name !== undefined && typeof name !== 'string') return { ok: false, reason: 'projectName_not_string' };
+      const template = stateData?.templateSettings;
+      if (template !== undefined && (template === null || typeof template !== 'object')) {
+        return { ok: false, reason: 'templateSettings_not_object' };
+      }
+      return { ok: true };
+    };
+    const repairProjectStore = (stateData: any) => ({
+      ...stateData,
+      projectName: typeof stateData?.projectName === 'string' ? stateData.projectName : (stateData?.projectName ?? ''),
+      templateSettings: stateData?.templateSettings && typeof stateData.templateSettings === 'object' ? stateData.templateSettings : {}
+    });
+
+    const validateUiStore = (stateData: any) => {
+      // If we don't recognize the shape, skip rather than "repair".
+      if (!stateData || typeof stateData !== 'object') return { ok: false, reason: 'ui_not_object' };
+      const keysToCheck: Array<keyof any> = ['isDragging', 'isExporting', 'showDeleteConfirmation'];
+      for (const k of keysToCheck) {
+        if (k in stateData && typeof stateData[k] !== 'boolean') {
+          return { ok: false, reason: `ui_${String(k)}_not_boolean` };
+        }
+      }
+      return { ok: true };
+    };
+    const repairUiStore = (stateData: any) => ({
+      isDragging: typeof stateData?.isDragging === 'boolean' ? stateData.isDragging : false,
+      isExporting: typeof stateData?.isExporting === 'boolean' ? stateData.isExporting : false,
+      showDeleteConfirmation:
+        typeof stateData?.showDeleteConfirmation === 'boolean' ? stateData.showDeleteConfirmation : true
+    });
+
+    let critical = false;
+
+    for (const key of uniqKeys) {
+      const raw = (() => {
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      })();
+      if (!raw) {
+        issues.push({ key, status: 'skipped', reason: 'missing' });
+        continue;
+      }
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        addBackup(key, raw, 'parse_failed');
+        const kind = kindForKey(key);
+        if (kind === 'page' || kind === 'shot' || kind === 'project') critical = true;
+        issues.push({ key, status: 'parse_failed', reason: 'parse_failed' });
+        continue;
+      }
+
+      // Zustand persist stores may wrap under `state`; project-scoped keys may not.
+      const stateData = parsed?.state ?? parsed;
+      const kind = kindForKey(key);
+
+      // Store-specific validation only; never validate unrelated shapes.
+      let v: { ok: boolean; reason?: string } | null = null;
+      let proposedRepair: unknown = undefined;
+
+      if (kind === 'page') {
+        v = validatePageStore(stateData);
+        if (!v.ok) proposedRepair = repairPageStore(stateData);
+      } else if (kind === 'shot') {
+        v = validateShotStore(stateData);
+        if (!v.ok) proposedRepair = repairShotStore(stateData);
+      } else if (kind === 'project') {
+        v = validateProjectStore(stateData);
+        if (!v.ok) proposedRepair = repairProjectStore(stateData);
+      } else if (kind === 'ui') {
+        v = validateUiStore(stateData);
+        if (!v.ok) proposedRepair = repairUiStore(stateData);
+      } else {
+        issues.push({ key, status: 'skipped', reason: 'no_schema' });
+        continue;
+      }
+
+      if (v.ok) {
+        issues.push({ key, status: 'ok' });
+        continue;
+      }
+
+      // Non-destructive: backup, report, but do NOT overwrite or remove.
+      addBackup(key, raw, 'validation_failed');
+      if (kind === 'page' || kind === 'shot' || kind === 'project') critical = true;
+      issues.push({
+        key,
+        status: 'invalid',
+        reason: v.reason ?? 'invalid',
+        proposedRepair
+      });
+    }
+
+    const ok = issues.every((i) => i.status === 'ok' || i.status === 'skipped');
+    const report = {
+      ok,
+      critical,
+      checkedKeys: uniqKeys,
+      issues
+    };
+    this.lastOnLoadReport = report;
+    if (!ok) {
+      console.warn('[DataValidator] validateOnLoad detected storage issues', report);
+      if (critical) {
+        console.error('[DataValidator] Critical storage issues detected — automatic repair is disabled to prevent data loss.');
+      }
+    }
+    return report;
+  }
+
+  static getLastOnLoadReport(): typeof DataValidator.lastOnLoadReport {
+    return this.lastOnLoadReport;
   }
 }
