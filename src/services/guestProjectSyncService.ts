@@ -245,6 +245,13 @@ export class GuestProjectSyncService {
             CloudSyncService.markProjectAsCloudBacked(localProject.id);
             // Seed save: omit optimistic concurrency so first write to new project never conflicts
             console.log('[GuestProjectSync] Seed save (expectedUpdatedAt=null) for newly created cloud project', localProject.id);
+            console.log('[GuestProjectSync] SEED payload counts', {
+              projectId: localProject.id,
+              pages: projectData.pages?.length || 0,
+              shots: Object.keys(projectData.shots || {}).length,
+              shotOrder: projectData.shotOrder?.length || 0,
+              hasImageData: Object.values(projectData.shots || {}).some((s: any) => Boolean(s?.imageData))
+            });
             const updatedAt = await ProjectService.saveProject(localProject.id, projectData, null);
             if (import.meta.env.DEV) {
               console.log('@@@ BASE SET', {
@@ -261,46 +268,37 @@ export class GuestProjectSyncService {
             
             // Save again after image migration to update with imageUrls
             if (Object.values(projectData.shots).some((s: any) => s.imageData)) {
-              const { useShotStore } = await import('@/store/shotStore');
-              const { usePageStore } = await import('@/store/pageStore');
-              const { useProjectStore } = await import('@/store/projectStore');
-              const { useUIStore } = await import('@/store/uiStore');
-              
-              const updatedProjectData = {
-                pages: usePageStore.getState().pages,
-                shots: useShotStore.getState().shots,
-                projectSettings: {
-                  projectName: useProjectStore.getState().projectName,
-                  projectInfo: useProjectStore.getState().projectInfo,
-                  projectLogoUrl: useProjectStore.getState().projectLogoUrl,
-                  clientAgency: useProjectStore.getState().clientAgency,
-                  jobInfo: useProjectStore.getState().jobInfo,
-                  templateSettings: useProjectStore.getState().templateSettings
-                },
-                uiSettings: {
-                  isDragging: useUIStore.getState().isDragging,
-                  isExporting: useUIStore.getState().isExporting,
-                  showDeleteConfirmation: useUIStore.getState().showDeleteConfirmation
-                }
-              };
-              
-              const updatedAtAfterMigration = await ProjectService.saveProject(
-                localProject.id,
-                updatedProjectData,
-                updatedAt
-              );
-              if (import.meta.env.DEV) {
-                console.log('@@@ BASE SET', {
+              const latest = LocalStorageManager.getProjectData(localProject.id);
+              if (!latest) {
+                console.warn(
+                  '[GuestProjectSync] Skipping post-migration save (missing latest localStorage payload)',
+                  localProject.id
+                );
+              } else {
+                console.log('[GuestProjectSync] Post-migration save payload counts', {
                   projectId: localProject.id,
-                  value: updatedAtAfterMigration,
-                  source: 'guestProjectSync.migrateImages'
+                  pages: latest.pages?.length || 0,
+                  shots: Object.keys(latest.shots || {}).length
                 });
+              
+                const updatedAtAfterMigration = await ProjectService.saveProject(
+                  localProject.id,
+                  latest,
+                  updatedAt
+                );
+                if (import.meta.env.DEV) {
+                  console.log('@@@ BASE SET', {
+                    projectId: localProject.id,
+                    value: updatedAtAfterMigration,
+                    source: 'guestProjectSync.migrateImages'
+                  });
+                }
+                useProjectManagerStore.getState().setProjectCloudUpdatedAt(
+                  localProject.id,
+                  updatedAtAfterMigration
+                );
+                console.log('Project updated with migrated image URLs');
               }
-              useProjectManagerStore.getState().setProjectCloudUpdatedAt(
-                localProject.id,
-                updatedAtAfterMigration
-              );
-              console.log('Project updated with migrated image URLs');
             }
           }
 
