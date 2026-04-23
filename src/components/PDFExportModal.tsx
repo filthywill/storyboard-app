@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store';
 import {
   Dialog,
@@ -17,6 +17,7 @@ import { FileText, Download, AlertTriangle, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
 import { exportManager } from '@/utils/export/exportManager';
+import { attachDebugServerPdfPayloadHelpers } from '@/utils/export/debugServerPdfPayload';
 import { MODAL_OVERLAY_STYLES, getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 
 export interface PDFExportOptions {
@@ -40,6 +41,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
     projectInfo,
     projectLogoUrl,
     projectLogoFile,
+    projectLogoDataUrl,
     clientAgency,
     jobInfo,
     templateSettings,
@@ -95,6 +97,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
         projectInfo,
         projectLogoUrl,
         projectLogoFile,
+        projectLogoDataUrl,
         clientAgency,
         jobInfo,
         isDragging: false,
@@ -108,7 +111,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
       const filename = `storyboard_${timestamp}.pdf`;
 
-      // Export PDF using DOM capture system with progress tracking
+      // Export PDF using the server PDF backend with progress tracking
       await exportManager.downloadPDF(
         legacyPages,
         storyboardState,
@@ -152,6 +155,15 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
       }
     }));
   };
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    attachDebugServerPdfPayloadHelpers({
+      getPageId: () => pages[currentPageIndex]?.id ?? activePageId,
+      getPaperSize: () => options.paperSize,
+    });
+  }, [activePageId, currentPageIndex, options.paperSize, pages]);
 
 
   const getSelectedPageCount = () => {

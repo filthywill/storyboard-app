@@ -335,6 +335,7 @@ export const useAppStore = () => {
     projectInfo: projectStore.projectInfo,
     projectLogoUrl: projectStore.projectLogoUrl,
     projectLogoFile: projectStore.projectLogoFile,
+    projectLogoDataUrl: projectStore.projectLogoDataUrl,
     clientAgency: projectStore.clientAgency,
     jobInfo: projectStore.jobInfo,
     templateSettings: projectStore.templateSettings,
@@ -543,7 +544,16 @@ export const useAppStore = () => {
     getLegacyStoryboardState: () => {
       const { pages } = getPageStore();
       const { shots, shotOrder } = getShotStore();
-      const { projectName, projectInfo, projectLogoUrl, projectLogoFile, clientAgency, jobInfo, templateSettings } = getProjectStore();
+      const {
+        projectName,
+        projectInfo,
+        projectLogoUrl,
+        projectLogoFile,
+        projectLogoDataUrl,
+        clientAgency,
+        jobInfo,
+        templateSettings,
+      } = getProjectStore();
       const { isDragging, isExporting, showDeleteConfirmation } = getUIStore();
 
       // Convert pages to legacy format with embedded shots
@@ -560,6 +570,7 @@ export const useAppStore = () => {
         projectInfo,
         projectLogoUrl,
         projectLogoFile,
+        projectLogoDataUrl,
         clientAgency,
         jobInfo,
         isDragging,

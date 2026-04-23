@@ -1,3 +1,5 @@
+import type { StoryboardTheme } from '@/styles/storyboardTheme';
+
 // Core export data types
 export interface Rectangle {
   x: number;
@@ -94,7 +96,71 @@ export interface ExportStoryboardPage {
   grid: ExportGrid;
   layout: LayoutConfig;
   backgroundColor: string;
-  storyboardTheme?: any; // Optional for backward compatibility
+  storyboardTheme?: StoryboardTheme; // Optional for backward compatibility
+}
+
+// Server-side PDF payload types
+export type ServerPDFPaperSize = 'letter' | 'canvas';
+
+export interface ExportTemplateVisibility {
+  showLogo: boolean;
+  showProjectName: boolean;
+  showProjectInfo: boolean;
+  showClientAgency: boolean;
+  showJobInfo: boolean;
+  showActionText: boolean;
+  showScriptText: boolean;
+  showPageNumber: boolean;
+}
+
+export type NormalizedExportImageSource =
+  | {
+      kind: 'dataUrl';
+      dataUrl: string;
+    }
+  | {
+      kind: 'url';
+      url: string;
+    };
+
+export interface ServerPDFProjectContent {
+  projectName: string;
+  projectInfo: string;
+  clientAgency: string;
+  jobInfo: string;
+  projectLogo: NormalizedExportImageSource | null;
+}
+
+export interface ServerPDFShotContent {
+  id: string;
+  number: string;
+  actionText: string;
+  scriptText: string;
+  image: NormalizedExportImageSource | null;
+  imageScale: number;
+  imageOffsetX: number;
+  imageOffsetY: number;
+}
+
+export interface ServerPDFPageContent {
+  id: string;
+  name: string;
+  pageNumber: number;
+  gridRows: number;
+  gridCols: number;
+  aspectRatio: string;
+  shots: ServerPDFShotContent[];
+}
+
+export interface ServerPDFExportPayload {
+  schemaVersion: 1;
+  filename: string;
+  paperSize: ServerPDFPaperSize;
+  template: ExportTemplateVisibility;
+  theme: StoryboardTheme;
+  project: ServerPDFProjectContent;
+  page: ServerPDFPageContent;
+  pages?: ServerPDFPageContent[];
 }
 
 // Export options and settings

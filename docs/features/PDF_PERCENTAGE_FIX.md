@@ -2,7 +2,11 @@
 
 **Status**: ✅ **COMPLETED** - October 22, 2025
 
-## 🐛 Problem Identified
+> **Historical note:** This document explains the percentage-offset fix that made image transforms stable for export. It is **not** the current PDF architecture document.
+>
+> The current production PDF pipeline now uses `/api/export-pdf` + Headless Chromium + `/export/pdf/render-static`. See `docs/architecture/PDF_EXPORT_CONTRACT.md` for the active system contract.
+
+## 🐛 Historical Problem Identified
 
 After implementing the percentage-based offset system, PDF exports were **still showing incorrect image positioning** (particularly visible in Shot 03 in the user's screenshot).
 
@@ -17,7 +21,7 @@ There was a **critical timing issue** in how image transforms were being capture
    - Uses `previewDimensions` which reflects the **SCALED container size**
    - Sets these pixels in the inline style: `transform: scale(1.5) translate(50px, 20px)`
 
-2. **PDF Export** temporarily removes CSS scale transform:
+2. **Historical PDF Export Path** temporarily removes CSS scale transform:
    ```typescript
    pageElement.style.transform = 'none'; // Remove scale(0.831) from StoryboardPage
    ```
@@ -37,7 +41,7 @@ There was a **critical timing issue** in how image transforms were being capture
 The percentage-based offset system was correctly implemented for:
 - ✅ **Image Editor** → stores percentages
 - ✅ **ShotCard Display** → converts percentages → pixels → inline style
-- ❌ **PDF Export** → was reading inline style instead of store values
+- ❌ **Historical PDF Export Path** → was reading inline style instead of store values
 
 The inline style contains pixel values that are **view-dependent** (scaled), but PDF export captures at **native size** (unscaled).
 
@@ -109,7 +113,7 @@ Store (%) → ShotCard (scaled pixels) → Inline Style (stale) → PDF Export �
 Store (%) → ShotCard (scaled pixels) → Display ✓
   0.162      50px @ 831px scale         Correct in app
 
-Store (%) → PDF Capture (native pixels) → PDF Export ✓
+Store (%) → Export render (native pixels) → PDF Export ✓
   0.162      162px @ 1000px scale        Correct in PDF!
 ```
 
@@ -185,12 +189,28 @@ When testing, check the console for:
 
 ## 📝 Files Modified
 
+These were the files modified in the original 2025 fix:
+
 1. **`domCapture.ts`** (Lines 269-272)
    - Added `imageScale`, `imageOffsetX`, `imageOffsetY` to captured shot data
 
 2. **`domRenderer.ts`** (Lines 256-280)
    - Replaced inline style parsing with store-based percentage conversion
    - Calculate pixels from percentages using actual captured container size
+
+### Current Relevance
+
+The invariant from this fix still applies in the current production system:
+
+- image transforms are stored as percentages in shot data
+- export must derive pixel offsets from actual export dimensions
+- export must not rely on stale live-view inline transforms
+
+In the current production PDF path, those guarantees flow through:
+
+- `src/utils/export/serverPdfPayload.ts`
+- `src/export-pdf-static.ts`
+- `api/export-pdf.ts`
 
 ---
 
@@ -219,6 +239,10 @@ This completes the percentage-based offset system implementation and ensures con
 - ✅ Fixed `PDFExportModal.tsx` with simplified UI and progress overlay
 - ✅ All image positioning issues resolved
 - ✅ PDF exports now match on-screen appearance perfectly
+
+### Current Architecture Note
+
+The production PDF route has since moved away from the older DOM/canvas export path. Keep this document for the transform bug history, but use `docs/architecture/PDF_EXPORT_CONTRACT.md` for all current PDF pipeline decisions.
 
 ### Testing Completed
 - ✅ Single page export with image transforms

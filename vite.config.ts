@@ -8,6 +8,18 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  preview: {
+    host: "::",
+    port: 8080,
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        exportPdfStatic: path.resolve(__dirname, "export-pdf-static.html"),
+      },
+    },
+  },
   plugins: [
     react(),
   ],

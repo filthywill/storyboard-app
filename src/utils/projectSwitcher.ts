@@ -26,6 +26,28 @@ import { CloudProjectSyncService } from '@/services/cloudProjectSyncService';
 export class ProjectSwitcher {
   private static isSwitching = false;
 
+  private static resolvePersistedProjectLogoUrl(
+    projectLogoUrl: string | null | undefined,
+    projectLogoDataUrl: string | null | undefined
+  ): string | null {
+    if (projectLogoUrl?.startsWith('blob:')) {
+      return projectLogoDataUrl || null;
+    }
+
+    return projectLogoUrl || projectLogoDataUrl || null;
+  }
+
+  private static resolvePersistedProjectLogoDataUrl(
+    projectLogoUrl: string | null | undefined,
+    projectLogoDataUrl: string | null | undefined
+  ): string | null {
+    if (projectLogoDataUrl) {
+      return projectLogoDataUrl;
+    }
+
+    return projectLogoUrl?.startsWith('data:') ? projectLogoUrl : null;
+  }
+
   /**
    * Check if project switching is currently in progress
    */
@@ -273,7 +295,14 @@ export class ProjectSwitcher {
       const projectData = {
         projectName: projectStore.projectName,
         projectInfo: projectStore.projectInfo,
-        projectLogoUrl: projectStore.projectLogoUrl,
+        projectLogoUrl: this.resolvePersistedProjectLogoUrl(
+          projectStore.projectLogoUrl,
+          projectStore.projectLogoDataUrl
+        ),
+        projectLogoDataUrl: this.resolvePersistedProjectLogoDataUrl(
+          projectStore.projectLogoUrl,
+          projectStore.projectLogoDataUrl
+        ),
         clientAgency: projectStore.clientAgency,
         jobInfo: projectStore.jobInfo,
         templateSettings: projectStore.templateSettings,
@@ -372,8 +401,15 @@ export class ProjectSwitcher {
             useProjectStore.setState({
               projectName: actualProjectData.projectName || '',
               projectInfo: actualProjectData.projectInfo || '',
-              projectLogoUrl: actualProjectData.projectLogoUrl || null,
+              projectLogoUrl: this.resolvePersistedProjectLogoUrl(
+                actualProjectData.projectLogoUrl,
+                actualProjectData.projectLogoDataUrl
+              ),
               projectLogoFile: null, // File objects are not persisted
+              projectLogoDataUrl: this.resolvePersistedProjectLogoDataUrl(
+                actualProjectData.projectLogoUrl,
+                actualProjectData.projectLogoDataUrl
+              ),
               clientAgency: actualProjectData.clientAgency || '',
               jobInfo: actualProjectData.jobInfo || '',
               templateSettings: actualProjectData.templateSettings || {},
@@ -727,6 +763,7 @@ export class ProjectSwitcher {
         projectInfo: 'Project Info',
         projectLogoUrl: null,
         projectLogoFile: null,
+        projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
         templateSettings: {
@@ -796,6 +833,7 @@ export class ProjectSwitcher {
         projectInfo: 'Project Info',
         projectLogoUrl: null,
         projectLogoFile: null,
+        projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
         templateSettings: {
@@ -854,6 +892,7 @@ export class ProjectSwitcher {
         projectName: projectName || 'Project Name',
         projectInfo: 'Project Info',
         projectLogoUrl: null,
+        projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
         templateSettings: {

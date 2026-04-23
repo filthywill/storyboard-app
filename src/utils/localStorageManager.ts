@@ -189,6 +189,7 @@ export class LocalStorageManager {
         projectName: parsed.projectName || 'Migrated Project',
         projectInfo: parsed.projectInfo || 'Migrated from legacy data',
         projectLogoUrl: parsed.projectLogoUrl || null,
+        projectLogoDataUrl: parsed.projectLogoDataUrl || (typeof parsed.projectLogoUrl === 'string' && parsed.projectLogoUrl.startsWith('data:') ? parsed.projectLogoUrl : null),
         clientAgency: parsed.clientAgency || 'Client/Agency',
         jobInfo: parsed.jobInfo || 'Job Info',
         templateSettings: parsed.templateSettings || {

@@ -4,6 +4,23 @@ import { immer } from 'zustand/middleware/immer';
 import ObjectURLManager from '@/utils/objectURLManager';
 import { StoryboardTheme, getDefaultTheme, migrateTheme } from '@/styles/storyboardTheme';
 
+function isBlobUrl(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('blob:');
+}
+
+function isDataUrl(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('data:');
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read project logo file as data URL.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export interface TemplateSettings {
   showLogo: boolean;
   showProjectName: boolean;
@@ -21,6 +38,7 @@ export interface ProjectState {
   projectInfo: string;
   projectLogoUrl: string | null;
   projectLogoFile: File | null;
+  projectLogoDataUrl: string | null;
   clientAgency: string;
   jobInfo: string;
   templateSettings: TemplateSettings;
@@ -69,6 +87,7 @@ export const useProjectStore = create<ProjectStore>()(
       projectInfo: 'Project Info',
       projectLogoUrl: null,
       projectLogoFile: null,
+      projectLogoDataUrl: null,
       clientAgency: 'Client/Agency',
       jobInfo: 'Job Info',
       templateSettings: { ...defaultTemplateSettings },
@@ -94,8 +113,26 @@ export const useProjectStore = create<ProjectStore>()(
           // Use ObjectURLManager for better memory management
           state.projectLogoUrl = ObjectURLManager.replaceObjectURL(state.projectLogoUrl, file);
           state.projectLogoFile = file;
+          state.projectLogoDataUrl = null;
         });
-        
+
+        if (!file) {
+          return;
+        }
+
+        void fileToDataUrl(file)
+          .then((dataUrl) => {
+            set((state) => {
+              if (state.projectLogoFile !== file) {
+                return;
+              }
+
+              state.projectLogoDataUrl = dataUrl;
+            });
+          })
+          .catch((error) => {
+            console.warn('Failed to preserve exportable project logo data URL:', error);
+          });
       },
 
       setClientAgency: (name) => {
@@ -157,6 +194,7 @@ export const useProjectStore = create<ProjectStore>()(
         projectName: state.projectName,
         projectInfo: state.projectInfo,
         projectLogoUrl: state.projectLogoUrl,
+        projectLogoDataUrl: state.projectLogoDataUrl,
         clientAgency: state.clientAgency,
         jobInfo: state.jobInfo,
         templateSettings: state.templateSettings,
@@ -169,6 +207,16 @@ export const useProjectStore = create<ProjectStore>()(
             state.storyboardTheme = getDefaultTheme();
           } else {
             state.storyboardTheme = migrateTheme(state.storyboardTheme);
+          }
+
+          if (!state.projectLogoDataUrl && isDataUrl(state.projectLogoUrl)) {
+            state.projectLogoDataUrl = state.projectLogoUrl;
+          }
+
+          if (isBlobUrl(state.projectLogoUrl)) {
+            state.projectLogoUrl = state.projectLogoDataUrl || null;
+          } else if (!state.projectLogoUrl && state.projectLogoDataUrl) {
+            state.projectLogoUrl = state.projectLogoDataUrl;
           }
         }
       }

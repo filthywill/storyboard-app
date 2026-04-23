@@ -60,6 +60,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { ShotCard } from './ShotCard';
+import { calculatePreviewDimensions } from '@/utils/export/previewDimensions';
 
 interface StoryboardPageProps {
   pageId: string;
@@ -212,26 +213,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
 
   // Calculate dimensions for shot grid (moved from ShotGrid)
   const previewDimensions = React.useMemo(() => {
-    if (!page) return { width: 200, imageHeight: 100, gap: 8 };
-    
-    const { gridCols, aspectRatio } = page;
-    const fixedWidth = 1000;
-    const headerPadding = 16;
-    const gridWrapperPadding = 4;
-    const totalPadding = (headerPadding + gridWrapperPadding) * 2;
-    const availableWidth = fixedWidth - totalPadding;
-    const gaps = (gridCols - 1) * 8;
-    const shotWidth = Math.floor((availableWidth - gaps) / gridCols);
-    const cardContentPadding = 8 * 2;
-    const imageBorder = 1 * 2;
-    const imageContainerWidth = shotWidth - cardContentPadding - imageBorder;
-    const [w, h] = aspectRatio.split('/').map(str => parseInt(str.trim(), 10));
-    const imageHeight = Math.floor((imageContainerWidth * h) / w);
-    return {
-      width: shotWidth,
-      imageHeight: imageHeight,
-      gap: 8
-    };
+    return calculatePreviewDimensions(page);
   }, [page]);
 
   // Helper function to detect if a shot should be inserted into a sub-shot group
@@ -717,6 +699,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
                 )}
                 style={{
                   height: 'min-content',
+                  fontFamily: '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                   ['--inline-bg-color' as any]: storyboardTheme.contentBackground,
                   ['--inline-border-radius' as any]: '6px', // rounded-md = 6px
                 }}

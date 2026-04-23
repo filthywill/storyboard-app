@@ -16,6 +16,7 @@ This index helps you find the right documentation for your needs.
 
 ## 🏗️ **Architecture & Design**
 - `ARCHITECTURE_PRINCIPLES.md` — `/storyboard-app-claude/docs/architecture/ARCHITECTURE_PRINCIPLES.md` (principles, critical paths, writer lease, billing)
+- `PDF_EXPORT_CONTRACT.md` — `/storyboard-app-claude/docs/architecture/PDF_EXPORT_CONTRACT.md` (current server PDF pipeline, static route, readiness contract)
 
 ---
 
@@ -68,6 +69,7 @@ This index helps you find the right documentation for your needs.
 ## 🔍 **Quick Navigation by Task**
 - **Add a UI state:** `UI_STATE_HANDLING.md` + `.cursorrules`.
 - **Auth flow work:** `.cursorrules` + `ARCHITECTURE_PRINCIPLES.md`.
+- **PDF export work:** `PDF_EXPORT_CONTRACT.md` + `features/PDF_PERCENTAGE_FIX.md` (historical context only).
 - **Sync issues:** `TIMESTAMP_SYNC_IMPLEMENTATION.md` + `DATA_LOSS_FIX_SUMMARY.md`.
 - **Writer lease issues:** `ARCHITECTURE_PRINCIPLES.md` (Principle 8) + `UI_STATE_HANDLING.md`.
 - **Billing:** `Stripe_billing_notes.md` + `ARCHITECTURE_PRINCIPLES.md` (Principle 9).
@@ -82,13 +84,14 @@ This index helps you find the right documentation for your needs.
 ---
 
 ## 📝 **Recent Updates**
+- **Apr 20, 2026:** Added `PDF_EXPORT_CONTRACT.md` for the current server PDF pipeline and static render route.
 - **Feb 9, 2026:** Docs cleanup, writer lease + billing references, trimmed UI state guide.
 - **Jan 7, 2026:** Docs reorganized into `/docs`.
 - **Oct 30, 2025:** Semantic color separation update.
 
 ---
 
-*Last Updated: February 9, 2026*
+*Last Updated: April 20, 2026*
 *Keep this index updated as documentation evolves.*
 
 

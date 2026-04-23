@@ -377,7 +377,14 @@ export class CloudSyncService {
       shotOrder: data.shotOrder || this.deriveShotOrderFromPages(data.pages)
     })
     
-    useProjectStore.setState(data.projectSettings)
+    useProjectStore.setState({
+      ...data.projectSettings,
+      projectLogoUrl: data.projectSettings?.projectLogoUrl ?? null,
+      projectLogoFile: null,
+      projectLogoDataUrl: data.projectSettings?.projectLogoUrl?.startsWith('data:')
+        ? data.projectSettings.projectLogoUrl
+        : null,
+    })
     useUIStore.setState(data.uiSettings)
     
     this.currentProjectId = projectId
@@ -523,7 +530,9 @@ export class CloudSyncService {
         projectSettings: {
           projectName: projectStore.projectName,
           projectInfo: projectStore.projectInfo,
-          projectLogoUrl: projectStore.projectLogoUrl,
+          projectLogoUrl: projectStore.projectLogoUrl?.startsWith('blob:')
+            ? (projectStore.projectLogoDataUrl || undefined)
+            : projectStore.projectLogoUrl,
           clientAgency: projectStore.clientAgency,
           jobInfo: projectStore.jobInfo,
           templateSettings: projectStore.templateSettings,
@@ -1095,7 +1104,8 @@ export class CloudSyncService {
       useProjectStore.setState(state => ({
         ...state,
         projectLogoUrl: imageUrl,
-        projectLogoFile: null
+        projectLogoFile: null,
+        projectLogoDataUrl: null,
       }));
       
       console.log('Successfully migrated project logo to cloud storage');
@@ -1201,7 +1211,9 @@ export class CloudSyncService {
       projectSettings: {
         projectName: projectStore.projectName,
         projectInfo: projectStore.projectInfo,
-        projectLogoUrl: projectStore.projectLogoUrl,
+        projectLogoUrl: projectStore.projectLogoUrl?.startsWith('blob:')
+          ? (projectStore.projectLogoDataUrl || undefined)
+          : projectStore.projectLogoUrl,
         clientAgency: projectStore.clientAgency,
         jobInfo: projectStore.jobInfo,
         templateSettings: projectStore.templateSettings,

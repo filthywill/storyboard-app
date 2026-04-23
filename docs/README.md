@@ -18,6 +18,7 @@ Welcome to the Storyboard Flow documentation! This directory contains all projec
 ### 🏗️ [`architecture/`](architecture/)
 Core design principles and state management
 - **ARCHITECTURE_PRINCIPLES.md** - Design philosophy and patterns
+- **PDF_EXPORT_CONTRACT.md** - Current server PDF pipeline and rendering contract
 - **UI_STATE_HANDLING.md** - Complete state matrix and transitions
 - **STORYBOARD_THEME_SYSTEM_PLAN.md** - Theme system architecture
 - **STORYBOARD_THEMEABLE_ARCHITECTURE.md** - Themeable component patterns
@@ -110,6 +111,11 @@ Work-in-progress documentation
 2. Check: [`architecture/ARCHITECTURE_PRINCIPLES.md`](architecture/ARCHITECTURE_PRINCIPLES.md) (Principle 7)
 3. Review: [`../.cursorrules`](../.cursorrules) (Rule #13)
 
+### "I'm working on PDF export"
+1. Read: [`architecture/PDF_EXPORT_CONTRACT.md`](architecture/PDF_EXPORT_CONTRACT.md)
+2. Check: [`features/PDF_PERCENTAGE_FIX.md`](features/PDF_PERCENTAGE_FIX.md) only for historical context
+3. Review: relevant implementation files under `src/utils/export/`, `src/export-pdf-static.ts`, and `api/export-pdf.ts`
+
 ### "Users are seeing 404 errors"
 1. Read: [`../.cursorrules`](../.cursorrules) (NO 404 rule)
 2. Read: [`architecture/UI_STATE_HANDLING.md`](architecture/UI_STATE_HANDLING.md) (emergency fixes)
@@ -181,6 +187,10 @@ Documentation should be updated **in the same session** as code changes.
 
 ## 📅 Recent Updates
 
+### April 20, 2026 - PDF Export Contract
+- ✅ Added `architecture/PDF_EXPORT_CONTRACT.md` for the current server PDF pipeline
+- ✅ Documented static route rendering, readiness checks, fail-fast rules, and paper modes
+
 ### February 9, 2026 - Major Feature Documentation Update
 - ✅ Writer lease (single-writer enforcement) — Principle 8
 - ✅ Plan-based gating / Stripe billing — Principle 9
@@ -213,7 +223,7 @@ Documentation should be updated **in the same session** as code changes.
 
 ---
 
-*Last Updated: February 9, 2026*
+*Last Updated: April 20, 2026*
 
 **Need help?** Start with the [Complete Documentation Index](maintenance/DOCUMENTATION_INDEX.md)
 

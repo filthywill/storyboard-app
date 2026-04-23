@@ -14,7 +14,6 @@ This document outlines the security measures implemented in the Storyboard Flow 
 - **File**: `index.html`
 - **Headers Implemented**:
   - `X-Content-Type-Options: nosniff` - Prevents MIME type sniffing
-  - `X-Frame-Options: DENY` - Prevents clickjacking attacks
   - `X-XSS-Protection: 1; mode=block` - Enables XSS filter in browsers
   - `Referrer-Policy: strict-origin-when-cross-origin` - Controls referrer information
   - **Content Security Policy (CSP)**: Restricts resource loading
@@ -22,17 +21,19 @@ This document outlines the security measures implemented in the Storyboard Flow 
 ### 3. **Content Security Policy (CSP)**
 ```
 default-src 'self';                    # Only load resources from same origin
-script-src 'self' 'unsafe-inline' 'unsafe-eval';  # Scripts (required for jsPDF/html2canvas)
-style-src 'self' 'unsafe-inline';     # Styles (required for inline styles)
+script-src 'self' 'unsafe-inline' 'unsafe-eval';  # Current application CSP from index.html
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;  # Inline styles + Google Fonts stylesheet
 img-src 'self' data: https: blob:;    # Images from various sources
-connect-src 'self' https://*.supabase.co;  # API calls to Supabase only
-font-src 'self' data:;                # Fonts
+connect-src 'self' https://*.supabase.co wss://*.supabase.co data:;  # Supabase HTTP/WebSocket + data URLs used by the app
+font-src 'self' data: https://fonts.gstatic.com;  # Local/data fonts + Google Fonts
 object-src 'none';                    # No plugins
 base-uri 'self';                      # Restrict base tag
 form-action 'self';                   # Forms submit to same origin only
 ```
 
-**Note**: `'unsafe-eval'` is required for jsPDF and html2canvas libraries to function properly for PDF export.
+**PDF export note**: The current production PDF export contract does **not** use client-side `jsPDF`/`html2canvas`. Production PDF generation now runs through `/api/export-pdf` with Headless Chromium and the static route `/export/pdf/render-static`.
+
+`jsPDF` and `html2canvas` still exist in older client-side export utilities in the repository, so the current `unsafe-eval` allowance should be treated as an application-wide CSP review item, not as a requirement of the production PDF pipeline.
 
 ### 4. **Input Sanitization**
 - **File**: `src/utils/inputSanitizer.ts`
@@ -182,7 +183,7 @@ form-action 'self';                   # Forms submit to same origin only
 ## Future Security Enhancements
 
 ### Recommended Improvements
-1. **Remove `unsafe-eval` from CSP**: Explore alternatives to jsPDF/html2canvas that don't require eval
+1. **Re-evaluate `unsafe-eval` in CSP**: Production PDF export no longer depends on `jsPDF`/`html2canvas`, so audit remaining client-side usage and remove `unsafe-eval` if the rest of the app no longer requires it
 2. **External Logging**: Integrate with external logging services (Sentry, LogRocket)
 3. **Advanced Monitoring**:
    - Real-time security dashboard
@@ -215,10 +216,12 @@ For security concerns, please contact: [your-email@example.com]
 
 ---
 
-**Last Updated**: October 22, 2025
-**Security Review Date**: October 22, 2025
+**Last Updated**: April 20, 2026
+**Security Review Date**: April 20, 2026
 
 ## Security Implementation Summary
+
+> **Historical snapshot:** The checklist below reflects a 2025 implementation session and should not be treated as a current dependency audit. Use the sections above for the current high-level security posture, and re-run dependency/security checks before relying on the issue list below.
 
 ### ✅ Completed This Session
 1. **Rate Limiting System** - Prevents API abuse with configurable limits
@@ -229,7 +232,7 @@ For security concerns, please contact: [your-email@example.com]
 
 ### 🔴 Known Issues
 1. **Dependency Vulnerabilities** - ESLint v9 vs typescript-eslint v7 conflict blocking updates
-2. **jsPDF High Severity** - Needs update to v3.0.3 (breaking change)
+2. **Legacy Client Export Utilities** - `jsPDF`/`html2canvas` still exist in older export code paths and should be reviewed for continued need
 3. **esbuild Moderate** - Development server vulnerability
 4. **@eslint/plugin-kit Low** - ReDoS vulnerability
 

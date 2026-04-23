@@ -1,0 +1,27 @@
+@import './index.css';
+
+html,
+body {
+  background: #ffffff !important;
+  min-height: 100%;
+}
+
+body {
+  overflow: visible !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
+body::before,
+body::after {
+  content: none !important;
+  display: none !important;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+[data-export-root][data-paper-size="letter"] .shadow-lg.storyboard-themeable {
+  box-shadow: none !important;
+}
