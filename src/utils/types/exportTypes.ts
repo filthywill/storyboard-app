@@ -1,4 +1,5 @@
 import type { StoryboardTheme } from '@/styles/storyboardTheme';
+import type { PageSizeMode } from '@/utils/pageSize';
 
 // Core export data types
 export interface Rectangle {
@@ -100,7 +101,7 @@ export interface ExportStoryboardPage {
 }
 
 // Server-side PDF payload types
-export type ServerPDFPaperSize = 'letter' | 'canvas';
+export type ServerPDFPaperSize = 'letter' | 'canvas' | 'letter-portrait' | 'letter-landscape';
 
 export interface ExportTemplateVisibility {
   showLogo: boolean;
@@ -156,11 +157,13 @@ export interface ServerPDFExportPayload {
   schemaVersion: 1;
   filename: string;
   paperSize: ServerPDFPaperSize;
+  pageSizeMode?: PageSizeMode;
   template: ExportTemplateVisibility;
   theme: StoryboardTheme;
   project: ServerPDFProjectContent;
   page: ServerPDFPageContent;
   pages?: ServerPDFPageContent[];
+  debug?: Record<string, unknown>;
 }
 
 // Export options and settings

@@ -5,6 +5,7 @@ import type { Shot, StoryboardPage as AppStoryboardPage } from '@/store';
 import { PDFExportOptions } from '@/components/PDFExportModal';
 import { ExportError } from '@/utils/types/exportTypes';
 import { ExportStoryboardPageContent } from '@/components/export/ExportStoryboardPageContent';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 const PRINT_EXPORT_PAGE_ID_PREFIX = 'print-storyboard-page-';
 
@@ -34,7 +35,7 @@ const PrintDocumentContent: React.FC<PrintDocumentContentProps> = ({ pages, stor
           },
           React.createElement(
             'div',
-            { style: { width: '1000px' } },
+            { style: { width: `${RENDERED_PAGE_WIDTH_PX}px` } },
             React.createElement(ExportStoryboardPageContent, {
               page: {
                 id: page.id,

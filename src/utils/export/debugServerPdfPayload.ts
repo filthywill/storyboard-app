@@ -8,8 +8,20 @@ import {
   type ServerPDFPaperSize,
   type ServerPDFShotContent,
 } from '@/utils/types/exportTypes';
+import { resolvePageSizeMode } from '@/utils/pageSize';
 
-const DEFAULT_PAPER_SIZE: ServerPDFPaperSize = 'letter';
+const DEFAULT_PAPER_SIZE: ServerPDFPaperSize = 'canvas';
+
+function getPaperSizeFromPageMode(pageSizeMode: unknown): ServerPDFPaperSize {
+  const resolved = resolvePageSizeMode(pageSizeMode);
+  if (resolved === 'dynamic') {
+    return 'canvas';
+  }
+  if (resolved === 'letter-portrait') {
+    return 'letter-portrait';
+  }
+  return 'letter-landscape';
+}
 
 declare global {
   interface Window {
@@ -149,7 +161,8 @@ export async function buildCurrentPageServerPdfPayload(
   const payload: ServerPDFExportPayload = {
     schemaVersion: 1,
     filename: buildFilename(currentPage.name),
-    paperSize: options.paperSize ?? DEFAULT_PAPER_SIZE,
+    paperSize: options.paperSize ?? getPaperSizeFromPageMode(projectStore.pageSizeMode),
+    pageSizeMode: resolvePageSizeMode(projectStore.pageSizeMode),
     template: {
       showLogo: projectStore.templateSettings.showLogo,
       showProjectName: projectStore.templateSettings.showProjectName,

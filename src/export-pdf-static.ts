@@ -6,6 +6,12 @@ import type {
   ServerPDFExportPayload,
 } from './utils/types/exportTypes';
 import type { StoryboardTheme } from './styles/storyboardTheme';
+import {
+  getFixedPageFrameHeight,
+  RENDERED_PAGE_WIDTH_PX,
+  resolvePageSizeMode,
+  type PageSizeMode,
+} from './utils/pageSize';
 
 const EXPORT_ROUTE_PATH = '/export/pdf/render-static';
 const READY_EVENT_NAME = 'server-pdf-export-ready';
@@ -16,6 +22,10 @@ const EXPORT_FONT_FAMILY =
   '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const LIGHTER_BACKGROUND = 'rgba(255, 255, 255, 0.03)';
 const EMPTY_EXPORT_SLOT_EXTRA_HEIGHT_PX = 80;
+const LETTER_PORTRAIT_WIDTH_PX = 816;
+const LETTER_PORTRAIT_HEIGHT_PX = 1056;
+const LETTER_LANDSCAPE_WIDTH_PX = 1056;
+const LETTER_LANDSCAPE_HEIGHT_PX = 816;
 const REQUIRED_FONT_LOADS = [
   { descriptor: '400 16px "Inter"', label: 'Inter 400' },
   { descriptor: '600 16px "Inter"', label: 'Inter 600' },
@@ -138,7 +148,14 @@ function validatePayload(input: unknown): input is ServerPDFExportPayload {
   if (!isRecord(input)) return false;
   if (input.schemaVersion !== 1) return false;
   if (!isString(input.filename)) return false;
-  if (input.paperSize !== 'letter' && input.paperSize !== 'canvas') return false;
+  if (
+    input.paperSize !== 'letter' &&
+    input.paperSize !== 'canvas' &&
+    input.paperSize !== 'letter-portrait' &&
+    input.paperSize !== 'letter-landscape'
+  ) {
+    return false;
+  }
   if (!validateTemplate(input.template)) return false;
   if (!validateTheme(input.theme)) return false;
   if (!isRecord(input.project) || !isRecord(input.page)) return false;
@@ -416,6 +433,19 @@ function getImageSource(image: NormalizedExportImageSource | null): string | nul
   return image.kind === 'dataUrl' ? image.dataUrl : image.url;
 }
 
+function summarizeShotImageSources(payload: ServerPDFExportPayload) {
+  return payload.page.shots.map((shot) => {
+    const source = getImageSource(shot.image);
+    return {
+      shotId: shot.id,
+      shotNumber: shot.number,
+      imageKind: shot.image?.kind ?? null,
+      sourcePrefix: source ? source.slice(0, 40) : null,
+      sourceLength: source?.length ?? 0,
+    };
+  });
+}
+
 function buildMasterHeader(payload: ServerPDFExportPayload): HTMLElement {
   const { template, project, theme } = payload;
   const logoSource = getImageSource(project.projectLogo);
@@ -423,9 +453,9 @@ function buildMasterHeader(payload: ServerPDFExportPayload): HTMLElement {
   const root = createElement('div', {
     className: 'flex items-end justify-between w-full max-w-5xl mx-auto pt-8 pb-2 gap-6 flex-shrink-0 master-header',
     style: {
-      minWidth: '1000px',
-      maxWidth: '1000px',
-      width: '1000px',
+      minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+      maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+      width: `${RENDERED_PAGE_WIDTH_PX}px`,
       paddingLeft: '33px',
       paddingRight: '33px',
       color: theme.header.text,
@@ -697,8 +727,12 @@ function buildEmptySlotPlaceholder(previewDimensions: { width: number; imageHeig
 }
 
 function buildShotGrid(payload: ServerPDFExportPayload): HTMLElement {
+  const resolvedPageSizeMode = resolveExportPageSizeMode(payload);
+  const isFixedPageMode = resolvedPageSizeMode !== 'dynamic';
   const previewDimensions = calculatePreviewDimensions(payload.page);
-  const root = createElement('div', { className: 'w-full shot-grid' });
+  const root = createElement('div', {
+    className: `w-full shot-grid${isFixedPageMode ? ' h-full flex flex-col' : ''}`,
+  });
   const totalSlots = payload.page.gridRows * payload.page.gridCols;
 
   const grid = createElement('div', {
@@ -708,9 +742,9 @@ function buildShotGrid(payload: ServerPDFExportPayload): HTMLElement {
       gridTemplateRows: `repeat(${payload.page.gridRows}, auto)`,
       gap: `${previewDimensions.gap}px`,
       justifyContent: 'center',
-      width: '1000px',
-      maxWidth: '1000px',
-      minWidth: '1000px',
+      width: `${RENDERED_PAGE_WIDTH_PX}px`,
+      maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+      minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
       margin: '0 auto',
       flexShrink: '0',
     },
@@ -731,9 +765,9 @@ function buildShotGrid(payload: ServerPDFExportPayload): HTMLElement {
     const footer = createElement('div', {
       className: 'mt-2',
       style: {
-        width: '1000px',
-        maxWidth: '1000px',
-        margin: '8px auto 0',
+        width: `${RENDERED_PAGE_WIDTH_PX}px`,
+        maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+        margin: isFixedPageMode ? 'auto auto 0' : '8px auto 0',
         flexShrink: '0',
       },
     });
@@ -767,6 +801,18 @@ function buildShotGrid(payload: ServerPDFExportPayload): HTMLElement {
 }
 
 function buildExportDom(payload: ServerPDFExportPayload): HTMLElement {
+  const resolvedPageSizeMode = resolveExportPageSizeMode(payload);
+  const frameHeightPx = getFixedPageFrameHeight(resolvedPageSizeMode);
+  const fixedLetterDimensions =
+    payload.paperSize === 'letter-portrait'
+      ? { width: LETTER_PORTRAIT_WIDTH_PX, height: LETTER_PORTRAIT_HEIGHT_PX }
+      : payload.paperSize === 'letter-landscape' || payload.paperSize === 'letter'
+        ? { width: LETTER_LANDSCAPE_WIDTH_PX, height: LETTER_LANDSCAPE_HEIGHT_PX }
+        : null;
+  const exportScale = fixedLetterDimensions
+    ? fixedLetterDimensions.width / RENDERED_PAGE_WIDTH_PX
+    : 1;
+
   const shell = createElement('div', {
     style: {
       minHeight: '100vh',
@@ -786,32 +832,46 @@ function buildExportDom(payload: ServerPDFExportPayload): HTMLElement {
     attrs: {
       'data-export-root': '',
       'data-paper-size': payload.paperSize,
+      'data-page-size-mode': resolvedPageSizeMode,
     },
     style: {
       fontFamily: EXPORT_FONT_FAMILY,
-      width: '1000px',
-      minWidth: '1000px',
-      overflow: 'visible',
+      width: fixedLetterDimensions
+        ? `${fixedLetterDimensions.width}px`
+        : `${RENDERED_PAGE_WIDTH_PX}px`,
+      minWidth: fixedLetterDimensions
+        ? `${fixedLetterDimensions.width}px`
+        : `${RENDERED_PAGE_WIDTH_PX}px`,
+      height: fixedLetterDimensions ? `${fixedLetterDimensions.height}px` : 'auto',
+      minHeight: fixedLetterDimensions ? `${fixedLetterDimensions.height}px` : 'auto',
+      overflow: 'hidden',
     },
   });
 
   const pageRoot = createElement('div', {
-    className: 'shadow-lg overflow-visible relative z-20 storyboard-themeable',
+    className: 'overflow-visible relative z-20',
     attrs: {
       id: `server-export-page-${payload.page.id}`,
     },
     style: {
-      height: 'min-content',
+      width: `${RENDERED_PAGE_WIDTH_PX}px`,
+      minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+      height: frameHeightPx ? `${frameHeightPx}px` : 'min-content',
+      display: frameHeightPx ? 'flex' : 'block',
+      flexDirection: frameHeightPx ? 'column' : undefined,
+      overflow: frameHeightPx ? 'hidden' : 'visible',
+      transform: fixedLetterDimensions ? `scale(${exportScale})` : undefined,
+      transformOrigin: fixedLetterDimensions ? 'top left' : undefined,
       fontFamily: EXPORT_FONT_FAMILY,
-    },
-    cssVariables: {
-      '--inline-bg-color': payload.theme.contentBackground,
-      '--inline-border-radius': '6px',
+      backgroundColor: payload.theme.contentBackground,
+      borderRadius: '6px',
     },
   });
 
   pageRoot.appendChild(buildMasterHeader(payload));
-  const pagePadding = createElement('div', { className: 'p-1' });
+  const pagePadding = createElement('div', {
+    className: frameHeightPx ? 'p-1 flex-1 min-h-0' : 'p-1',
+  });
   pagePadding.appendChild(buildShotGrid(payload));
   pageRoot.appendChild(pagePadding);
   exportRoot.appendChild(pageRoot);
@@ -819,6 +879,21 @@ function buildExportDom(payload: ServerPDFExportPayload): HTMLElement {
   shell.appendChild(contentShell);
 
   return shell;
+}
+
+function resolveExportPageSizeMode(payload: ServerPDFExportPayload): PageSizeMode {
+  if (payload.pageSizeMode) {
+    return resolvePageSizeMode(payload.pageSizeMode);
+  }
+
+  if (payload.paperSize === 'letter-portrait') {
+    return 'letter-portrait';
+  }
+  if (payload.paperSize === 'letter-landscape' || payload.paperSize === 'letter') {
+    return 'letter-landscape';
+  }
+
+  return 'dynamic';
 }
 
 async function bootstrap(): Promise<void> {
@@ -840,6 +915,11 @@ async function bootstrap(): Promise<void> {
     routePath: EXPORT_ROUTE_PATH,
     paperSize: payload.paperSize,
   });
+
+  if (import.meta.env.DEV && payload.debug) {
+    console.debug('[server-pdf][render-static][payload-debug]', payload.debug ?? null);
+    console.debug('[server-pdf][render-static][shot-sources]', summarizeShotImageSources(payload));
+  }
 
   const mountNode = document.getElementById('app');
   if (!mountNode) {

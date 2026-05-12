@@ -7,6 +7,7 @@ import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getColor } from '@/styles/glassmorphism-styles';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 interface ShotGridProps {
   pageId: string;
@@ -45,6 +46,7 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
   const {
     pages,
     activePageId,
+    pageSizeMode,
     templateSettings,
     storyboardTheme,
     getPageShots,
@@ -140,9 +142,16 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
   const totalSlots = gridRows * gridCols;
   const emptySlotsCount = hideEmptySlots ? 0 : Math.max(0, totalSlots - pageShots.length);
   const resolvedPageNumber = pageNumberOverride ?? (activePageIndex !== -1 ? activePageIndex + 1 : null);
+  const isFixedPageMode = pageSizeMode !== 'dynamic';
 
   return (
-    <div className={cn('w-full shot-grid', className)}>
+    <div
+      className={cn(
+        'w-full shot-grid',
+        className,
+        isFixedPageMode && 'h-full flex flex-col'
+      )}
+    >
       <div
         className={cn(
           'grid w-full',
@@ -153,9 +162,9 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
           gridTemplateRows: `repeat(${gridRows}, auto)`,
           gap: `${previewDimensions.gap}px`,
           justifyContent: 'center',
-          width: '1000px',
-          maxWidth: '1000px',
-          minWidth: '1000px',
+          width: `${RENDERED_PAGE_WIDTH_PX}px`,
+          maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+          minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
           margin: '0 auto',
           flexShrink: 0
         }}
@@ -222,9 +231,9 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
         <div 
           className="mt-2"
           style={{
-            width: '1000px',
-            maxWidth: '1000px',
-            margin: '8px auto 0',
+            width: `${RENDERED_PAGE_WIDTH_PX}px`,
+            maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+            margin: isFixedPageMode ? 'auto auto 0' : '8px auto 0',
             flexShrink: 0
           }}
         >
@@ -292,9 +301,9 @@ const ExportShotGrid: React.FC<ShotGridProps> = ({
           gridTemplateRows: `repeat(${gridRows}, auto)`,
           gap: `${previewDimensions.gap}px`,
           justifyContent: 'center',
-          width: '1000px',
-          maxWidth: '1000px',
-          minWidth: '1000px',
+          width: `${RENDERED_PAGE_WIDTH_PX}px`,
+          maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+          minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
           margin: '0 auto',
           flexShrink: 0
         }}
@@ -357,8 +366,8 @@ const ExportShotGrid: React.FC<ShotGridProps> = ({
         <div
           className="mt-2"
           style={{
-            width: '1000px',
-            maxWidth: '1000px',
+            width: `${RENDERED_PAGE_WIDTH_PX}px`,
+            maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
             margin: '8px auto 0',
             flexShrink: 0
           }}

@@ -3,6 +3,7 @@ import { SecurityNotificationService } from './securityNotificationService';
 import { DataValidator } from '@/utils/dataValidator';
 import { StoryboardTheme } from '@/styles/storyboardTheme';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
+import type { PageSizeMode } from '@/utils/pageSize';
 
 export class UpgradeRequiredError extends Error {
   code = "UPGRADE_REQUIRED";
@@ -55,6 +56,7 @@ export interface ProjectData {
     projectLogoUrl?: string;
     clientAgency: any;
     jobInfo: any;
+    pageSizeMode?: PageSizeMode;
     templateSettings: any;
     storyboardTheme?: StoryboardTheme; // Optional for backwards compatibility
   };

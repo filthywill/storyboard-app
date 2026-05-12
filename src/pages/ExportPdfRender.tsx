@@ -7,6 +7,7 @@ import {
 import type { StoryboardTheme } from '@/styles/storyboardTheme';
 import type { Shot as AppShot, StoryboardPage as AppStoryboardPage } from '@/store';
 import { ExportStoryboardPageContent } from '@/components/export/ExportStoryboardPageContent';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 const EXPORT_ROUTE_PATH = '/export/pdf/render';
 const PAYLOAD_WAIT_TIMEOUT_MS = 2000;
@@ -136,7 +137,14 @@ function validatePayload(input: unknown): input is ServerPDFExportPayload {
   if (!isRecord(input)) return false;
   if (input.schemaVersion !== 1) return false;
   if (!isString(input.filename)) return false;
-  if (input.paperSize !== 'letter' && input.paperSize !== 'canvas') return false;
+  if (
+    input.paperSize !== 'letter' &&
+    input.paperSize !== 'canvas' &&
+    input.paperSize !== 'letter-portrait' &&
+    input.paperSize !== 'letter-landscape'
+  ) {
+    return false;
+  }
   if (!validateTemplate(input.template)) return false;
 
   if (!validateTheme(input.theme)) return false;
@@ -442,8 +450,8 @@ function SharedExportPage({
           data-paper-size={payload.paperSize}
           style={{
             fontFamily: '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-            width: '1000px',
-            minWidth: '1000px',
+            width: `${RENDERED_PAGE_WIDTH_PX}px`,
+            minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
             overflow: 'visible',
           }}
         >

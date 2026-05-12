@@ -22,6 +22,12 @@ body::after {
   min-height: 100vh;
 }
 
-[data-export-root][data-paper-size="letter"] .shadow-lg.storyboard-themeable {
+[data-export-root] .shadow-lg.storyboard-themeable,
+[data-export-root] .shadow-lg {
   box-shadow: none !important;
+}
+
+[data-export-root] .shot-number-container > div {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }

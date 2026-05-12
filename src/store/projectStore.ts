@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import ObjectURLManager from '@/utils/objectURLManager';
 import { StoryboardTheme, getDefaultTheme, migrateTheme } from '@/styles/storyboardTheme';
+import { type PageSizeMode, resolvePageSizeMode } from '@/utils/pageSize';
 
 function isBlobUrl(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.startsWith('blob:');
@@ -41,6 +42,7 @@ export interface ProjectState {
   projectLogoDataUrl: string | null;
   clientAgency: string;
   jobInfo: string;
+  pageSizeMode: PageSizeMode;
   templateSettings: TemplateSettings;
   storyboardTheme: StoryboardTheme;
 }
@@ -52,6 +54,7 @@ export interface ProjectActions {
   setProjectLogo: (file: File | null) => void;
   setClientAgency: (name: string) => void;
   setJobInfo: (info: string) => void;
+  setPageSizeMode: (mode: PageSizeMode) => void;
   
   // Template settings
   setTemplateSetting: (setting: keyof TemplateSettings, value: boolean | string) => void;
@@ -90,6 +93,7 @@ export const useProjectStore = create<ProjectStore>()(
       projectLogoDataUrl: null,
       clientAgency: 'Client/Agency',
       jobInfo: 'Job Info',
+      pageSizeMode: 'dynamic',
       templateSettings: { ...defaultTemplateSettings },
       storyboardTheme: getDefaultTheme(),
 
@@ -149,6 +153,12 @@ export const useProjectStore = create<ProjectStore>()(
         
       },
 
+      setPageSizeMode: (mode) => {
+        set((state) => {
+          state.pageSizeMode = mode;
+        });
+      },
+
       // Template settings
       setTemplateSetting: (setting, value) => {
         set((state) => {
@@ -197,6 +207,7 @@ export const useProjectStore = create<ProjectStore>()(
         projectLogoDataUrl: state.projectLogoDataUrl,
         clientAgency: state.clientAgency,
         jobInfo: state.jobInfo,
+        pageSizeMode: state.pageSizeMode,
         templateSettings: state.templateSettings,
         storyboardTheme: state.storyboardTheme,
       }),
@@ -218,6 +229,8 @@ export const useProjectStore = create<ProjectStore>()(
           } else if (!state.projectLogoUrl && state.projectLogoDataUrl) {
             state.projectLogoUrl = state.projectLogoDataUrl;
           }
+
+          state.pageSizeMode = resolvePageSizeMode(state.pageSizeMode);
         }
       }
     }

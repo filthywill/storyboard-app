@@ -18,7 +18,7 @@ Welcome to the Storyboard Flow documentation! This directory contains all projec
 ### 🏗️ [`architecture/`](architecture/)
 Core design principles and state management
 - **ARCHITECTURE_PRINCIPLES.md** - Design philosophy and patterns
-- **PDF_EXPORT_CONTRACT.md** - Current server PDF pipeline and rendering contract
+- **PDF_EXPORT_CONTRACT.md** - Current server PDF pipeline, static route, page-size, and QA contract
 - **UI_STATE_HANDLING.md** - Complete state matrix and transitions
 - **STORYBOARD_THEME_SYSTEM_PLAN.md** - Theme system architecture
 - **STORYBOARD_THEMEABLE_ARCHITECTURE.md** - Themeable component patterns
@@ -114,7 +114,7 @@ Work-in-progress documentation
 ### "I'm working on PDF export"
 1. Read: [`architecture/PDF_EXPORT_CONTRACT.md`](architecture/PDF_EXPORT_CONTRACT.md)
 2. Check: [`features/PDF_PERCENTAGE_FIX.md`](features/PDF_PERCENTAGE_FIX.md) only for historical context
-3. Review: relevant implementation files under `src/utils/export/`, `src/export-pdf-static.ts`, and `api/export-pdf.ts`
+3. Review: relevant implementation files under `src/utils/export/`, `src/utils/pageSize.ts`, `src/export-pdf-static.ts`, `src/components/PDFExportModal.tsx`, and `api/export-pdf.ts`
 
 ### "Users are seeing 404 errors"
 1. Read: [`../.cursorrules`](../.cursorrules) (NO 404 rule)
@@ -187,8 +187,12 @@ Documentation should be updated **in the same session** as code changes.
 
 ## 📅 Recent Updates
 
+### May 12, 2026 - PDF Export Refactor Documentation
+- ✅ Updated `architecture/PDF_EXPORT_CONTRACT.md` for the completed server-driven static-route export pipeline
+- ✅ Documented readiness/fail-fast rules, multi-page export, page-size modes, logo persistence, and QA coverage
+
 ### April 20, 2026 - PDF Export Contract
-- ✅ Added `architecture/PDF_EXPORT_CONTRACT.md` for the current server PDF pipeline
+- ✅ Added `architecture/PDF_EXPORT_CONTRACT.md` for the server PDF pipeline
 - ✅ Documented static route rendering, readiness checks, fail-fast rules, and paper modes
 
 ### February 9, 2026 - Major Feature Documentation Update
@@ -223,7 +227,7 @@ Documentation should be updated **in the same session** as code changes.
 
 ---
 
-*Last Updated: April 20, 2026*
+*Last Updated: May 12, 2026*
 
 **Need help?** Start with the [Complete Documentation Index](maintenance/DOCUMENTATION_INDEX.md)
 

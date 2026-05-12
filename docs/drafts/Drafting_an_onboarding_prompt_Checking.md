@@ -29,7 +29,7 @@ I'm working on Storyboard Flow. Before making any changes related to theming, st
 5. `docs/architecture/PDF_EXPORT_CONTRACT.md`
    - Current production PDF pipeline
    - Static export route contract
-   - Readiness checks, fail-fast rules, and paper modes
+   - Readiness checks, fail-fast rules, page-size modes, and QA checklist
 
 6. `docs/features/PDF_PERCENTAGE_FIX.md`
    - Historical context for the percentage-based image offset invariant
@@ -42,9 +42,10 @@ I'm working on Storyboard Flow. Before making any changes related to theming, st
 - Theme values should be applied through the established CSS variable pattern when appropriate.
 
 ### PDF export
-- Production PDF export is payload-driven.
+- Production PDF export is payload-driven and server-rendered.
 - The active path is: `PDFExportModal` -> `buildServerPdfPayload()` -> `/api/export-pdf` -> `/export/pdf/render-static` -> `page.pdf()`.
-- Do not rely on live Zustand state or mutate visible app state to prepare export.
+- Do not rely on `activePageId`, call `setActivePage()`, or mutate visible app state to prepare export.
+- Export trusts project-level `pageSizeMode`; the export modal must not choose paper size independently.
 - Export DOM parity and readiness checks are hard requirements.
 
 ### Image transforms
@@ -70,6 +71,9 @@ I'm working on Storyboard Flow. Before making any changes related to theming, st
 - `src/utils/export/exportManager.ts`
 - `src/utils/export/serverPdfPayload.ts`
 - `src/utils/export/previewDimensions.ts`
+- `src/utils/pageSize.ts`
+- `src/components/PageSizeModeSelector.tsx`
+- `src/components/GridSizeSelector.tsx`
 - `src/export-pdf-static.ts`
 - `src/export-pdf-static.css`
 - `api/export-pdf.ts`
@@ -85,6 +89,7 @@ I'm working on Storyboard Flow. Before making any changes related to theming, st
    - Preserve payload-driven rendering
    - Preserve readiness and fail-fast behavior
    - Preserve DOM parity with the storyboard export subtree
+   - Preserve `pageSizeMode` as the source of truth for PDF page size
 
 3. If modifying image transform behavior:
    - Preserve percentage-based offsets
@@ -114,7 +119,8 @@ Key points:
 - App UI colors and storyboard theme colors are separate systems.
 - Themeable storyboard surfaces use `.storyboard-themeable`.
 - Production PDF export is payload-driven through `/api/export-pdf` and `/export/pdf/render-static`.
-- Export must not depend on live app state fallback.
+- Export must not depend on live app state fallback, `activePageId`, or `setActivePage()`.
+- Export page size comes from project-level `pageSizeMode`.
 - Image transforms remain percentage-based and must be resolved using actual export dimensions.
 ```
 

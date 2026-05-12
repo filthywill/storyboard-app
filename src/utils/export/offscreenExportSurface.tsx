@@ -4,6 +4,7 @@ import { StoryboardPage as LegacyStoryboardPage } from '@/store/storyboardStore'
 import type { Shot, StoryboardPage } from '@/store';
 import { ExportError } from '@/utils/types/exportTypes';
 import { ExportStoryboardPageContent } from '@/components/export/ExportStoryboardPageContent';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 const OFFSCREEN_EXPORT_PAGE_ID_PREFIX = 'offscreen-storyboard-page-';
 
@@ -22,7 +23,7 @@ const OffscreenExportSurfaceContent: React.FC<OffscreenExportSurfaceProps> = ({ 
     <div data-offscreen-export-surface>
       {pages.map((page, index) => (
         <div key={page.id} className="w-full flex justify-center">
-          <div style={{ width: '1000px' }}>
+          <div style={{ width: `${RENDERED_PAGE_WIDTH_PX}px` }}>
             <ExportStoryboardPageContent
               page={{
                 id: page.id,
@@ -71,7 +72,7 @@ export class OffscreenExportSurface {
     container.style.top = '0';
     container.style.visibility = 'visible';
     container.style.pointerEvents = 'none';
-    container.style.width = '1000px';
+    container.style.width = `${RENDERED_PAGE_WIDTH_PX}px`;
     container.style.zIndex = '-1';
     container.style.transform = 'none';
 

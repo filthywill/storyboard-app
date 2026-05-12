@@ -1,3 +1,5 @@
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+
 export interface PreviewDimensions {
   width: number;
   imageHeight: number;
@@ -15,11 +17,10 @@ export const calculatePreviewDimensions = (
   if (!page) return { width: 200, imageHeight: 100, gap: 8 };
 
   const { gridCols, aspectRatio } = page;
-  const fixedWidth = 1000;
   const headerPadding = 16;
   const gridWrapperPadding = 4;
   const totalPadding = (headerPadding + gridWrapperPadding) * 2;
-  const availableWidth = fixedWidth - totalPadding;
+  const availableWidth = RENDERED_PAGE_WIDTH_PX - totalPadding;
   const gaps = (gridCols - 1) * 8;
   const shotWidth = Math.floor((availableWidth - gaps) / gridCols);
   const cardContentPadding = 8 * 2;

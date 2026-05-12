@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { produce } from 'immer';
 import { StoryboardTheme } from '@/styles/storyboardTheme';
+import type { PageSizeMode } from '@/utils/pageSize';
 
 export interface Shot {
   id: string;
@@ -36,6 +37,7 @@ export interface StoryboardState {
   projectLogoFile: File | null;
   clientAgency: string;
   jobInfo: string;
+  pageSizeMode: PageSizeMode;
   isDragging: boolean;
   isExporting: boolean;
   showDeleteConfirmation: boolean;
@@ -87,6 +89,7 @@ export interface StoryboardActions {
   setProjectLogo: (file: File | null) => void;
   setClientAgency: (name: string) => void;
   setJobInfo: (info: string) => void;
+  setPageSizeMode: (mode: PageSizeMode) => void;
   setTemplateSetting: (setting: keyof StoryboardState['templateSettings'], value: boolean) => void;
 }
 
@@ -192,6 +195,7 @@ export const useStoryboardStore = create<StoryboardStore>()(
       projectLogoFile: null,
       clientAgency: 'Client/Agency',
       jobInfo: 'Job Info',
+      pageSizeMode: 'dynamic',
       isDragging: false,
       isExporting: false,
       showDeleteConfirmation: true,
@@ -572,6 +576,7 @@ export const useStoryboardStore = create<StoryboardStore>()(
       },
       setClientAgency: (name) => set({ clientAgency: name }),
       setJobInfo: (info) => set({ jobInfo: info }),
+      setPageSizeMode: (mode) => set({ pageSizeMode: mode }),
       setTemplateSetting: (setting, value) => {
         set((state) => {
           state.templateSettings[setting] = value;
@@ -589,6 +594,7 @@ export const useStoryboardStore = create<StoryboardStore>()(
         projectLogoUrl: state.projectLogoUrl,
         clientAgency: state.clientAgency,
         jobInfo: state.jobInfo,
+        pageSizeMode: state.pageSizeMode,
         showDeleteConfirmation: state.showDeleteConfirmation,
         templateSettings: state.templateSettings,
       }),

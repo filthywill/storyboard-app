@@ -272,7 +272,14 @@ function validatePayload(input: unknown): input is ServerPDFExportPayload {
   if (!isRecord(input)) return false;
   if (input.schemaVersion !== 1) return false;
   if (!isString(input.filename)) return false;
-  if (input.paperSize !== 'letter' && input.paperSize !== 'canvas') return false;
+  if (
+    input.paperSize !== 'letter' &&
+    input.paperSize !== 'canvas' &&
+    input.paperSize !== 'letter-portrait' &&
+    input.paperSize !== 'letter-landscape'
+  ) {
+    return false;
+  }
 
   const template = input.template;
   if (
@@ -422,11 +429,13 @@ function buildPdfOptions(runtime: ExportRuntimeMeta) {
     };
   }
 
+  const isLandscape = runtime.paperSize === 'letter-landscape' || runtime.paperSize === 'letter';
+
   return {
     printBackground: true,
     preferCSSPageSize: false,
     format: 'Letter' as const,
-    landscape: true,
+    landscape: isLandscape,
     margin,
     pageRanges: '1',
   };
@@ -441,6 +450,30 @@ function buildRenderPayload(
     ...sharedPayload,
     page,
   };
+}
+
+function summarizePayloadImageSources(payload: ServerPDFExportPayload) {
+  const pages = payload.pages && payload.pages.length > 0 ? payload.pages : [payload.page];
+
+  return pages.flatMap((page) =>
+    page.shots.map((shot) => {
+      const source = shot.image
+        ? shot.image.kind === 'dataUrl'
+          ? shot.image.dataUrl
+          : shot.image.url
+        : null;
+
+      return {
+        pageId: page.id,
+        pageNumber: page.pageNumber,
+        shotId: shot.id,
+        shotNumber: shot.number,
+        imageKind: shot.image?.kind ?? null,
+        sourcePrefix: source ? source.slice(0, 40) : null,
+        sourceLength: source?.length ?? 0,
+      };
+    })
+  );
 }
 
 async function mergePdfBuffers(pdfBuffers: Buffer[]): Promise<Buffer> {
@@ -599,6 +632,11 @@ export default async function handler(
     }
 
     const payload = parsedBody;
+    if (process.env.NODE_ENV === 'development' && payload.debug) {
+      console.debug('[server-pdf][api][received-debug]', payload.debug ?? null);
+      console.debug('[server-pdf][api][received-shot-sources]', summarizePayloadImageSources(payload));
+    }
+
     const renderUrl = new URL(EXPORT_ROUTE_PATH, getBaseUrl(req)).toString();
     const chromiumSource = resolveChromiumSource();
     mark('chromium_launch_start');

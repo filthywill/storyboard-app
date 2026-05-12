@@ -12,6 +12,7 @@ import { useCloudSaveConflictStore } from '@/store/cloudSaveConflictStore'
 import { useWriterLeaseStore } from '@/store/writerLeaseStore'
 import { setSavePaused } from '@/utils/autoSave'
 import { WriterLeaseService } from '@/services/writerLeaseService'
+import { resolvePageSizeMode } from '@/utils/pageSize';
 
 export type CloudSaveFailureReason =
   | 'no_project_id'
@@ -379,6 +380,7 @@ export class CloudSyncService {
     
     useProjectStore.setState({
       ...data.projectSettings,
+      pageSizeMode: resolvePageSizeMode(data.projectSettings?.pageSizeMode),
       projectLogoUrl: data.projectSettings?.projectLogoUrl ?? null,
       projectLogoFile: null,
       projectLogoDataUrl: data.projectSettings?.projectLogoUrl?.startsWith('data:')
@@ -535,6 +537,7 @@ export class CloudSyncService {
             : projectStore.projectLogoUrl,
           clientAgency: projectStore.clientAgency,
           jobInfo: projectStore.jobInfo,
+          pageSizeMode: projectStore.pageSizeMode,
           templateSettings: projectStore.templateSettings,
           storyboardTheme: projectStore.storyboardTheme
         },
@@ -1216,6 +1219,7 @@ export class CloudSyncService {
           : projectStore.projectLogoUrl,
         clientAgency: projectStore.clientAgency,
         jobInfo: projectStore.jobInfo,
+        pageSizeMode: projectStore.pageSizeMode,
         templateSettings: projectStore.templateSettings,
         storyboardTheme: projectStore.storyboardTheme
       },

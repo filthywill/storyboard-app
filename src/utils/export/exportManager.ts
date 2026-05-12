@@ -12,6 +12,19 @@ import { DOMCapture } from './domCapture';
 import { DOMRenderer } from './domRenderer';
 import { PDFExportOptions } from '@/components/PDFExportModal';
 import { buildServerPdfPayload, type ExportablePage } from './serverPdfPayload';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+
+type SaveFilePickerHandle = {
+  createWritable: () => Promise<{
+    write: (data: Blob) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
+};
+
+export interface PDFSaveTarget {
+  kind: 'file-handle';
+  handle: SaveFilePickerHandle;
+}
 
 export class ExportManager {
   private canvas: HTMLCanvasElement;
@@ -68,8 +81,9 @@ export class ExportManager {
     pages: ExportablePage[],
     storyboardState: StoryboardState,
     filename: string,
-    pdfOptions: PDFExportOptions,
-    onProgress?: (current: number, total: number, pageName: string) => void
+    _pdfOptions: PDFExportOptions,
+    onProgress?: (current: number, total: number, pageName: string) => void,
+    saveTarget?: PDFSaveTarget
   ): Promise<void> {
     try {
       if (pages.length === 0) {
@@ -80,8 +94,11 @@ export class ExportManager {
 
       const payload = await buildServerPdfPayload(pages, storyboardState, {
         filename,
-        paperSize: pdfOptions.paperSize,
       });
+
+      if (import.meta.env.DEV && payload.debug) {
+        console.debug('[server-pdf][payload-fetch]', payload.debug ?? null);
+      }
 
       const response = await fetch('/api/export-pdf', {
         method: 'POST',
@@ -113,7 +130,7 @@ export class ExportManager {
         this.getFilenameFromContentDisposition(response.headers.get('content-disposition')) ||
         filename;
 
-      this.downloadBlob(pdfBlob, downloadFilename);
+      await this.savePdfBlob(pdfBlob, downloadFilename, saveTarget);
     } catch (error) {
       throw new ExportError(
         `PDF export failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -130,7 +147,8 @@ export class ExportManager {
     storyboardState: StoryboardState,
     filename: string,
     pdfOptions: PDFExportOptions,
-    onProgress?: (current: number, total: number, pageName: string) => void
+    onProgress?: (current: number, total: number, pageName: string) => void,
+    saveTarget?: PDFSaveTarget
   ): Promise<void> {
     try {
       await this.exportPageAsPDF(
@@ -138,7 +156,8 @@ export class ExportManager {
         storyboardState,
         filename,
         pdfOptions,
-        onProgress
+        onProgress,
+        saveTarget
       );
     } catch (error) {
       throw new ExportError(
@@ -186,6 +205,17 @@ export class ExportManager {
     return filename ? filename.trim() : null;
   }
 
+  private async savePdfBlob(blob: Blob, filename: string, saveTarget?: PDFSaveTarget): Promise<void> {
+    if (saveTarget?.kind === 'file-handle') {
+      const writable = await saveTarget.handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    }
+
+    this.downloadBlob(blob, filename);
+  }
+
   private downloadBlob(blob: Blob, filename: string): void {
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -209,7 +239,7 @@ export class ExportManager {
       format: 'png',
       quality: 0.95,
       scale: 2,
-      width: 1000,
+      width: RENDERED_PAGE_WIDTH_PX,
       backgroundColor: '#ffffff',
       includeGrid: true,
       ...options

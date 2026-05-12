@@ -22,6 +22,7 @@ import { CloudAccessService } from '@/services/cloudAccessService';
 import { useCloudSaveConflictStore } from '@/store/cloudSaveConflictStore';
 import { setSavePaused } from '@/utils/autoSave';
 import { CloudProjectSyncService } from '@/services/cloudProjectSyncService';
+import { resolvePageSizeMode } from '@/utils/pageSize';
 
 export class ProjectSwitcher {
   private static isSwitching = false;
@@ -305,6 +306,7 @@ export class ProjectSwitcher {
         ),
         clientAgency: projectStore.clientAgency,
         jobInfo: projectStore.jobInfo,
+        pageSizeMode: projectStore.pageSizeMode,
         templateSettings: projectStore.templateSettings,
       };
 
@@ -412,6 +414,7 @@ export class ProjectSwitcher {
               ),
               clientAgency: actualProjectData.clientAgency || '',
               jobInfo: actualProjectData.jobInfo || '',
+              pageSizeMode: resolvePageSizeMode(actualProjectData.pageSizeMode),
               templateSettings: actualProjectData.templateSettings || {},
             });
           }
@@ -766,6 +769,7 @@ export class ProjectSwitcher {
         projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
+        pageSizeMode: 'dynamic',
         templateSettings: {
           showLogo: true,
           showProjectName: true,
@@ -836,6 +840,7 @@ export class ProjectSwitcher {
         projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
+        pageSizeMode: 'dynamic',
         templateSettings: {
           showLogo: true,
           showProjectName: true,
@@ -895,6 +900,7 @@ export class ProjectSwitcher {
         projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
+        pageSizeMode: 'dynamic',
         templateSettings: {
           showLogo: true,
           showProjectName: true,

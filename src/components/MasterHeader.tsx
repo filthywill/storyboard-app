@@ -6,6 +6,7 @@ import { Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getColor } from '@/styles/glassmorphism-styles';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 interface MasterHeaderProps {
   readOnly?: boolean;
@@ -137,9 +138,9 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = fa
         "flex items-end justify-between w-full max-w-5xl mx-auto pt-8 pb-2 gap-6 flex-shrink-0 master-header"
       )}
       style={{
-        minWidth: '1000px',
-        maxWidth: '1000px',
-        width: '1000px',
+        minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+        maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+        width: `${RENDERED_PAGE_WIDTH_PX}px`,
         paddingLeft: '33px',
         paddingRight: '33px',
         color: storyboardTheme.header.text,
@@ -425,9 +426,9 @@ const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload }> = 
         "flex items-end justify-between w-full max-w-5xl mx-auto pt-8 pb-2 gap-6 flex-shrink-0 master-header"
       )}
       style={{
-        minWidth: '1000px',
-        maxWidth: '1000px',
-        width: '1000px',
+        minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+        maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+        width: `${RENDERED_PAGE_WIDTH_PX}px`,
         paddingLeft: '33px',
         paddingRight: '33px',
         color: theme.header.text,
