@@ -1,194 +1,129 @@
-Drafting an onboarding prompt. Checking key documentation files:
+# Drafting an Onboarding Prompt
 
-> **Note:** `shot-flow-builder/` was removed/merged (Feb 2026). Paths in this doc are historical.
+This draft is intended as a reusable onboarding prompt for future agents working on theming, styling, or PDF export.
 
-
-[3 tools called]
-
-
-Onboarding prompt for a new agent:
+All paths below use the current `docs/` structure.
 
 ---
 
 ## Prompt for new AI agent
 
-```
-I'm working on a Storyboard application with a fully implemented customizable theme system. Before making any changes related to themes, styling, or PDF export, please read and understand the following documentation in this order:
+```text
+I'm working on Storyboard Flow. Before making any changes related to theming, styling, or PDF export, please read these files in order:
 
-## 📚 Required Reading (Read in Order):
+1. `.cursorrules`
+   - Critical state/UI rules
+   - Semantic color separation rules
+   - Never-show-404 constraints
 
-### 1. Start with Critical Rules
-- **`.cursorrules`** (root directory) - Auto-loaded but review for:
-  - State-driven UI patterns
-  - Never show 404 rules
-  - Semantic color category separation (buttons vs containers vs inputs)
+2. `docs/architecture/ARCHITECTURE_PRINCIPLES.md`
+   - High-level application design
+   - File responsibilities and critical paths
 
-### 2. Theme System Architecture
-- **`shot-flow-builder/STORYBOARD_THEME_SYSTEM_PLAN.md`**
-  - Read: "Implementation Status" (lines 9-14) - Current completion status
-  - Read: "Requirements Summary" (lines 18-28) - User stories and goals
-  - Read: "Data Structures" > "StoryboardTheme Interface" (lines 48-58) - Core type definition
-  - Read: "Phase 2: Component Integration" (lines 1250-1256) - What components are themed
-  - Read: "PDF Export Tests" (lines 1225-1234) - Recent PDF export improvements
+3. `docs/architecture/STORYBOARD_THEME_SYSTEM_PLAN.md`
+   - Theme model and intended behavior
 
-### 3. Theme System Implementation Details
-- **`shot-flow-builder/STORYBOARD_THEMEABLE_ARCHITECTURE.md`**
-  - Read: "Problem Solved" (lines 4-28) - Why we needed CSS isolation
-  - Read: "Solution: CSS Variable Isolation" (lines 30-100) - How theming works
-  - Read: "Key Files" (lines 180-200) - Where theme code lives
+4. `docs/architecture/STORYBOARD_THEMEABLE_ARCHITECTURE.md`
+   - CSS isolation and themeable component patterns
 
-### 4. Technical Implementation
-- **`shot-flow-builder/CLAUDE.md`**
-  - Read: "Export System" > "PDF Export Rendering" (lines 129-152) - Recent PDF improvements
-  - This explains:
-    - Global font size multiplier (1.12x)
-    - Theme integration in PDF export
-    - Empty frame rendering
+5. `docs/architecture/PDF_EXPORT_CONTRACT.md`
+   - Current production PDF pipeline
+   - Static export route contract
+   - Readiness checks, fail-fast rules, page-size modes, and QA checklist
 
-### 5. Component Integration
-- **`shot-flow-builder/PHASE_1_AND_2_COMPLETE.md`**
-  - Read: "Phase 2: Component Integration" (lines 41-54) - What's been integrated
+6. `docs/features/PDF_PERCENTAGE_FIX.md`
+   - Historical context for the percentage-based image offset invariant
 
-## 🎯 Key Context to Understand:
+## Key context to understand
 
-### Theme System Architecture:
-1. **Two Separate Color Systems:**
-   - `COLOR_PALETTE` (in `glassmorphism-styles.ts`) - Fixed app UI colors (buttons, modals, etc.)
-   - `StoryboardTheme` (in `storyboardTheme.ts`) - User-customizable storyboard content colors
-   - **NEVER mix these!** They serve different purposes.
+### Theme system
+- App UI colors and storyboard theme colors are separate systems.
+- Themeable storyboard surfaces use `.storyboard-themeable`.
+- Theme values should be applied through the established CSS variable pattern when appropriate.
 
-2. **CSS Isolation Pattern:**
-   - Themeable components use `.storyboard-themeable` class
-   - CSS variables passed via inline styles: `--inline-border-color`, `--inline-bg-color`
-   - Global CSS rules use `:not(.storyboard-themeable)` to exclude themeable components
-   - This prevents global overrides from breaking user themes
+### PDF export
+- Production PDF export is payload-driven and server-rendered.
+- The active path is: `PDFExportModal` -> `buildServerPdfPayload()` -> `/api/export-pdf` -> `/export/pdf/render-static` -> `page.pdf()`.
+- Do not rely on `activePageId`, call `setActivePage()`, or mutate visible app state to prepare export.
+- Export trusts project-level `pageSizeMode`; the export modal must not choose paper size independently.
+- Export DOM parity and readiness checks are hard requirements.
 
-3. **Theme Storage:**
-   - Per-project: Stored in `projectStore.storyboardTheme` (in `projectSettings`)
-   - User themes: Saved to Supabase `user_storyboard_themes` table
-   - Theme service: `src/services/themeService.ts`
+### Image transforms
+- Image offsets are stored as percentages, not fixed pixels.
+- Export must convert those percentages using actual export dimensions.
+- Do not reintroduce logic that depends on stale live-view inline transforms.
 
-4. **UI Controls:**
-   - ThemeToolbar component (`src/components/ThemeToolbar.tsx`) - Horizontal toolbar with dropdowns
-   - Live preview updates immediately (no "Apply" button)
-   - Sections: Themes, Page Style, Shot Card, Label Style, Shot Text Style
+## Key files to reference
 
-5. **PDF Export Integration:**
-   - `domRenderer.ts` reads `storyboardState.storyboardTheme` for all styling
-   - Global font multiplier: `FONT_SIZE_MULTIPLIER = 1.12` (compensates for canvas vs DOM)
-   - Background colors: Page, MasterHeader, Shot Card all use `contentBackground` from theme
-   - Empty frames: No placeholder icons, use theme border radius
+### Theme definition and storage
+- `src/styles/storyboardTheme.ts`
+- `src/store/projectStore.ts`
+- `src/services/themeService.ts`
 
-## 🚨 Critical Rules (from .cursorrules):
+### Themeable UI
+- `src/components/MasterHeader.tsx`
+- `src/components/ShotCard.tsx`
+- `src/components/ShotGrid.tsx`
+- `src/components/StoryboardPage.tsx`
 
-1. **Semantic Color Separation:**
-   - Buttons use `button.*` colors (primary, secondary, accent, hover)
-   - Containers use `background.*` colors (primary, secondary, subtle, accent)
-   - Inputs use `input.*` colors (background, border)
-   - **NEVER share color categories between different UI element types**
+### Production PDF export
+- `src/components/PDFExportModal.tsx`
+- `src/utils/export/exportManager.ts`
+- `src/utils/export/serverPdfPayload.ts`
+- `src/utils/export/previewDimensions.ts`
+- `src/utils/pageSize.ts`
+- `src/components/PageSizeModeSelector.tsx`
+- `src/components/GridSizeSelector.tsx`
+- `src/export-pdf-static.ts`
+- `src/export-pdf-static.css`
+- `api/export-pdf.ts`
 
-2. **Theme System:**
-   - Themeable components MUST use `.storyboard-themeable` class
-   - Use CSS variables for theme values (not direct inline styles)
-   - PDF export must read from `storyboardState.storyboardTheme`
+## Before making changes
 
-## 📁 Key Files to Reference:
+1. If modifying themeable components:
+   - Preserve `.storyboard-themeable` behavior
+   - Keep live UI and export DOM visually aligned
 
-**Theme Definition:**
-- `src/styles/storyboardTheme.ts` - Theme interface, presets, helpers
+2. If modifying PDF export:
+   - Follow `docs/architecture/PDF_EXPORT_CONTRACT.md`
+   - Preserve payload-driven rendering
+   - Preserve readiness and fail-fast behavior
+   - Preserve DOM parity with the storyboard export subtree
+   - Preserve `pageSizeMode` as the source of truth for PDF page size
 
-**Theme Storage:**
-- `src/store/projectStore.ts` - Theme state management
-- `src/services/themeService.ts` - User theme CRUD operations
+3. If modifying image transform behavior:
+   - Preserve percentage-based offsets
+   - Keep export math aligned with shared preview-dimension logic
 
-**UI Components:**
-- `src/components/ThemeToolbar.tsx` - Theme customization UI
-- `src/components/MasterHeader.tsx` - Themed header component
-- `src/components/ShotCard.tsx` - Themed shot card component
-
-**PDF Export:**
-- `src/utils/export/domRenderer.ts` - PDF rendering with theme integration
-- `src/utils/export/domCapture.ts` - DOM capture with theme background
-
-**Styling:**
-- `src/styles/glassmorphism-styles.ts` - App UI colors (NOT storyboard themes)
-- `src/index.css` - Global CSS with theme isolation rules
-
-## ✅ Before Making Changes:
-
-1. **If modifying theme system:**
-   - Check `STORYBOARD_THEME_SYSTEM_PLAN.md` for current implementation status
-   - Verify component uses `.storyboard-themeable` class
-   - Ensure CSS variables are used (not direct inline styles)
-   - Test that PDF export still works
-
-2. **If modifying PDF export:**
-   - Read `CLAUDE.md` "PDF Export Rendering" section
-   - Ensure theme values are read from `storyboardState.storyboardTheme`
-   - Apply global font multiplier to all text
-   - Test WYSIWYG accuracy
-
-3. **If adding new themeable elements:**
-   - Add to `StoryboardTheme` interface
-   - Update preset themes
-   - Add to ThemeToolbar UI
-   - Apply CSS variable pattern
-   - Update PDF export renderer
-
-4. **If modifying colors:**
-   - Determine if it's app UI (use COLOR_PALETTE) or storyboard content (use StoryboardTheme)
-   - Don't mix the two systems!
-
-## 📝 Recent Changes (January 2025):
-
-- PDF export font size multiplier (1.12x) applied globally
-- Background colors now use theme (`contentBackground`)
-- Shot Card background toggle respected in PDF
-- Empty image frames have rounded corners, no placeholder icons
-- Text positioning improvements (shot number centering, action text spacing)
-
----
-
-After reading this documentation, confirm you understand:
-1. The separation between app UI colors and storyboard theme colors
-2. How CSS isolation works with `.storyboard-themeable` class
-3. Where theme data is stored and how it flows through the system
-4. How PDF export integrates with the theme system
-
-Then we can proceed with the task!
+After reading these, confirm you understand:
+1. the difference between app UI colors and storyboard theme colors
+2. how `.storyboard-themeable` isolation works
+3. how the current production PDF pipeline works
+4. why image transforms must remain percentage-based
 ```
 
 ---
 
-## Quick reference summary
+## Quick Reference Version
 
-If you want a shorter prompt, use this:
+```text
+Please read these files before making theming or PDF export changes:
 
-```
-Please read these files to understand our theme system before making any styling changes:
-
-1. `shot-flow-builder/STORYBOARD_THEME_SYSTEM_PLAN.md` - Lines 1-30, 48-58, 1225-1234
-2. `shot-flow-builder/STORYBOARD_THEMEABLE_ARCHITECTURE.md` - Lines 1-100
-3. `shot-flow-builder/CLAUDE.md` - Lines 129-152 (PDF Export Rendering)
+1. `.cursorrules`
+2. `docs/architecture/STORYBOARD_THEME_SYSTEM_PLAN.md`
+3. `docs/architecture/STORYBOARD_THEMEABLE_ARCHITECTURE.md`
+4. `docs/architecture/PDF_EXPORT_CONTRACT.md`
+5. `docs/features/PDF_PERCENTAGE_FIX.md` (historical context only)
 
 Key points:
-- Two separate color systems: COLOR_PALETTE (app UI) vs StoryboardTheme (user content)
-- CSS isolation via `.storyboard-themeable` class and CSS variables
-- PDF export reads from `storyboardState.storyboardTheme`
-- Global font multiplier: 1.12x for all PDF text
-- Theme storage: Per-project in projectStore, user themes in Supabase
-
-Confirm understanding before proceeding.
+- App UI colors and storyboard theme colors are separate systems.
+- Themeable storyboard surfaces use `.storyboard-themeable`.
+- Production PDF export is payload-driven through `/api/export-pdf` and `/export/pdf/render-static`.
+- Export must not depend on live app state fallback, `activePageId`, or `setActivePage()`.
+- Export page size comes from project-level `pageSizeMode`.
+- Image transforms remain percentage-based and must be resolved using actual export dimensions.
 ```
 
 ---
 
-This prompt gives the agent:
-- Clear reading order
-- Specific file locations and line numbers
-- Context on architecture decisions
-- Critical rules to follow
-- Recent changes
-- A verification step
-
-Should I adjust anything or add more detail?
+This draft now points to the current docs tree and the active PDF export contract instead of the removed `shot-flow-builder/` paths.

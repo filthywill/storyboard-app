@@ -12,6 +12,7 @@ import { useCloudSaveConflictStore } from '@/store/cloudSaveConflictStore'
 import { useWriterLeaseStore } from '@/store/writerLeaseStore'
 import { setSavePaused } from '@/utils/autoSave'
 import { WriterLeaseService } from '@/services/writerLeaseService'
+import { resolvePageSizeMode } from '@/utils/pageSize';
 
 export type CloudSaveFailureReason =
   | 'no_project_id'
@@ -377,7 +378,15 @@ export class CloudSyncService {
       shotOrder: data.shotOrder || this.deriveShotOrderFromPages(data.pages)
     })
     
-    useProjectStore.setState(data.projectSettings)
+    useProjectStore.setState({
+      ...data.projectSettings,
+      pageSizeMode: resolvePageSizeMode(data.projectSettings?.pageSizeMode),
+      projectLogoUrl: data.projectSettings?.projectLogoUrl ?? null,
+      projectLogoFile: null,
+      projectLogoDataUrl: data.projectSettings?.projectLogoUrl?.startsWith('data:')
+        ? data.projectSettings.projectLogoUrl
+        : null,
+    })
     useUIStore.setState(data.uiSettings)
     
     this.currentProjectId = projectId
@@ -523,9 +532,12 @@ export class CloudSyncService {
         projectSettings: {
           projectName: projectStore.projectName,
           projectInfo: projectStore.projectInfo,
-          projectLogoUrl: projectStore.projectLogoUrl,
+          projectLogoUrl: projectStore.projectLogoUrl?.startsWith('blob:')
+            ? (projectStore.projectLogoDataUrl || undefined)
+            : projectStore.projectLogoUrl,
           clientAgency: projectStore.clientAgency,
           jobInfo: projectStore.jobInfo,
+          pageSizeMode: projectStore.pageSizeMode,
           templateSettings: projectStore.templateSettings,
           storyboardTheme: projectStore.storyboardTheme
         },
@@ -1095,7 +1107,8 @@ export class CloudSyncService {
       useProjectStore.setState(state => ({
         ...state,
         projectLogoUrl: imageUrl,
-        projectLogoFile: null
+        projectLogoFile: null,
+        projectLogoDataUrl: null,
       }));
       
       console.log('Successfully migrated project logo to cloud storage');
@@ -1201,9 +1214,12 @@ export class CloudSyncService {
       projectSettings: {
         projectName: projectStore.projectName,
         projectInfo: projectStore.projectInfo,
-        projectLogoUrl: projectStore.projectLogoUrl,
+        projectLogoUrl: projectStore.projectLogoUrl?.startsWith('blob:')
+          ? (projectStore.projectLogoDataUrl || undefined)
+          : projectStore.projectLogoUrl,
         clientAgency: projectStore.clientAgency,
         jobInfo: projectStore.jobInfo,
+        pageSizeMode: projectStore.pageSizeMode,
         templateSettings: projectStore.templateSettings,
         storyboardTheme: projectStore.storyboardTheme
       },

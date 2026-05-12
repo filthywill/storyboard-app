@@ -18,6 +18,7 @@ import {
   ExportError
 } from '@/utils/types/exportTypes';
 import { LayoutCalculator } from './layoutCalculator';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 if (import.meta && import.meta.env && import.meta.env.DEV) {
   console.warn('⚠️ DEPRECATED: DataTransformer uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
@@ -30,12 +31,12 @@ export class DataTransformer {
   static async transformStoryboardPage(
     page: StoryboardPage,
     storyboardState: StoryboardState,
-    targetWidth: number = 1000, // Always use Preview mode width
+    targetWidth: number = RENDERED_PAGE_WIDTH_PX, // Always use Preview mode width
     scale: number = 2
   ): Promise<ExportStoryboardPage> {
     try {
       // Always use Preview mode dimensions for WYSIWYG export
-      const baseWidth = 1000; // Same as ShotGrid preview mode
+      const baseWidth = RENDERED_PAGE_WIDTH_PX; // Same as ShotGrid preview mode
       const padding = 32; // Account for container padding
       const gaps = (page.gridCols - 1) * 8; // Same gap as preview mode
       const availableWidth = baseWidth - padding - gaps;

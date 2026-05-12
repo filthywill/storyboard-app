@@ -1,0 +1,33 @@
+@import './index.css';
+
+html,
+body {
+  background: #ffffff !important;
+  min-height: 100%;
+}
+
+body {
+  overflow: visible !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
+body::before,
+body::after {
+  content: none !important;
+  display: none !important;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+[data-export-root] .shadow-lg.storyboard-themeable,
+[data-export-root] .shadow-lg {
+  box-shadow: none !important;
+}
+
+[data-export-root] .shot-number-container > div {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}

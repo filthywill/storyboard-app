@@ -22,9 +22,32 @@ import { CloudAccessService } from '@/services/cloudAccessService';
 import { useCloudSaveConflictStore } from '@/store/cloudSaveConflictStore';
 import { setSavePaused } from '@/utils/autoSave';
 import { CloudProjectSyncService } from '@/services/cloudProjectSyncService';
+import { resolvePageSizeMode } from '@/utils/pageSize';
 
 export class ProjectSwitcher {
   private static isSwitching = false;
+
+  private static resolvePersistedProjectLogoUrl(
+    projectLogoUrl: string | null | undefined,
+    projectLogoDataUrl: string | null | undefined
+  ): string | null {
+    if (projectLogoUrl?.startsWith('blob:')) {
+      return projectLogoDataUrl || null;
+    }
+
+    return projectLogoUrl || projectLogoDataUrl || null;
+  }
+
+  private static resolvePersistedProjectLogoDataUrl(
+    projectLogoUrl: string | null | undefined,
+    projectLogoDataUrl: string | null | undefined
+  ): string | null {
+    if (projectLogoDataUrl) {
+      return projectLogoDataUrl;
+    }
+
+    return projectLogoUrl?.startsWith('data:') ? projectLogoUrl : null;
+  }
 
   /**
    * Check if project switching is currently in progress
@@ -273,9 +296,17 @@ export class ProjectSwitcher {
       const projectData = {
         projectName: projectStore.projectName,
         projectInfo: projectStore.projectInfo,
-        projectLogoUrl: projectStore.projectLogoUrl,
+        projectLogoUrl: this.resolvePersistedProjectLogoUrl(
+          projectStore.projectLogoUrl,
+          projectStore.projectLogoDataUrl
+        ),
+        projectLogoDataUrl: this.resolvePersistedProjectLogoDataUrl(
+          projectStore.projectLogoUrl,
+          projectStore.projectLogoDataUrl
+        ),
         clientAgency: projectStore.clientAgency,
         jobInfo: projectStore.jobInfo,
+        pageSizeMode: projectStore.pageSizeMode,
         templateSettings: projectStore.templateSettings,
       };
 
@@ -372,10 +403,18 @@ export class ProjectSwitcher {
             useProjectStore.setState({
               projectName: actualProjectData.projectName || '',
               projectInfo: actualProjectData.projectInfo || '',
-              projectLogoUrl: actualProjectData.projectLogoUrl || null,
+              projectLogoUrl: this.resolvePersistedProjectLogoUrl(
+                actualProjectData.projectLogoUrl,
+                actualProjectData.projectLogoDataUrl
+              ),
               projectLogoFile: null, // File objects are not persisted
+              projectLogoDataUrl: this.resolvePersistedProjectLogoDataUrl(
+                actualProjectData.projectLogoUrl,
+                actualProjectData.projectLogoDataUrl
+              ),
               clientAgency: actualProjectData.clientAgency || '',
               jobInfo: actualProjectData.jobInfo || '',
+              pageSizeMode: resolvePageSizeMode(actualProjectData.pageSizeMode),
               templateSettings: actualProjectData.templateSettings || {},
             });
           }
@@ -727,8 +766,10 @@ export class ProjectSwitcher {
         projectInfo: 'Project Info',
         projectLogoUrl: null,
         projectLogoFile: null,
+        projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
+        pageSizeMode: 'dynamic',
         templateSettings: {
           showLogo: true,
           showProjectName: true,
@@ -796,8 +837,10 @@ export class ProjectSwitcher {
         projectInfo: 'Project Info',
         projectLogoUrl: null,
         projectLogoFile: null,
+        projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
+        pageSizeMode: 'dynamic',
         templateSettings: {
           showLogo: true,
           showProjectName: true,
@@ -854,8 +897,10 @@ export class ProjectSwitcher {
         projectName: projectName || 'Project Name',
         projectInfo: 'Project Info',
         projectLogoUrl: null,
+        projectLogoDataUrl: null,
         clientAgency: 'Client/Agency',
         jobInfo: 'Job Info',
+        pageSizeMode: 'dynamic',
         templateSettings: {
           showLogo: true,
           showProjectName: true,

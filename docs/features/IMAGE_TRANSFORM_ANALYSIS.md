@@ -1,6 +1,12 @@
 # Image Transform System Analysis
 
-## Current System Overview
+**Status**: Historical design analysis, resolved
+
+> **Historical note:** This document captures the pre-implementation analysis that led to percentage-based image offsets.
+>
+> The proposed migration in this file has already been implemented. For the current behavior, use `docs/features/IMAGE_EDITOR_IMPLEMENTATION.md`. For the current production PDF path, use `docs/architecture/PDF_EXPORT_CONTRACT.md`.
+
+## Historical System Overview
 
 ### Component Relationship Map
 
@@ -21,7 +27,7 @@ StoryboardPage (scale: 0.831)
       └── Adjusts drag sensitivity by imageScale
 ```
 
-## 🔴 CRITICAL PROBLEM IDENTIFIED
+## 🔴 Historical Problem Identified
 
 ### The Root Cause
 
@@ -65,7 +71,7 @@ const handleMouseMove = useCallback((e: MouseEvent) => {
 }, [isDragging, dragStart, editingShot]);
 ```
 
-## ✅ PROPOSED SOLUTION
+## ✅ Proposed Solution (Now Implemented)
 
 ### Concept: Aspect-Ratio-Relative Coordinates
 
@@ -152,7 +158,7 @@ const actualOffsetY = imageOffsetY * scaleY;  // -72 * (173/900) = -13.84px
 - Need to define canonical dimensions for each aspect ratio
 - Migration more involved
 
-## 🎯 RECOMMENDED SOLUTION: Option A (Percentage-Based)
+## 🎯 Recommended Solution Chosen: Option A (Percentage-Based)
 
 ### Why Percentage-Based?
 
@@ -379,16 +385,16 @@ What should happen if user changes a page's aspect ratio AFTER positioning image
 - Pros: User control
 - Cons: Interrupts workflow
 
-## 🚀 Next Steps
+## ✅ Outcome
 
-Please review this analysis and answer the questions above. Once we align on the approach, I'll implement the solution with confidence that it will:
+This analysis led to the percentage-based offset system that is now in production:
 
-1. ✅ Fix the current PDF export offset issue
-2. ✅ Make image positioning stable across grid layout changes
-3. ✅ Future-proof the system for any container size variations
-4. ✅ Maintain WYSIWYG accuracy
+1. ✅ Image offsets are stored as percentages
+2. ✅ Grid layout changes no longer break image positioning
+3. ✅ Export uses the stored percentage values instead of stale inline transform pixels
+4. ✅ WYSIWYG parity depends on shared dimension logic during export
 
-The core insight is: **Aspect Ratio is the stable anchor, grid layout is variable → store offsets relative to aspect ratio's container dimensions (as percentages).**
+The core insight remains correct: **grid layout is variable, so image offsets must be stored relative to container dimensions instead of as fixed pixels.**
 
 
 

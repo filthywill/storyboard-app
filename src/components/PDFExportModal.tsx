@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAppStore } from '@/store';
 import {
   Dialog,
@@ -10,17 +10,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { FileText, Download, AlertTriangle, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
 import { exportManager } from '@/utils/export/exportManager';
+import type { PDFSaveTarget } from '@/utils/export/exportManager';
+import { attachDebugServerPdfPayloadHelpers } from '@/utils/export/debugServerPdfPayload';
 import { MODAL_OVERLAY_STYLES, getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
+import { getPageSizeSpec, resolvePageSizeMode } from '@/utils/pageSize';
 
 export interface PDFExportOptions {
-  paperSize: 'letter' | 'canvas';
   pages: 'all' | 'current' | 'range';
   pageRange?: { start: number; end: number };
 }
@@ -31,32 +31,116 @@ interface PDFExportModalProps {
   currentPageIndex: number;
 }
 
+type SaveFilePickerHandle = {
+  createWritable: () => Promise<{
+    write: (data: Blob) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
+};
+
+type SaveFilePickerOptions = {
+  suggestedName?: string;
+  types?: Array<{
+    description?: string;
+    accept: Record<string, string[]>;
+  }>;
+};
+
+declare global {
+  interface Window {
+    showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<SaveFilePickerHandle>;
+  }
+}
+
+const INVALID_PDF_FILENAME_CHARS_REGEX = /[<>:"/\\|?*]/g;
+const CONTROL_CHARS_REGEX = new RegExp(
+  `[${String.fromCharCode(0)}-${String.fromCharCode(31)}]`,
+  'g'
+);
+
 export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportModalProps) {
   const { 
     pages, 
     activePageId,
     startNumber,
     projectName,
+    currentProject,
     projectInfo,
     projectLogoUrl,
     projectLogoFile,
+    projectLogoDataUrl,
     clientAgency,
     jobInfo,
+    pageSizeMode,
     templateSettings,
     storyboardTheme,
     getPageShots
   } = useAppStore();
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{current: number; total: number; pageName: string} | null>(null);
+  const [filenameInput, setFilenameInput] = useState('');
   
   const [options, setOptions] = useState<PDFExportOptions>({
-    paperSize: 'letter',
     pages: 'all',
     pageRange: { start: 1, end: pages.length }
   });
 
+  const normalizedPageSizeMode = resolvePageSizeMode(pageSizeMode);
+  const pageSizeLabel = getPageSizeSpec(normalizedPageSizeMode).label;
+
+  const sanitizePdfFilename = useCallback((rawName: string): string => {
+    const trimmed = rawName.trim();
+    const withoutExtension = trimmed.replace(/\.pdf$/i, '').trim();
+    const sanitizedBase = withoutExtension
+      .replace(INVALID_PDF_FILENAME_CHARS_REGEX, '_')
+      .replace(CONTROL_CHARS_REGEX, '_')
+      .replace(/\s+/g, ' ')
+      .replace(/[. ]+$/g, '')
+      .trim();
+    const safeBase = sanitizedBase || 'storyboard';
+    return `${safeBase}.pdf`;
+  }, []);
+
+  const resolveDefaultFilename = useCallback((): string => {
+    const projectTitle = (currentProject?.name || projectName || '').trim();
+    return sanitizePdfFilename(projectTitle || 'storyboard');
+  }, [currentProject?.name, projectName, sanitizePdfFilename]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setFilenameInput(resolveDefaultFilename());
+  }, [isOpen, resolveDefaultFilename]);
+
   const handleExport = async () => {
+    const filename = sanitizePdfFilename(filenameInput || resolveDefaultFilename());
+
     try {
+      let saveTarget: PDFSaveTarget | undefined;
+      if (typeof window.showSaveFilePicker === 'function') {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [
+              {
+                description: 'PDF Document',
+                accept: {
+                  'application/pdf': ['.pdf'],
+                },
+              },
+            ],
+          });
+          saveTarget = {
+            kind: 'file-handle',
+            handle,
+          };
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            return;
+          }
+          throw error;
+        }
+      }
+
       setIsExporting(true);
       
       // Determine which pages to export
@@ -95,8 +179,10 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
         projectInfo,
         projectLogoUrl,
         projectLogoFile,
+        projectLogoDataUrl,
         clientAgency,
         jobInfo,
+        pageSizeMode,
         isDragging: false,
         isExporting: true,
         showDeleteConfirmation: true,
@@ -104,11 +190,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
         storyboardTheme
       };
 
-      // Generate filename
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
-      const filename = `storyboard_${timestamp}.pdf`;
-
-      // Export PDF using DOM capture system with progress tracking
+      // Export PDF using the server PDF backend with progress tracking
       await exportManager.downloadPDF(
         legacyPages,
         storyboardState,
@@ -116,7 +198,8 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
         options,
         (current, total, pageName) => {
           setExportProgress({ current, total, pageName });
-        }
+        },
+        saveTarget
       );
       
       toast({
@@ -139,7 +222,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
     }
   };
 
-  const updateOptions = (key: keyof PDFExportOptions, value: any) => {
+  const updateOptions = <K extends keyof PDFExportOptions>(key: K, value: PDFExportOptions[K]) => {
     setOptions(prev => ({ ...prev, [key]: value }));
   };
 
@@ -152,6 +235,14 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
       }
     }));
   };
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    attachDebugServerPdfPayloadHelpers({
+      getPageId: () => pages[currentPageIndex]?.id ?? activePageId,
+    });
+  }, [activePageId, currentPageIndex, pages]);
 
 
   const getSelectedPageCount = () => {
@@ -276,7 +367,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
             )}
           </div>
 
-          {/* Paper Settings */}
+          {/* Export Settings */}
           <div className="space-y-3">
             <Label 
               className="text-base font-medium"
@@ -285,31 +376,46 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
               Export Settings
             </Label>
             <div className="space-y-2">
+              <Label style={{ color: getColor('text', 'secondary') as string }}>
+                Page Size
+              </Label>
+              <div
+                className="rounded-md px-3 py-2 text-sm"
+                style={{
+                  backgroundColor: getColor('background', 'subtle') as string,
+                  border: `1px solid ${getColor('border', 'primary') as string}`,
+                  color: getColor('text', 'primary') as string
+                }}
+              >
+                {pageSizeLabel}
+              </div>
+              <p
+                className="text-xs"
+                style={{ color: getColor('text', 'muted') as string }}
+              >
+                Controlled from Template Layout
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label 
-                htmlFor="paper-size"
+                htmlFor="pdf-filename"
                 style={{ color: getColor('text', 'secondary') as string }}
               >
-                Paper Size
+                Filename
               </Label>
-              <Select
-                value={options.paperSize}
-                onValueChange={(value) => updateOptions('paperSize', value)}
-              >
-                <SelectTrigger 
-                  id="paper-size"
-                  style={{
-                    backgroundColor: getColor('input', 'background') as string,
-                    border: `1px solid ${getColor('input', 'border') as string}`,
-                    color: getColor('text', 'primary') as string
-                  }}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="letter">8.5" × 11" (Standard)</SelectItem>
-                  <SelectItem value="canvas">Canvas (Exact Layout)</SelectItem>
-                </SelectContent>
-              </Select>
+              <input
+                id="pdf-filename"
+                type="text"
+                value={filenameInput}
+                onChange={(event) => setFilenameInput(event.target.value)}
+                placeholder="storyboard.pdf"
+                className="w-full px-3 py-2 rounded text-sm"
+                style={{
+                  backgroundColor: getColor('input', 'background') as string,
+                  border: `1px solid ${getColor('input', 'border') as string}`,
+                  color: getColor('text', 'primary') as string
+                }}
+              />
             </div>
           </div>
 
@@ -326,14 +432,14 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
               style={{ color: getColor('text', 'secondary') as string }}
             >
               Exporting {getSelectedPageCount()} page(s) as PDF.
-              {options.paperSize === 'canvas' && (
+              {normalizedPageSizeMode === 'dynamic' && (
                 <div className="mt-1">
-                  Canvas mode preserves exact layout and scaling.
+                  Dynamic mode preserves exact layout and measured canvas size.
                 </div>
               )}
-              {options.paperSize === 'letter' && (
+              {(normalizedPageSizeMode === 'letter-portrait' || normalizedPageSizeMode === 'letter-landscape') && (
                 <div className="mt-1">
-                  Standard 8.5" × 11" format with optimized quality.
+                  Letter mode uses fixed 8.5" × 11" sizing from Template Layout.
                 </div>
               )}
             </AlertDescription>

@@ -6,23 +6,36 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getColor } from '@/styles/glassmorphism-styles';
+import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 interface ShotGridProps {
   pageId: string;
   className?: string;
   previewDimensions: { width: number; imageHeight: number; gap: number };
+  // Export-only overrides (additive). Live editor keeps default behavior when omitted.
+  pageNumberOverride?: number;
+  hideEmptySlots?: boolean;
+  readOnly?: boolean;
+  layoutOverride?: { gridRows: number; gridCols: number; aspectRatio: string };
   onShotUpdate: (shotId: string, updates: Partial<Shot>) => void;
   onShotDelete: (shotId: string) => void;
   onAddShot: (pageId: string, position?: number) => void;
   onAddSubShot: (pageId: string, shotId: string) => void;
   onInsertBatch?: (shotId: string) => void;
   onEditImage?: (shot: Shot) => void;
+  exportPayload?: ServerPDFExportPayload;
+  pageShotsOverride?: Shot[];
 }
 
-export const ShotGrid: React.FC<ShotGridProps> = ({ 
+const ConnectedShotGrid: React.FC<ShotGridProps> = ({ 
   pageId, 
   className, 
   previewDimensions,
+  pageNumberOverride,
+  hideEmptySlots = false,
+  readOnly = false,
+  layoutOverride,
   onShotUpdate,
   onShotDelete,
   onAddShot,
@@ -33,6 +46,7 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
   const {
     pages,
     activePageId,
+    pageSizeMode,
     templateSettings,
     storyboardTheme,
     getPageShots,
@@ -112,9 +126,10 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
     onAddShot(pageId, position);
   }, [pageId, onAddShot]);
 
-  if (!activePage) {
+  const gridContext = layoutOverride || activePage;
+  if (!gridContext) {
     return (
-      <div 
+      <div
         className="flex items-center justify-center h-64"
         style={{ color: getColor('text', 'muted') as string }}
       >
@@ -123,12 +138,20 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
     );
   }
 
-  const { gridRows, gridCols, aspectRatio } = activePage;
+  const { gridRows, gridCols, aspectRatio } = gridContext;
   const totalSlots = gridRows * gridCols;
-  const emptySlotsCount = Math.max(0, totalSlots - pageShots.length);
+  const emptySlotsCount = hideEmptySlots ? 0 : Math.max(0, totalSlots - pageShots.length);
+  const resolvedPageNumber = pageNumberOverride ?? (activePageIndex !== -1 ? activePageIndex + 1 : null);
+  const isFixedPageMode = pageSizeMode !== 'dynamic';
 
   return (
-    <div className={cn('w-full shot-grid', className)}>
+    <div
+      className={cn(
+        'w-full shot-grid',
+        className,
+        isFixedPageMode && 'h-full flex flex-col'
+      )}
+    >
       <div
         className={cn(
           'grid w-full',
@@ -139,9 +162,9 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
           gridTemplateRows: `repeat(${gridRows}, auto)`,
           gap: `${previewDimensions.gap}px`,
           justifyContent: 'center',
-          width: '1000px',
-          maxWidth: '1000px',
-          minWidth: '1000px',
+          width: `${RENDERED_PAGE_WIDTH_PX}px`,
+          maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+          minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
           margin: '0 auto',
           flexShrink: 0
         }}
@@ -159,6 +182,7 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
             onEditImage={onEditImage ? () => onEditImage(shot) : undefined}
             aspectRatio={aspectRatio}
             previewDimensions={previewDimensions}
+            readOnly={readOnly}
           />
         ))}
         
@@ -167,7 +191,8 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
           <div
             key={`empty-${index}`}
             className={cn(
-              "rounded-lg flex items-center justify-center transition-colors group cursor-pointer",
+              "rounded-lg flex items-center justify-center transition-colors group",
+              !readOnly && "cursor-pointer",
               "border-0"
             )}
             style={{
@@ -175,7 +200,11 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
               minHeight: `${previewDimensions.imageHeight + 80}px`,
               flex: 'none'
             }}
-            onClick={() => handleAddShot()}
+            onClick={() => {
+              if (!readOnly) {
+                handleAddShot();
+              }
+            }}
           >
             <div 
               className="text-center transition-all"
@@ -202,9 +231,9 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
         <div 
           className="mt-2"
           style={{
-            width: '1000px',
-            maxWidth: '1000px',
-            margin: '8px auto 0',
+            width: `${RENDERED_PAGE_WIDTH_PX}px`,
+            maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+            margin: isFixedPageMode ? 'auto auto 0' : '8px auto 0',
             flexShrink: 0
           }}
         >
@@ -225,9 +254,9 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
                 color: storyboardTheme.header.text
               }}
             >
-              {activePageIndex !== -1 && (
+              {resolvedPageNumber !== null && (
                 <div>
-                  Page {activePageIndex + 1}
+                  Page {resolvedPageNumber}
                 </div>
               )}
             </div>
@@ -236,4 +265,147 @@ export const ShotGrid: React.FC<ShotGridProps> = ({
       )}
     </div>
   );
+};
+
+const ExportShotGrid: React.FC<ShotGridProps> = ({
+  className,
+  previewDimensions,
+  pageNumberOverride,
+  hideEmptySlots = false,
+  readOnly = false,
+  layoutOverride,
+  onAddShot,
+  exportPayload,
+  pageShotsOverride = [],
+}) => {
+  if (!exportPayload || !layoutOverride) {
+    return null;
+  }
+
+  const templateSettings = exportPayload.template;
+  const storyboardTheme = exportPayload.theme;
+  const { gridRows, gridCols, aspectRatio } = layoutOverride;
+  const totalSlots = gridRows * gridCols;
+  const emptySlotsCount = hideEmptySlots ? 0 : Math.max(0, totalSlots - pageShotsOverride.length);
+  const resolvedPageNumber = pageNumberOverride ?? exportPayload.page.pageNumber;
+
+  return (
+    <div className={cn('w-full shot-grid', className)}>
+      <div
+        className={cn(
+          'grid w-full',
+          'justify-center'
+        )}
+        style={{
+          gridTemplateColumns: `repeat(${gridCols}, ${previewDimensions.width}px)`,
+          gridTemplateRows: `repeat(${gridRows}, auto)`,
+          gap: `${previewDimensions.gap}px`,
+          justifyContent: 'center',
+          width: `${RENDERED_PAGE_WIDTH_PX}px`,
+          maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+          minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+          margin: '0 auto',
+          flexShrink: 0
+        }}
+      >
+        {pageShotsOverride.map((shot) => (
+          <ShotCard
+            key={shot.id}
+            shot={shot}
+            onUpdate={() => {}}
+            onDelete={() => {}}
+            onAddSubShot={() => {}}
+            onInsertShot={() => {}}
+            aspectRatio={aspectRatio}
+            previewDimensions={previewDimensions}
+            readOnly
+            exportPayload={exportPayload}
+          />
+        ))}
+
+        {Array.from({ length: emptySlotsCount }).map((_, index) => (
+          <div
+            key={`empty-${index}`}
+            className={cn(
+              "rounded-lg flex items-center justify-center transition-colors group",
+              !readOnly && "cursor-pointer",
+              "border-0"
+            )}
+            style={{
+              width: `${previewDimensions.width}px`,
+              minHeight: `${previewDimensions.imageHeight + 80}px`,
+              flex: 'none'
+            }}
+            onClick={() => {
+              if (!readOnly) {
+                onAddShot(exportPayload.page.id);
+              }
+            }}
+          >
+            <div
+              className="text-center transition-all"
+              style={{
+                background: getColor('background', 'subtle') as string,
+                color: getColor('text', 'muted') as string,
+                padding: '12px 12px',
+                borderRadius: '6px',
+                display: 'inline-block'
+              }}
+            >
+              <Plus size={20} className="mx-auto mb-0" style={{ color: 'inherit' }} />
+              <span className={cn(
+                "font-medium",
+                "text-xs"
+              )} style={{ color: 'inherit' }}>Add Shot</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {templateSettings.showPageNumber && (
+        <div
+          className="mt-2"
+          style={{
+            width: `${RENDERED_PAGE_WIDTH_PX}px`,
+            maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
+            margin: '8px auto 0',
+            flexShrink: 0
+          }}
+        >
+          <div
+            className="px-6 py-3"
+            style={{
+              paddingLeft: '33px',
+              paddingRight: '33px',
+              paddingTop: '12px',
+              paddingBottom: '12px'
+            }}
+          >
+            <div
+              className="flex items-center justify-end text-xs"
+              style={{
+                fontSize: '10px',
+                lineHeight: '1.2',
+                color: storyboardTheme.header.text
+              }}
+            >
+              {resolvedPageNumber !== null && (
+                <div>
+                  Page {resolvedPageNumber}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const ShotGrid: React.FC<ShotGridProps> = (props) => {
+  if (props.exportPayload) {
+    return <ExportShotGrid {...props} />;
+  }
+
+  return <ConnectedShotGrid {...props} />;
 };

@@ -6,6 +6,7 @@ import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Shot } from '@/store';
 import { ShotImageRenderer } from './ShotImageRenderer';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 interface ImageEditorModalProps {
   isOpen: boolean;
@@ -44,11 +45,10 @@ export const ImageEditorModal: React.FC<ImageEditorModalProps> = ({
     const [w, h] = aspectRatio.split('/').map(str => parseInt(str.trim(), 10));
     
     // Use the EXACT same calculation as ShotGrid previewDimensions
-    const fixedWidth = 1000;
     const headerPadding = 16;
     const gridWrapperPadding = 4;
     const totalPadding = (headerPadding + gridWrapperPadding) * 2;
-    const availableWidth = fixedWidth - totalPadding;
+    const availableWidth = RENDERED_PAGE_WIDTH_PX - totalPadding;
     const gaps = (gridCols - 1) * 8; // Use actual gridCols from page
     const shotWidth = Math.floor((availableWidth - gaps) / gridCols);
     const cardContentPadding = 8 * 2;

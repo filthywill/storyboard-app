@@ -3,6 +3,24 @@ import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import ObjectURLManager from '@/utils/objectURLManager';
 import { StoryboardTheme, getDefaultTheme, migrateTheme } from '@/styles/storyboardTheme';
+import { type PageSizeMode, resolvePageSizeMode } from '@/utils/pageSize';
+
+function isBlobUrl(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('blob:');
+}
+
+function isDataUrl(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('data:');
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read project logo file as data URL.'));
+    reader.readAsDataURL(file);
+  });
+}
 
 export interface TemplateSettings {
   showLogo: boolean;
@@ -21,8 +39,10 @@ export interface ProjectState {
   projectInfo: string;
   projectLogoUrl: string | null;
   projectLogoFile: File | null;
+  projectLogoDataUrl: string | null;
   clientAgency: string;
   jobInfo: string;
+  pageSizeMode: PageSizeMode;
   templateSettings: TemplateSettings;
   storyboardTheme: StoryboardTheme;
 }
@@ -34,6 +54,7 @@ export interface ProjectActions {
   setProjectLogo: (file: File | null) => void;
   setClientAgency: (name: string) => void;
   setJobInfo: (info: string) => void;
+  setPageSizeMode: (mode: PageSizeMode) => void;
   
   // Template settings
   setTemplateSetting: (setting: keyof TemplateSettings, value: boolean | string) => void;
@@ -69,8 +90,10 @@ export const useProjectStore = create<ProjectStore>()(
       projectInfo: 'Project Info',
       projectLogoUrl: null,
       projectLogoFile: null,
+      projectLogoDataUrl: null,
       clientAgency: 'Client/Agency',
       jobInfo: 'Job Info',
+      pageSizeMode: 'dynamic',
       templateSettings: { ...defaultTemplateSettings },
       storyboardTheme: getDefaultTheme(),
 
@@ -94,8 +117,26 @@ export const useProjectStore = create<ProjectStore>()(
           // Use ObjectURLManager for better memory management
           state.projectLogoUrl = ObjectURLManager.replaceObjectURL(state.projectLogoUrl, file);
           state.projectLogoFile = file;
+          state.projectLogoDataUrl = null;
         });
-        
+
+        if (!file) {
+          return;
+        }
+
+        void fileToDataUrl(file)
+          .then((dataUrl) => {
+            set((state) => {
+              if (state.projectLogoFile !== file) {
+                return;
+              }
+
+              state.projectLogoDataUrl = dataUrl;
+            });
+          })
+          .catch((error) => {
+            console.warn('Failed to preserve exportable project logo data URL:', error);
+          });
       },
 
       setClientAgency: (name) => {
@@ -110,6 +151,12 @@ export const useProjectStore = create<ProjectStore>()(
           state.jobInfo = info;
         });
         
+      },
+
+      setPageSizeMode: (mode) => {
+        set((state) => {
+          state.pageSizeMode = mode;
+        });
       },
 
       // Template settings
@@ -157,8 +204,10 @@ export const useProjectStore = create<ProjectStore>()(
         projectName: state.projectName,
         projectInfo: state.projectInfo,
         projectLogoUrl: state.projectLogoUrl,
+        projectLogoDataUrl: state.projectLogoDataUrl,
         clientAgency: state.clientAgency,
         jobInfo: state.jobInfo,
+        pageSizeMode: state.pageSizeMode,
         templateSettings: state.templateSettings,
         storyboardTheme: state.storyboardTheme,
       }),
@@ -170,6 +219,18 @@ export const useProjectStore = create<ProjectStore>()(
           } else {
             state.storyboardTheme = migrateTheme(state.storyboardTheme);
           }
+
+          if (!state.projectLogoDataUrl && isDataUrl(state.projectLogoUrl)) {
+            state.projectLogoDataUrl = state.projectLogoUrl;
+          }
+
+          if (isBlobUrl(state.projectLogoUrl)) {
+            state.projectLogoUrl = state.projectLogoDataUrl || null;
+          } else if (!state.projectLogoUrl && state.projectLogoDataUrl) {
+            state.projectLogoUrl = state.projectLogoDataUrl;
+          }
+
+          state.pageSizeMode = resolvePageSizeMode(state.pageSizeMode);
         }
       }
     }

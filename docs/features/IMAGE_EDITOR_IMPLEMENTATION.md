@@ -3,6 +3,10 @@
 **Date**: October 22, 2025  
 **Status**: Complete and tested
 
+> **Current PDF note:** The image editor behavior described here is still current, but the production PDF architecture has changed since this document was first written.
+>
+> Production PDF export is now payload-driven through `/api/export-pdf` and `/export/pdf/render-static`. Use `docs/architecture/PDF_EXPORT_CONTRACT.md` for the active PDF pipeline contract.
+
 ---
 
 ## 🎯 Overview
@@ -24,7 +28,7 @@ The Image Editor provides users with the ability to crop, zoom, and position ima
 ```
 User clicks "Edit" → ImageEditorModal opens → User drags to position → 
 Percentage offsets calculated → Stored in shot data → 
-ShotCard applies CSS transforms → PDF export uses store values
+ShotCard applies CSS transforms → export payload serializes store values → static export route renders from payload
 ```
 
 ---
@@ -71,11 +75,11 @@ const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
 const transform = `scale(${shot.imageScale || 1}) translate(${actualOffsetX}px, ${actualOffsetY}px)`;
 ```
 
-#### `domRenderer.ts` - PDF Export
+#### `export-pdf-static.ts` - Current PDF Export Render
 ```typescript
-// Use percentage values from store, convert to pixels for captured container
-const imageOffsetX = (shot.imageOffsetX || 0) * containerWidth;
-const imageOffsetY = (shot.imageOffsetY || 0) * containerHeight;
+// Use percentage values from payload, convert to pixels for export dimensions
+const actualOffsetX = (shot.imageOffsetX || 0) * previewDimensions.width;
+const actualOffsetY = (shot.imageOffsetY || 0) * previewDimensions.imageHeight;
 ```
 
 ---
@@ -118,16 +122,16 @@ interface Shot {
 ## 📤 PDF Export Integration
 
 ### Data Flow for Export
-1. **Store values**: PDF export reads `imageScale`, `imageOffsetX`, `imageOffsetY` from shot store
-2. **Container dimensions**: Uses actual captured container size (not inline styles)
-3. **Pixel conversion**: Converts percentages to pixels based on captured dimensions
-4. **Canvas rendering**: Applies transforms using Canvas API
+1. **Store snapshot**: `buildServerPdfPayload()` serializes `imageScale`, `imageOffsetX`, and `imageOffsetY` into `ServerPDFExportPayload`
+2. **Shared layout math**: Export render uses `calculatePreviewDimensions()` so shot sizing stays aligned with the live storyboard subtree
+3. **Pixel conversion**: `src/export-pdf-static.ts` converts percentage offsets to pixels using export-time dimensions
+4. **Server capture**: Headless Chromium waits for the readiness contract, then captures the static route DOM with `page.pdf()`
 
 ### Why Not Inline Styles?
-- **Timing issue**: Inline styles contain pixel values calculated for scaled view
-- **Scale removal**: PDF export temporarily removes CSS scale, changing container size
-- **Stale data**: Inline styles become incorrect when container dimensions change
-- **Store accuracy**: Store values are always current and percentage-based
+- **Determinism**: Production PDF export rebuilds the export DOM from payload instead of reading live SPA transforms
+- **Scale safety**: Percentage values survive changes in export surface size
+- **Stale style avoidance**: Inline styles can reflect the active view, not the export surface
+- **Store accuracy**: Stored percentage values remain the source of truth
 
 ---
 
@@ -191,9 +195,9 @@ interface Shot {
 ### Modified Files
 - `src/components/ShotCard.tsx` - Added edit button and transform application
 - `src/components/StoryboardPage.tsx` - Integrated editor modal
-- `src/utils/export/domCapture.ts` - Pass transform data from store
-- `src/utils/export/domRenderer.ts` - Use percentage-based offsets
-- `src/utils/export/pdfRenderer.ts` - Updated to use DOMCapture approach
+- `src/utils/export/serverPdfPayload.ts` - Serializes transform data into export payload
+- `src/export-pdf-static.ts` - Applies percentage-based offsets during static export render
+- `api/export-pdf.ts` - Captures the rendered static route through Headless Chromium
 
 ---
 
@@ -205,9 +209,9 @@ interface Shot {
 - Use aspect ratio as the stable reference point
 
 ### 2. **Store-First Data Flow**
-- PDF export reads from store, not DOM
-- Inline styles are for display only
-- Store values are the source of truth
+- Production PDF export reads from a payload built from store state, not from live DOM mutation
+- Inline styles are for live display only
+- Store values remain the source of truth
 
 ### 3. **Responsive Design**
 - Editor adapts to different aspect ratios
@@ -221,4 +225,4 @@ interface Shot {
 
 ---
 
-*Last Updated: October 22, 2025*
+*Last Updated: April 20, 2026*

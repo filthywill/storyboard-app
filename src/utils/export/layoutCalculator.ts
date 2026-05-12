@@ -10,6 +10,7 @@ import {
   FontConfig,
   TextStyle 
 } from '@/utils/types/exportTypes';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 if (import.meta && import.meta.env && import.meta.env.DEV) {
   console.warn('⚠️ DEPRECATED: LayoutCalculator uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
@@ -22,7 +23,7 @@ export class LayoutCalculator {
   static calculateExportDimensions(
     gridConfig: { rows: number; cols: number },
     aspectRatio: string,
-    targetWidth: number = 1000, // Always use Preview mode width
+    targetWidth: number = RENDERED_PAGE_WIDTH_PX, // Always use Preview mode width
     scale: number = 2,
     showPageNumber: boolean = false, // Add parameter to control footer inclusion
     storyboardTheme?: any
@@ -30,7 +31,7 @@ export class LayoutCalculator {
     // Always use Preview mode dimensions for WYSIWYG export
     // Use EXACT same calculation as ShotGrid previewDimensions
     
-    const fixedWidth = 1000; // Same as ShotGrid
+    const fixedWidth = RENDERED_PAGE_WIDTH_PX; // Same as ShotGrid
     // Use the EXACT same padding calculation as MasterHeader and ShotGrid
     // Updated to align with shot card image frame edges: 33px total for alignment
     const alignmentPadding = 33; // Total padding for content alignment (updated to match header)
@@ -141,7 +142,7 @@ export class LayoutCalculator {
     
     // Calculate actual grid content bounds (centered within the wrapper)
     // ShotGrid uses 1000px fixed width with margin: '0 auto' for centering
-    const gridContentWidth = 1000 * scale; // Fixed width like ShotGrid
+    const gridContentWidth = RENDERED_PAGE_WIDTH_PX * scale; // Fixed width like ShotGrid
     const gridContentX = (dimensions.width - gridContentWidth) / 2; // Center horizontally
     
     // Adjust grid height to account for footer
@@ -183,14 +184,14 @@ export class LayoutCalculator {
     
     // Use the same calculation as ShotGrid previewDimensions
     // The grid is already centered, so we work within its bounds
-    const scale = gridBounds.width / 1000; // Calculate scale from grid bounds
+    const scale = gridBounds.width / RENDERED_PAGE_WIDTH_PX; // Calculate scale from grid bounds
     
     // Calculate shot dimensions using the same logic as ShotGrid
     // Use the EXACT same padding calculation as MasterHeader and ShotGrid
     const alignmentPadding = 33; // Total padding for content alignment (updated to match header)
     const totalPadding = alignmentPadding * 2; // Both sides
     
-    const availableWidth = 1000 - totalPadding; // Base 1000px width
+    const availableWidth = RENDERED_PAGE_WIDTH_PX - totalPadding; // Base width
     const gaps = (cols - 1) * 8;
     const shotWidth = Math.floor((availableWidth - gaps) / cols);
     

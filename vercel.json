@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/export/pdf/render-static",
+      "destination": "/export-pdf-static.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/"
     }

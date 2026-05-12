@@ -1,0 +1,12 @@
+HTTP/2 500 
+cache-control: no-store
+content-type: application/json; charset=utf-8
+date: Thu, 19 Mar 2026 00:44:51 GMT
+etag: W/"6b-iBEeYE5XwwXYSXJWnfIb96S3dQU"
+server: Vercel
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-robots-tag: noindex
+x-vercel-cache: MISS
+x-vercel-id: iad1::iad1::4js82-1773881086675-491403aa84b5
+content-length: 107
+

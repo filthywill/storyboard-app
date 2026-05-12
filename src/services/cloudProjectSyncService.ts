@@ -4,6 +4,7 @@ import { CloudAccessService } from './cloudAccessService';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { createDefaultPage } from '@/store/pageStore';
 import { toast } from 'sonner';
+import { resolvePageSizeMode } from '@/utils/pageSize';
 
 export class CloudProjectSyncService {
   private static isSyncing = false;
@@ -304,6 +305,11 @@ export class CloudProjectSyncService {
       didNormalize = true;
     }
 
+    const normalizedPageSizeMode = resolvePageSizeMode(existingSettings.pageSizeMode);
+    if (normalizedPageSizeMode !== existingSettings.pageSizeMode) {
+      didNormalize = true;
+    }
+
     if (didNormalize && import.meta.env.DEV) {
       console.warn('[CloudProjectSyncService] Normalized project shape', { projectId });
     }
@@ -322,6 +328,7 @@ export class CloudProjectSyncService {
         projectLogoUrl: existingSettings.projectLogoUrl ?? null,
         clientAgency: existingSettings.clientAgency ?? '',
         jobInfo: existingSettings.jobInfo ?? '',
+        pageSizeMode: normalizedPageSizeMode,
         templateSettings: {
           ...CloudProjectSyncService.DEFAULT_TEMPLATE_SETTINGS,
           ...existingTemplateSettings,

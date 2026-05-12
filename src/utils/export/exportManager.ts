@@ -4,14 +4,27 @@ import {
 } from '@/store/storyboardStore';
 import { 
   ExportOptions,
-  ExportError
+  ExportError,
 } from '@/utils/types/exportTypes';
 import { DataTransformer } from './dataTransformer';
 import { CanvasRenderer } from './canvasRenderer';
 import { DOMCapture } from './domCapture';
 import { DOMRenderer } from './domRenderer';
-import { PDFRenderer } from './pdfRenderer';
 import { PDFExportOptions } from '@/components/PDFExportModal';
+import { buildServerPdfPayload, type ExportablePage } from './serverPdfPayload';
+import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+
+type SaveFilePickerHandle = {
+  createWritable: () => Promise<{
+    write: (data: Blob) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
+};
+
+export interface PDFSaveTarget {
+  kind: 'file-handle';
+  handle: SaveFilePickerHandle;
+}
 
 export class ExportManager {
   private canvas: HTMLCanvasElement;
@@ -65,20 +78,59 @@ export class ExportManager {
    * Export storyboard pages as PDF
    */
   async exportPageAsPDF(
-    pages: StoryboardPage[],
+    pages: ExportablePage[],
     storyboardState: StoryboardState,
-    pdfOptions: PDFExportOptions,
-    onProgress?: (current: number, total: number, pageName: string) => void
-  ): Promise<Blob> {
+    filename: string,
+    _pdfOptions: PDFExportOptions,
+    onProgress?: (current: number, total: number, pageName: string) => void,
+    saveTarget?: PDFSaveTarget
+  ): Promise<void> {
     try {
-      // Create PDF renderer with user options
-      const pdfRenderer = new PDFRenderer(pdfOptions);
-      
-      // Export the pages with progress callback
-      const pdfBlob = await pdfRenderer.exportPages(pages, storyboardState, onProgress);
-      
-      return pdfBlob;
-      
+      if (pages.length === 0) {
+        throw new ExportError('No pages to export', 'NO_PAGES');
+      }
+
+      onProgress?.(1, pages.length, pages[0].name);
+
+      const payload = await buildServerPdfPayload(pages, storyboardState, {
+        filename,
+      });
+
+      if (import.meta.env.DEV && payload.debug) {
+        console.debug('[server-pdf][payload-fetch]', payload.debug ?? null);
+      }
+
+      const response = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw await this.createBackendExportError(response);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/pdf')) {
+        const unexpectedBody = await response.text();
+        throw new ExportError(
+          `Export backend returned unexpected content type "${contentType || 'unknown'}": ${unexpectedBody.slice(0, 200)}`,
+          'INVALID_PDF_RESPONSE'
+        );
+      }
+
+      const pdfBlob = await response.blob();
+      if (pdfBlob.size === 0) {
+        throw new ExportError('Export backend returned an empty PDF response.', 'EMPTY_PDF_RESPONSE');
+      }
+
+      const downloadFilename =
+        this.getFilenameFromContentDisposition(response.headers.get('content-disposition')) ||
+        filename;
+
+      await this.savePdfBlob(pdfBlob, downloadFilename, saveTarget);
     } catch (error) {
       throw new ExportError(
         `PDF export failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -91,35 +143,88 @@ export class ExportManager {
    * Download PDF with specified pages
    */
   async downloadPDF(
-    pages: StoryboardPage[],
+    pages: ExportablePage[],
     storyboardState: StoryboardState,
     filename: string,
     pdfOptions: PDFExportOptions,
-    onProgress?: (current: number, total: number, pageName: string) => void
+    onProgress?: (current: number, total: number, pageName: string) => void,
+    saveTarget?: PDFSaveTarget
   ): Promise<void> {
     try {
-      const pdfBlob = await this.exportPageAsPDF(pages, storyboardState, pdfOptions, onProgress);
-      
-      // Create download link
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
-      
-      // Trigger download
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Clean up
-      URL.revokeObjectURL(url);
-      
+      await this.exportPageAsPDF(
+        pages,
+        storyboardState,
+        filename,
+        pdfOptions,
+        onProgress,
+        saveTarget
+      );
     } catch (error) {
       throw new ExportError(
         `Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`,
         'DOWNLOAD_ERROR'
       );
     }
+  }
+
+  private async createBackendExportError(response: Response): Promise<ExportError> {
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const errorBody = (await response.json().catch(() => null)) as
+        | { error?: string; code?: string }
+        | null;
+
+      if (errorBody?.error) {
+        return new ExportError(
+          errorBody.error,
+          errorBody.code || `EXPORT_HTTP_${response.status}`
+        );
+      }
+    }
+
+    const textBody = await response.text().catch(() => '');
+    return new ExportError(
+      `Export backend request failed with status ${response.status}${textBody ? `: ${textBody.slice(0, 200)}` : '.'}`,
+      `EXPORT_HTTP_${response.status}`
+    );
+  }
+
+  private getFilenameFromContentDisposition(contentDisposition: string | null): string | null {
+    if (!contentDisposition) {
+      return null;
+    }
+
+    const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1]);
+    }
+
+    const basicMatch = contentDisposition.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
+    const filename = basicMatch?.[1] || basicMatch?.[2];
+    return filename ? filename.trim() : null;
+  }
+
+  private async savePdfBlob(blob: Blob, filename: string, saveTarget?: PDFSaveTarget): Promise<void> {
+    if (saveTarget?.kind === 'file-handle') {
+      const writable = await saveTarget.handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    }
+
+    this.downloadBlob(blob, filename);
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
   }
   
   /**
@@ -134,7 +239,7 @@ export class ExportManager {
       format: 'png',
       quality: 0.95,
       scale: 2,
-      width: 1000,
+      width: RENDERED_PAGE_WIDTH_PX,
       backgroundColor: '#ffffff',
       includeGrid: true,
       ...options

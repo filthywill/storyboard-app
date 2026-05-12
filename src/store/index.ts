@@ -1,7 +1,8 @@
 // Store exports
 export { usePageStore, type PageStore, type StoryboardPage } from './pageStore';
 export { useShotStore, type ShotStore, type Shot } from './shotStore';
-export { useProjectStore, type ProjectStore, type TemplateSettings } from './projectStore';
+export { useProjectStore, type ProjectStore, type TemplateSettings, type ProjectState } from './projectStore';
+export type { PageSizeMode } from '@/utils/pageSize';
 export { useUIStore, type UIStore } from './uiStore';
 export { useProjectManagerStore, type ProjectManagerStore, type ProjectMetadata } from './projectManagerStore';
 
@@ -18,6 +19,7 @@ import { useProjectManagerStore } from './projectManagerStore';
 import { useShallow } from 'zustand/react/shallow';
 import ProjectSwitcher from '@/utils/projectSwitcher';
 import { registerAutoSave, beginIntent, endIntent } from '@/utils/autoSave';
+import type { PageSizeMode } from '@/utils/pageSize';
 
 // Extend window interface for auto-save timeout
 declare global {
@@ -335,8 +337,10 @@ export const useAppStore = () => {
     projectInfo: projectStore.projectInfo,
     projectLogoUrl: projectStore.projectLogoUrl,
     projectLogoFile: projectStore.projectLogoFile,
+    projectLogoDataUrl: projectStore.projectLogoDataUrl,
     clientAgency: projectStore.clientAgency,
     jobInfo: projectStore.jobInfo,
+    pageSizeMode: projectStore.pageSizeMode,
     templateSettings: projectStore.templateSettings,
     storyboardTheme: projectStore.storyboardTheme,
     setProjectName: (name: string) => {
@@ -362,6 +366,11 @@ export const useAppStore = () => {
     setJobInfo: (info: string) => {
       return runIntent('set_job_info', () => {
         projectStore.setJobInfo(info);
+      });
+    },
+    setPageSizeMode: (mode: PageSizeMode) => {
+      return runIntent('set_page_size_mode', () => {
+        projectStore.setPageSizeMode(mode);
       });
     },
     setTemplateSetting: (setting: keyof typeof projectStore.templateSettings, value: boolean | string) => {
@@ -543,7 +552,16 @@ export const useAppStore = () => {
     getLegacyStoryboardState: () => {
       const { pages } = getPageStore();
       const { shots, shotOrder } = getShotStore();
-      const { projectName, projectInfo, projectLogoUrl, projectLogoFile, clientAgency, jobInfo, templateSettings } = getProjectStore();
+      const {
+        projectName,
+        projectInfo,
+        projectLogoUrl,
+        projectLogoFile,
+        projectLogoDataUrl,
+        clientAgency,
+        jobInfo,
+        templateSettings,
+      } = getProjectStore();
       const { isDragging, isExporting, showDeleteConfirmation } = getUIStore();
 
       // Convert pages to legacy format with embedded shots
@@ -560,8 +578,10 @@ export const useAppStore = () => {
         projectInfo,
         projectLogoUrl,
         projectLogoFile,
+        projectLogoDataUrl,
         clientAgency,
         jobInfo,
+        pageSizeMode: projectStore.pageSizeMode,
         isDragging,
         isExporting,
         showDeleteConfirmation,

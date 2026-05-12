@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShotGrid } from './ShotGrid';
 import { GridSizeSelector } from './GridSizeSelector';
+import { PageSizeModeSelector } from './PageSizeModeSelector';
 import { AspectRatioSelector } from './AspectRatioSelector';
 import { StartNumberSelector } from './StartNumberSelector';
 import { useAppStore, Shot } from '@/store';
@@ -60,6 +61,8 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { ShotCard } from './ShotCard';
+import { calculatePreviewDimensions } from '@/utils/export/previewDimensions';
+import { getFixedPageFrameHeight, RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 interface StoryboardPageProps {
   pageId: string;
@@ -97,6 +100,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     insertShotIntoSubGroup,
     removeFromSubGroup,
     jobInfo,
+    pageSizeMode,
     canCreateProject,
     createProject
   } = useAppStore();
@@ -160,6 +164,8 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   // Drag and drop state
   const [activeShot, setActiveShot] = React.useState<Shot | null>(null);
   const pageShots = getPageShots(pageId);
+  const fixedPageFrameHeight = getFixedPageFrameHeight(pageSizeMode);
+  const isFixedPageMode = pageSizeMode !== 'dynamic';
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -171,7 +177,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
       if (wrapperWidth > 0) {
         const wrapperPadding = 32;
         const availableWidth = wrapperWidth - wrapperPadding;
-        const newScale = Math.max(availableWidth / 1000, 0.2);
+        const newScale = Math.max(availableWidth / RENDERED_PAGE_WIDTH_PX, 0.2);
         setScale(newScale);
         
         // Get the unscaled heights of both elements
@@ -196,7 +202,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         wrapper.style.height = '';
       }
     };
-  }, [page, templateSettings]);
+  }, [page, templateSettings, pageSizeMode]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -212,26 +218,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
 
   // Calculate dimensions for shot grid (moved from ShotGrid)
   const previewDimensions = React.useMemo(() => {
-    if (!page) return { width: 200, imageHeight: 100, gap: 8 };
-    
-    const { gridCols, aspectRatio } = page;
-    const fixedWidth = 1000;
-    const headerPadding = 16;
-    const gridWrapperPadding = 4;
-    const totalPadding = (headerPadding + gridWrapperPadding) * 2;
-    const availableWidth = fixedWidth - totalPadding;
-    const gaps = (gridCols - 1) * 8;
-    const shotWidth = Math.floor((availableWidth - gaps) / gridCols);
-    const cardContentPadding = 8 * 2;
-    const imageBorder = 1 * 2;
-    const imageContainerWidth = shotWidth - cardContentPadding - imageBorder;
-    const [w, h] = aspectRatio.split('/').map(str => parseInt(str.trim(), 10));
-    const imageHeight = Math.floor((imageContainerWidth * h) / w);
-    return {
-      width: shotWidth,
-      imageHeight: imageHeight,
-      gap: 8
-    };
+    return calculatePreviewDimensions(page);
   }, [page]);
 
   // Helper function to detect if a shot should be inserted into a sub-shot group
@@ -405,6 +392,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         projectLogoFile,
         clientAgency,
         jobInfo,
+        pageSizeMode,
         isDragging: false,
         isExporting: false,
         showDeleteConfirmation: false,
@@ -563,6 +551,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
       <div className="mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
+            <PageSizeModeSelector />
             <GridSizeSelector pageId={pageId} />
             <AspectRatioSelector pageId={pageId} />
             <StartNumberSelector />
@@ -701,7 +690,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         >
           {/* Single centered 1000px container holding BOTH PageTabs and StoryboardContent */}
           <div className="w-full flex justify-center">
-            <div style={{ width: '1000px' }}>
+            <div style={{ width: `${RENDERED_PAGE_WIDTH_PX}px` }}>
               
               {/* PageTabs - sibling of StoryboardContent within shared container */}
               <div className="relative z-10 -mb-1" data-page-tabs>
@@ -716,13 +705,17 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
                   "shadow-lg overflow-visible relative z-20 storyboard-themeable"
                 )}
                 style={{
-                  height: 'min-content',
+                  height: fixedPageFrameHeight ? `${fixedPageFrameHeight}px` : 'min-content',
+                  display: isFixedPageMode ? 'flex' : undefined,
+                  flexDirection: isFixedPageMode ? 'column' : undefined,
+                  overflow: isFixedPageMode ? 'hidden' : 'visible',
+                  fontFamily: '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                   ['--inline-bg-color' as any]: storyboardTheme.contentBackground,
                   ['--inline-border-radius' as any]: '6px', // rounded-md = 6px
                 }}
               >
           <MasterHeader />
-          <div className='p-1'>
+          <div className={cn('p-1', isFixedPageMode && 'flex-1 min-h-0')}>
           <SortableContext items={pageShots.map(s => s.id)} strategy={rectSortingStrategy}>
             <ShotGrid 
               pageId={pageId} 

@@ -11,6 +11,7 @@ import { compressImage, getImageSource, revokeImageObjectURL, shouldUseBase64, M
 import { toast } from 'sonner';
 import { SecurityNotificationService } from '@/services/securityNotificationService';
 import { getColor } from '@/styles/glassmorphism-styles';
+import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
 
 interface ShotCardProps {
   shot: Shot;
@@ -24,12 +25,14 @@ interface ShotCardProps {
   isEditing?: boolean;
   onEditUpdate?: (updates: Partial<Shot>) => void;
   isImageEditor?: boolean;
+  readOnly?: boolean;
   className?: string;
   aspectRatio?: string;
   previewDimensions?: { width: number; imageHeight: number; gap: number } | null;
+  exportPayload?: ServerPDFExportPayload;
 }
 
-export const ShotCard: React.FC<ShotCardProps> = ({
+const ConnectedShotCard: React.FC<ShotCardProps> = ({
   shot,
   onUpdate,
   onDelete,
@@ -41,6 +44,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
   isEditing = false,
   onEditUpdate,
   isImageEditor = false,
+  readOnly = false,
   className,
   aspectRatio = '16/9',
   previewDimensions = null
@@ -78,7 +82,8 @@ export const ShotCard: React.FC<ShotCardProps> = ({
     data: {
       type: 'Shot',
       shot
-    }
+    },
+    disabled: readOnly
   });
 
   const style = {
@@ -213,10 +218,10 @@ export const ShotCard: React.FC<ShotCardProps> = ({
         'hover:shadow-md',
         className
       )}
-      {...attributes}
+      {...(readOnly ? {} : attributes)}
     >
       {/* Drag Handle - Hide in Image Editor */}
-      {!isImageEditor && (
+      {!isImageEditor && !readOnly && (
         <Tooltip>
           <TooltipTrigger asChild>
             <div
@@ -259,7 +264,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
       </div>
 
       {/* Delete Button - Hide in Image Editor */}
-      {!isImageEditor && (
+      {!isImageEditor && !readOnly && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -290,7 +295,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
       )}
 
       {/* Insert Batch Button - Hide in Image Editor */}
-      {!isImageEditor && onInsertBatch && (
+      {!isImageEditor && !readOnly && onInsertBatch && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -314,7 +319,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
       )}
 
       {/* Insert Shot Button - Hide in Image Editor */}
-      {!isImageEditor && (
+      {!isImageEditor && !readOnly && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -333,7 +338,7 @@ export const ShotCard: React.FC<ShotCardProps> = ({
       )}
 
       {/* Add Sub-Shot Button - Hide in Image Editor */}
-      {!isImageEditor && (
+      {!isImageEditor && !readOnly && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -371,9 +376,9 @@ export const ShotCard: React.FC<ShotCardProps> = ({
               ? getColor('interaction', 'hover') as string 
               : getColor('background', 'lighter') as string
           }}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
+          onDrop={readOnly ? undefined : handleDrop}
+          onDragOver={readOnly ? undefined : handleDragOver}
+          onDragLeave={readOnly ? undefined : handleDragLeave}
         >
           {(() => {
             const imageSource = getImageSource(shot);
@@ -554,7 +559,11 @@ export const ShotCard: React.FC<ShotCardProps> = ({
                   color: getColor('text', 'primary') as string,
                   borderRadius: `${storyboardTheme.shotCard.borderRadius}px`
                 }}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (!readOnly) {
+                    fileInputRef.current?.click();
+                  }
+                }}
               >
                 <Plus size={32} className="mb-2" />
                 <span className="text-sm font-medium">Add Image</span>
@@ -588,42 +597,72 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           <div className={cn("flex flex-col gap-0", "mt-1")}>
             {/* Action Text */}
             {templateSettings.showActionText && (
-              <Textarea
-                ref={actionTextareaRef}
-                placeholder="Action text..."
-                value={shot.actionText}
-                onChange={(e) => handleActionTextChange(e.target.value)}
-                className={cn(
-                  "w-full font-semibold resize-none overflow-hidden border-0 rounded-sm bg-transparent focus:outline-none focus:ring-0",
-                  "text-xs px-1 py-0.5 action-text"
-                )}
-                style={{ 
-                  color: storyboardTheme.actionText.text,
-                  ['--placeholder-color' as any]: storyboardTheme.actionText.text
-                }}
-                maxLength={200}
-                rows={1}
-              />
+              readOnly ? (
+                <div
+                  className={cn(
+                    "w-full font-semibold border-0 rounded-sm bg-transparent",
+                    "text-xs px-1 py-0.5 action-text whitespace-pre-wrap"
+                  )}
+                  style={{
+                    color: storyboardTheme.actionText.text
+                  }}
+                >
+                  {shot.actionText || ''}
+                </div>
+              ) : (
+                <Textarea
+                  ref={actionTextareaRef}
+                  placeholder="Action text..."
+                  value={shot.actionText}
+                  onChange={(e) => handleActionTextChange(e.target.value)}
+                  readOnly={readOnly}
+                  className={cn(
+                    "w-full font-semibold resize-none overflow-hidden border-0 rounded-sm bg-transparent focus:outline-none focus:ring-0",
+                    "text-xs px-1 py-0.5 action-text"
+                  )}
+                  style={{ 
+                    color: storyboardTheme.actionText.text,
+                    ['--placeholder-color' as any]: storyboardTheme.actionText.text
+                  }}
+                  maxLength={200}
+                  rows={1}
+                />
+              )
             )}
 
             {/* Script Text */}
             {templateSettings.showScriptText && (
-              <Textarea
-                ref={scriptTextareaRef}
-                placeholder="Script text..."
-                value={shot.scriptText}
-                onChange={(e) => handleScriptTextChange(e.target.value)}
-                className={cn(
-                  "w-full resize-none overflow-hidden border-0 rounded-sm bg-transparent focus:outline-none focus:ring-0",
-                  "text-xs px-1 py-0.5 script-text"
-                )}
-                style={{ 
-                  color: storyboardTheme.scriptText.text,
-                  ['--placeholder-color' as any]: storyboardTheme.scriptText.text
-                }}
-                maxLength={200}
-                rows={1}
-              />
+              readOnly ? (
+                <div
+                  className={cn(
+                    "w-full border-0 rounded-sm bg-transparent",
+                    "text-xs px-1 py-0.5 script-text whitespace-pre-wrap"
+                  )}
+                  style={{
+                    color: storyboardTheme.scriptText.text
+                  }}
+                >
+                  {shot.scriptText || ''}
+                </div>
+              ) : (
+                <Textarea
+                  ref={scriptTextareaRef}
+                  placeholder="Script text..."
+                  value={shot.scriptText}
+                  onChange={(e) => handleScriptTextChange(e.target.value)}
+                  readOnly={readOnly}
+                  className={cn(
+                    "w-full resize-none overflow-hidden border-0 rounded-sm bg-transparent focus:outline-none focus:ring-0",
+                    "text-xs px-1 py-0.5 script-text"
+                  )}
+                  style={{ 
+                    color: storyboardTheme.scriptText.text,
+                    ['--placeholder-color' as any]: storyboardTheme.scriptText.text
+                  }}
+                  maxLength={200}
+                  rows={1}
+                />
+              )
             )}
           </div>
         )}
@@ -634,9 +673,150 @@ export const ShotCard: React.FC<ShotCardProps> = ({
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(e) => handleFileSelect(e.target.files)}
+          onChange={(e) => {
+            if (!readOnly) {
+              handleFileSelect(e.target.files);
+            }
+          }}
         />
       </div>
     </div>
   );
+};
+
+const ExportShotCard: React.FC<ShotCardProps> = ({
+  shot,
+  previewDimensions = null,
+  exportPayload,
+}) => {
+  if (!exportPayload || !previewDimensions) {
+    return null;
+  }
+
+  const { template, theme } = exportPayload;
+  const imageSource = getImageSource(shot);
+  const containerWidth = previewDimensions.width;
+  const containerHeight = previewDimensions.imageHeight;
+  const actualOffsetX = (shot.imageOffsetX || 0) * containerWidth;
+  const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
+
+  return (
+    <div
+      style={{
+        width: `${previewDimensions.width}px`,
+        flex: 'none',
+        overflow: 'visible',
+        ['--inline-bg-color' as any]: theme.shotCard.backgroundEnabled ? theme.shotCard.background : 'transparent',
+        ['--inline-border-color' as any]: theme.shotCard.borderEnabled ? theme.shotCard.border : 'transparent',
+        ['--inline-border-width' as any]: theme.shotCard.borderEnabled ? `${theme.shotCard.borderWidth}px` : '0px',
+        ['--inline-border-style' as any]: theme.shotCard.borderEnabled ? 'solid' : 'none',
+        ['--inline-border-radius' as any]: `${theme.shotCard.borderRadius}px`,
+      }}
+      className={cn('group relative transition-all duration-200 shot-card storyboard-themeable')}
+    >
+      <div className="shot-number-container">
+        <div
+          className="shot-number storyboard-themeable"
+          style={{
+            ['--inline-text-color' as any]: theme.shotNumber.text,
+            ['--inline-bg-color' as any]: theme.shotNumber.background,
+            ['--inline-border-color' as any]: theme.shotNumber.borderEnabled ? theme.shotNumber.border : 'transparent',
+            ['--inline-border-width' as any]: theme.shotNumber.borderEnabled ? `${theme.shotNumber.borderWidth}px` : '0px',
+            ['--inline-border-style' as any]: theme.shotNumber.borderEnabled ? 'solid' : 'none',
+            ['--inline-border-radius' as any]: `${theme.shotNumber.borderRadius}px`,
+          }}
+        >
+          {shot.number}
+        </div>
+      </div>
+
+      <div className={cn('p-2')}>
+        <div
+          className={cn('relative w-full')}
+          style={{
+            height: `${previewDimensions.imageHeight}px`,
+            borderRadius: `${theme.shotCard.borderRadius}px`,
+            backgroundColor: getColor('background', 'lighter') as string
+          }}
+        >
+          {imageSource ? (
+            <div
+              className="relative w-full h-full overflow-hidden"
+              style={{
+                borderRadius: `${theme.shotCard.borderRadius}px`
+              }}
+            >
+              <img
+                src={imageSource}
+                alt={`Shot ${shot.number}`}
+                className="w-full h-full object-cover"
+                style={{
+                  borderRadius: `${theme.shotCard.borderRadius}px`,
+                  transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
+                  transformOrigin: 'center center',
+                  border: 'none',
+                  boxShadow: 'none',
+                  outline: 'none'
+                }}
+              />
+            </div>
+          ) : null}
+
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              top: '-0.75px',
+              right: '-0.75px',
+              bottom: '-0.75px',
+              left: '-0.75px',
+              borderRadius: `${theme.shotCard.borderRadius}px`,
+              border: theme.imageFrame.borderEnabled
+                ? `${theme.imageFrame.borderWidth}px solid ${theme.imageFrame.border}`
+                : 'none'
+            }}
+          />
+        </div>
+
+        {(template.showActionText || template.showScriptText) && (
+          <div className={cn("flex flex-col gap-0", "mt-1")}>
+            {template.showActionText && (
+              <div
+                className={cn(
+                  "w-full font-semibold border-0 rounded-sm bg-transparent",
+                  "text-xs px-1 py-0.5 action-text whitespace-pre-wrap"
+                )}
+                style={{
+                  color: theme.actionText.text
+                }}
+              >
+                {shot.actionText || ''}
+              </div>
+            )}
+
+            {template.showScriptText && (
+              <div
+                className={cn(
+                  "w-full border-0 rounded-sm bg-transparent",
+                  "text-xs px-1 py-0.5 script-text whitespace-pre-wrap"
+                )}
+                style={{
+                  color: theme.scriptText.text
+                }}
+              >
+                {shot.scriptText || ''}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export const ShotCard: React.FC<ShotCardProps> = (props) => {
+  if (props.exportPayload) {
+    return <ExportShotCard {...props} />;
+  }
+
+  return <ConnectedShotCard {...props} />;
 };

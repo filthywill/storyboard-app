@@ -1,12 +1,8 @@
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { StoryboardPage, StoryboardState } from '@/store/storyboardStore';
 import { PDFExportOptions } from '@/components/PDFExportModal';
-import { DataTransformer } from './dataTransformer';
-import { CanvasRenderer } from './canvasRenderer';
-import { DOMCapture } from './domCapture';
-import { DOMRenderer } from './domRenderer';
 import { ExportError } from '@/utils/types/exportTypes';
-import { usePageStore } from '@/store/pageStore';
 
 export interface PDFPageDimensions {
   width: number;
@@ -15,6 +11,8 @@ export interface PDFPageDimensions {
   contentWidth: number;
   contentHeight: number;
 }
+
+export type ResolvePageElement = (pageId: string) => HTMLElement | null;
 
 export class PDFRenderer {
   private doc: jsPDF;
@@ -39,11 +37,18 @@ export class PDFRenderer {
   async exportPages(
     pages: StoryboardPage[],
     storyboardState: StoryboardState,
-    onProgress?: (current: number, total: number, pageName: string) => void
+    onProgress?: (current: number, total: number, pageName: string) => void,
+    resolvePageElement?: ResolvePageElement
   ): Promise<Blob> {
     try {
       if (pages.length === 0) {
         throw new ExportError('No pages to export', 'NO_PAGES');
+      }
+      if (!resolvePageElement) {
+        throw new ExportError(
+          'PDF export requires explicit offscreen page resolver (no live fallback allowed)',
+          'RESOLVER_REQUIRED'
+        );
       }
 
       // Calculate dimensions for content fitting
@@ -62,7 +67,14 @@ export class PDFRenderer {
           this.doc.addPage();
         }
         
-        await this.renderPageToPDF(page, storyboardState, pageDimensions, i + 1, pages.length);
+        await this.renderPageToPDF(
+          page,
+          storyboardState,
+          pageDimensions,
+          i + 1,
+          pages.length,
+          resolvePageElement
+        );
       }
 
       // Return as blob
@@ -81,91 +93,76 @@ export class PDFRenderer {
    */
   private async renderPageToPDF(
     page: StoryboardPage,
-    storyboardState: StoryboardState,
+    _storyboardState: StoryboardState,
     pageDimensions: PDFPageDimensions,
     pageNumber: number,
-    totalPages: number
+    totalPages: number,
+    resolvePageElement: ResolvePageElement
   ): Promise<void> {
     try {
       // Get the scale factor based on quality setting
       const scale = this.getQualityScale();
       console.log('🔍 PDF Export scale:', scale);
-      
-      // Get the page store for page switching
-      const pageStore = usePageStore.getState();
-      const originalPageId = pageStore.activePageId;
-      const needsSwitch = page.id !== originalPageId;
-      
+
+      if (totalPages === 1) {
+        console.log('ℹ️ PDF export running in single-page mode');
+      }
+
+      // Use explicit resolver only. Do not fallback to live DOM IDs.
+      const pageElement = resolvePageElement(page.id);
+      if (!pageElement) {
+        throw new ExportError(
+          `Offscreen element resolution failed for page "${page.name}" (${page.id})`,
+          'OFFSCREEN_ELEMENT_NOT_FOUND'
+        );
+      }
+
       try {
-        // Switch to the page if needed to ensure DOM is rendered
-        if (needsSwitch) {
-          console.log(`Switching to page ${page.id} for export...`);
-          pageStore.setActivePage(page.id);
-          
-          // Wait for React to render the page and retry with exponential backoff
-          let retries = 0;
-          const maxRetries = 3;
-          const baseDelay = 300;
-          
-          while (retries < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, baseDelay * Math.pow(2, retries)));
-            
-            // Verify DOM element exists
-            const pageElement = document.getElementById(`storyboard-page-${page.id}`);
-            if (pageElement) {
-              console.log(`Page ${page.id} DOM found after ${retries + 1} attempt(s)`);
-              break;
-            }
-            
-            retries++;
-            if (retries >= maxRetries) {
-              throw new ExportError(
-                `Failed to render page "${page.name}" - DOM not available after ${maxRetries} retries`,
-                'DOM_NOT_READY'
-              );
-            }
-            console.warn(`Page ${page.id} DOM not found, retrying... (${retries}/${maxRetries})`);
-          }
-        }
-        
-        // Capture DOM layout at current displayed size (with CSS transform intact)
-        console.log(`Capturing DOM layout for page ${page.id}...`);
-        const pageElement = document.getElementById(`storyboard-page-${page.id}`) as HTMLElement;
-        if (!pageElement) {
-          throw new ExportError('Page element not found for export', 'DOM_NOT_FOUND');
-        }
-        
-        try {
-          // Use DOMCapture to get the exact layout from rendered page (AS DISPLAYED)
-          // Keep the CSS transform to maintain WYSIWYG text sizes
-          const captureResult = await DOMCapture.captureStoryboardLayout(
-            page.id,
-            storyboardState,
-            scale
-          );
-          
-          // Create a fresh, temporary canvas for this page
-          const tempCanvas = document.createElement('canvas');
-          const renderer = new DOMRenderer(tempCanvas);
-          
-          // Render using DOM-captured layout
-          console.log(`Rendering page ${page.id} to canvas...`);
-          await renderer.renderFromDOMCapture(captureResult);
-        
-        // Get the result as a data URL
-        const dataUrl = renderer.exportAsDataURL('image/png', 0.95);
-        
-        // Get canvas dimensions from the captured layout
-        const canvasWidth = captureResult.layout.canvas.width / scale;
-        const canvasHeight = captureResult.layout.canvas.height / scale;
+        console.log(`Capturing resolved offscreen element for page ${page.id}...`);
+        const targetRect = pageElement.getBoundingClientRect();
+        const targetComputedStyle = window.getComputedStyle(pageElement);
+        console.log('🔎 Offscreen capture target debug:', {
+          pageId: page.id,
+          rect: {
+            width: targetRect.width,
+            height: targetRect.height,
+            x: targetRect.x,
+            y: targetRect.y
+          },
+          clientWidth: pageElement.clientWidth,
+          clientHeight: pageElement.clientHeight,
+          scrollWidth: pageElement.scrollWidth,
+          scrollHeight: pageElement.scrollHeight,
+          visibility: targetComputedStyle.visibility,
+          opacity: targetComputedStyle.opacity
+        });
+
+        const canvas = await html2canvas(pageElement, {
+          scale,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          logging: false
+        });
+        console.log('🔎 html2canvas result debug:', {
+          pageId: page.id,
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height
+        });
+
+        const dataUrl = canvas.toDataURL('image/png', 0.95);
+
+        // Convert back to CSS pixel dimensions from scaled canvas.
+        const canvasWidth = canvas.width / scale;
+        const canvasHeight = canvas.height / scale;
         const canvasAspectRatio = canvasWidth / canvasHeight;
         
         console.log('🔍 PDF Dimensions DEBUG:', {
           canvasWidth,
           canvasHeight,
           scale,
-          rawCanvasWidth: captureResult.layout.canvas.width,
-          rawCanvasHeight: captureResult.layout.canvas.height
+          rawCanvasWidth: canvas.width,
+          rawCanvasHeight: canvas.height
         });
       
       let imageWidth: number;
@@ -235,10 +232,10 @@ export class PDFRenderer {
 
         // Add the storyboard image to PDF
         console.log('🔍 addImage params:', {
-          canvasPixelSize: `${captureResult.layout.canvas.width}x${captureResult.layout.canvas.height}`,
+          canvasPixelSize: `${canvas.width}x${canvas.height}`,
           pdfPointSize: `${imageWidth}x${imageHeight}`,
           position: `${x},${y}`,
-          scale: captureResult.layout.canvas.scale
+          scale
         });
         
         this.doc.addImage(
@@ -256,14 +253,6 @@ export class PDFRenderer {
           console.error('Export error:', error);
           throw error;
         }
-        
-      } finally {
-        // Always restore the original page if we switched
-        if (needsSwitch && originalPageId) {
-          console.log(`Restoring original page ${originalPageId}...`);
-          pageStore.setActivePage(originalPageId);
-        }
-      }
 
     } catch (error) {
       throw new ExportError(
