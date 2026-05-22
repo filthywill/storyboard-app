@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Settings } from 'lucide-react';
+import { PanelTopDashed } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { getToolbarContainerStyles, getToolbarContainerStylesWithOverrides, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 import { cn } from '@/lib/utils';
@@ -45,11 +45,11 @@ export const TemplateSettings: React.FC = () => {
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button 
-              variant="outline" 
-              size="compact" 
+            <button 
+              type="button"
               className={cn(
-                "py-1.5 flex items-center justify-center",
+                TOOLBAR_STYLES.containerClasses,
+                "h-[30px] justify-center transition-all duration-200",
                 "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent",
                 "active:outline-none active:ring-0 active:border-transparent",
                 "hover:border-transparent",
@@ -64,8 +64,9 @@ export const TemplateSettings: React.FC = () => {
                 setTimeout(() => e.currentTarget.blur(), 0);
               }}
             >
-              <Settings size={16} className={TOOLBAR_STYLES.iconClasses} />
-            </Button>
+              <PanelTopDashed size={16} className={TOOLBAR_STYLES.iconClasses} />
+              <span className={cn("text-xs font-medium", TOOLBAR_STYLES.textClasses)}>Layout</span>
+            </button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent>

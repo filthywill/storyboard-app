@@ -23,7 +23,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Download, FileImage, FileText, FolderOpen, ChevronDown, Palette, ChevronUp } from 'lucide-react';
+import { Download, FileImage, FileText, FolderOpen, ChevronDown, Palette, ChevronUp, GalleryHorizontalEnd, LayoutList } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +39,7 @@ import { ThemeToolbar } from './ThemeToolbar';
 import { ProjectDropdown } from './ProjectDropdown';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { PDFExportModal } from './PDFExportModal';
+import { PNGExportModal } from './PNGExportModal';
 import { BatchLoadModal } from './BatchLoadModal';
 import { ShotListLoadModal } from './ShotListLoadModal';
 import { ImageEditorModal } from './ImageEditorModal';
@@ -46,7 +47,6 @@ import { ProjectLimitDialog } from './ProjectLimitDialog';
 import { UpgradeToProDialog } from './UpgradeToProDialog';
 import { useAuthModalStore } from '@/store/authModalStore';
 import { canCreateProjectServerSide } from '@/utils/projectCreationGate';
-import { exportManager } from '@/utils/export/exportManager';
 import ErrorBoundary from './ErrorBoundary';
 import {
   DndContext,
@@ -69,6 +69,11 @@ interface StoryboardPageProps {
   className?: string;
 }
 
+const toolbarSectionLabelClasses = cn(
+  "text-[10px] font-semibold uppercase leading-none",
+  TOOLBAR_STYLES.mutedTextClasses
+);
+
 export const StoryboardPage: React.FC<StoryboardPageProps> = ({ 
   pageId, 
   className 
@@ -76,7 +81,6 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const { 
     pages, 
     isExporting, 
-    setIsExporting, 
     templateSettings,
     storyboardTheme,
     getPageById,
@@ -112,6 +116,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [showPNGModal, setShowPNGModal] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [showBatchLoadModal, setShowBatchLoadModal] = useState(false);
   const [showShotListLoadModal, setShowShotListLoadModal] = useState(false);
@@ -363,56 +368,8 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     );
   }
 
-  const handleExportPNG = async () => {
-    if (!page) {
-      toast.error('No active page to export.');
-      return;
-    }
-
-    try {
-      setIsExporting(true);
-      
-      // Convert new format to old format for export compatibility
-      const pageShots = getPageShots(pageId);
-      const legacyPage = {
-        ...page,
-        shots: pageShots // Convert from shot IDs to shot objects
-      };
-      
-      const legacyState = {
-        pages: pages.map(p => ({
-          ...p,
-          shots: getPageShots(p.id)
-        })),
-        activePageId: pageId,
-        startNumber: '01', // TODO: Add startNumber to project store
-        projectName,
-        projectInfo,
-        projectLogoUrl,
-        projectLogoFile,
-        clientAgency,
-        jobInfo,
-        pageSizeMode,
-        isDragging: false,
-        isExporting: false,
-        showDeleteConfirmation: false,
-        templateSettings,
-        storyboardTheme
-      };
-      
-      await exportManager.downloadPage(
-        legacyPage,
-        legacyState,
-        `${page.name}_export_${Date.now()}.png`,
-        { scale: 2, quality: 0.95 }
-      );
-      toast.success(`Exported ${page.name} as PNG`);
-    } catch (error) {
-      console.error('PNG export failed:', error);
-      toast.error(error instanceof Error ? error.message : 'An unknown error occurred');
-    } finally {
-      setIsExporting(false);
-    }
+  const handleExportPNG = () => {
+    setShowPNGModal(true);
   };
 
   const handleExportPDF = () => {
@@ -548,23 +505,38 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
 
   return (
     <div className={cn("flex flex-col flex-grow", className)}>
-      <div className="mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <PageSizeModeSelector />
-            <GridSizeSelector pageId={pageId} />
-            <AspectRatioSelector pageId={pageId} />
-            <StartNumberSelector />
-            <TemplateSettings />
+      <div className="mb-4 flex flex-row flex-wrap-reverse items-end justify-between gap-x-3 gap-y-3">
+        <div className="min-w-0">
+          <div className="flex flex-nowrap items-end gap-1.5 overflow-x-auto">
+            <div className="flex flex-col gap-1">
+              <Label className={toolbarSectionLabelClasses}>Page Size</Label>
+              <PageSizeModeSelector />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className={toolbarSectionLabelClasses}>Layout</Label>
+              <GridSizeSelector pageId={pageId} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className={toolbarSectionLabelClasses}>Aspect Ratio</Label>
+              <AspectRatioSelector pageId={pageId} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className={toolbarSectionLabelClasses}>Numbers</Label>
+              <StartNumberSelector />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className={toolbarSectionLabelClasses}>Template</Label>
+              <TemplateSettings />
+            </div>
             <Collapsible open={isThemeToolbarOpen} onOpenChange={handleThemeToolbarToggle}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <CollapsibleTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="compact" 
+                    <button 
+                      type="button"
                       className={cn(
-                        "py-1.5 flex items-center justify-center gap-1 transition-all duration-200",
+                        TOOLBAR_STYLES.containerClasses,
+                        "h-[30px] min-w-[88px] transition-all duration-200",
                         "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent",
                         "active:outline-none active:ring-0 active:border-transparent",
                         "hover:border-transparent",
@@ -584,13 +556,16 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
                         setTimeout(() => el?.blur?.(), 0);
                                               }}
                     >
-                      <Palette size={16} className={TOOLBAR_STYLES.iconClasses} />
+                      <span className="flex items-center gap-1.5">
+                        <Palette size={16} className={TOOLBAR_STYLES.iconClasses} />
+                        <span className={cn("text-xs font-medium", TOOLBAR_STYLES.textClasses)}>Design</span>
+                      </span>
                       {isThemeToolbarOpen ? (
                         <ChevronUp size={12} className={TOOLBAR_STYLES.iconClasses} />
                       ) : (
                         <ChevronDown size={12} className={TOOLBAR_STYLES.iconClasses} />
                       )}
-                    </Button>
+                    </button>
                   </CollapsibleTrigger>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -601,33 +576,42 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
           </div>
         </div>
         
-        <div className="flex gap-2">
-          <ProjectDropdown 
-            compact 
-            onRequestCreate={() => void handleRequestCreateProject()}
-          />
-          <Button
-            variant="outline"
-            size="compact"
-            onClick={handleBatchLoad}
-            disabled={isExporting}
-            className="px-2"
-            style={getToolbarContainerStyles()}
-          >
-            <FolderOpen size={16} className={`mr-1 ${TOOLBAR_STYLES.iconClasses}`} />
-            Batch Load
-          </Button>
-          <Button
-            variant="outline"
-            size="compact"
-            onClick={handleShotListLoad}
-            disabled={isExporting}
-            className="px-2"
-            style={getToolbarContainerStyles()}
-          >
-            <FileText size={16} className={`mr-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
-            Load Shot List
-          </Button>
+        <div className="flex flex-nowrap items-end gap-2 overflow-x-auto">
+          <div className="flex flex-col gap-1">
+            <Label className={toolbarSectionLabelClasses}>Projects</Label>
+            <ProjectDropdown 
+              compact 
+              onRequestCreate={() => void handleRequestCreateProject()}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className={toolbarSectionLabelClasses}>Images</Label>
+            <Button
+              variant="outline"
+              size="compact"
+              onClick={handleBatchLoad}
+              disabled={isExporting}
+              className="px-2"
+              style={getToolbarContainerStyles()}
+            >
+              <GalleryHorizontalEnd size={16} className={`mr-1 ${TOOLBAR_STYLES.iconClasses}`} />
+              Batch Load
+            </Button>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className={toolbarSectionLabelClasses}>Text</Label>
+            <Button
+              variant="outline"
+              size="compact"
+              onClick={handleShotListLoad}
+              disabled={isExporting}
+              className="px-2"
+              style={getToolbarContainerStyles()}
+            >
+              <LayoutList size={16} className={`mr-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
+              Load Shot List
+            </Button>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -751,6 +735,12 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         </DragOverlay>
         </DndContext>
         </ErrorBoundary>
+
+        <PNGExportModal
+          isOpen={showPNGModal}
+          onClose={() => setShowPNGModal(false)}
+          currentPageIndex={pageIndex}
+        />
 
         <PDFExportModal
           isOpen={showPDFModal}

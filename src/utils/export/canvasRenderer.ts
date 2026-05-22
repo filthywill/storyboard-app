@@ -699,14 +699,19 @@ export class CanvasRenderer {
    * Render shot number with precise DOM-like styling for consistency
    */
   private async renderShotNumberPrecise(number: string, bounds: Rectangle, scale: number): Promise<void> {
-    // Use fixed dimensions from CSS (.shot-number-container > div)
-    // CSS: width: 36px, height: 28px, font-size: 14px
-    const fixedWidth = 36; // Fixed width from CSS
-    const fixedHeight = 28; // Fixed height from CSS
-    const fontSize = 14; // Fixed font size from CSS
+    // Match CSS (.shot-number-container > div): fixed height with natural width.
+    const minWidth = 36;
+    const fixedHeight = 28;
+    const horizontalPadding = 6;
+    const fontSize = 14;
     
-    // Scale the dimensions
-    const numberWidth = fixedWidth * scale;
+    this.setFont('bold', fontSize * scale);
+
+    // Scale the dimensions and let wider shot numbers extend to the right.
+    const numberWidth = Math.max(
+      minWidth * scale,
+      this.ctx.measureText(number).width + (horizontalPadding * 2 * scale)
+    );
     const numberHeight = fixedHeight * scale;
     const numberX = bounds.x - (2 * scale); // top: -2px left: -2px from CSS
     const numberY = bounds.y - (2 * scale);
@@ -745,7 +750,6 @@ export class CanvasRenderer {
     
     // Text - use theme text color (theme already declared above)
     this.ctx.fillStyle = theme?.text || '#374151';
-    this.setFont('bold', fontSize * scale);
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     

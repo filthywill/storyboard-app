@@ -1,4 +1,4 @@
-import chromium from '@sparticuz/chromium-min';
+import chromium from '@sparticuz/chromium';
 import { PDFDocument } from 'pdf-lib';
 import puppeteer, { type Page } from 'puppeteer-core';
 import type { ServerPDFExportPayload } from '../src/utils/types/exportTypes';
@@ -377,16 +377,21 @@ function getBaseUrl(req: VercelRequest): string {
   return `${proto}://${host}`;
 }
 
-function resolveChromiumSource(): string {
+async function resolveChromiumExecutablePath(): Promise<string> {
   const source = process.env.CHROMIUM_PACK_URL || process.env.CHROMIUM_PACK_PATH;
 
-  if (!source) {
-    throw new Error(
-      'Chromium binary source not configured. Set CHROMIUM_PACK_URL or CHROMIUM_PACK_PATH for @sparticuz/chromium-min.'
-    );
+  try {
+    return source ? await chromium.executablePath(source) : await chromium.executablePath();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown executable path resolution error';
+    console.error('[server-pdf][chromium] Failed to resolve executable path', {
+      runtime: process.env.VERCEL ? 'vercel' : process.env.NODE_ENV || 'unknown',
+      hasPackUrl: Boolean(process.env.CHROMIUM_PACK_URL),
+      hasPackPath: Boolean(process.env.CHROMIUM_PACK_PATH),
+      error: message,
+    });
+    throw new Error('Unable to resolve Chromium executable for PDF export runtime.');
   }
-
-  return source;
 }
 
 function getInternalNavigationHeaders(req: VercelRequest): Record<string, string> {
@@ -638,9 +643,8 @@ export default async function handler(
     }
 
     const renderUrl = new URL(EXPORT_ROUTE_PATH, getBaseUrl(req)).toString();
-    const chromiumSource = resolveChromiumSource();
     mark('chromium_launch_start');
-    const executablePath = await chromium.executablePath(chromiumSource);
+    const executablePath = await resolveChromiumExecutablePath();
 
     browser = await puppeteer.launch({
       args: puppeteer.defaultArgs({

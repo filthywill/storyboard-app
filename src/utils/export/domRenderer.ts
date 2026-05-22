@@ -83,7 +83,7 @@ export class DOMRenderer {
    */
   async renderFromDOMCapture(captureResult: DOMCaptureResult): Promise<void> {
     try {
-      const { layout, header, grid, footer, backgroundColor, storyboardState } = captureResult;
+      const { layout, header, grid, footer, backgroundColor, storyboardState, sourcePageElement } = captureResult;
       this.storyboardState = storyboardState;
       this.scale = layout.canvas.scale;
       
@@ -99,10 +99,10 @@ export class DOMRenderer {
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
       
       // Render header using DOM-captured layout
-      await this.renderHeaderFromDOM(header, layout.header, layout.canvas.scale);
+      await this.renderHeaderFromDOM(header, layout.header, layout.canvas.scale, sourcePageElement);
       
       // Render grid using DOM-captured layout
-      await this.renderGridFromDOM(grid, layout.canvas.scale);
+      await this.renderGridFromDOM(grid, layout.canvas.scale, sourcePageElement);
       
       // Render footer (page number) if present
       if (footer && footer.text) {
@@ -123,16 +123,13 @@ export class DOMRenderer {
   private async renderHeaderFromDOM(
     header: any,
     headerBounds: Rectangle,
-    scale: number
+    scale: number,
+    pageElement: HTMLElement
   ): Promise<void> {
-    // Header background - use theme's contentBackground (Page Style > Bg)
+    // Header background - use theme's contentBackground (Page Colors > Bg)
     const headerBackground = this.storyboardState?.storyboardTheme?.contentBackground || '#ffffff';
     this.ctx.fillStyle = headerBackground;
     this.ctx.fillRect(headerBounds.x, headerBounds.y, headerBounds.width, headerBounds.height);
-    
-    // Find and render header elements by querying the actual DOM
-    const pageElement = document.querySelector('[id^="storyboard-page-"]');
-    if (!pageElement) return;
     
     const headerElement = pageElement.children[0]; // MasterHeader is first child
     if (!headerElement) return;
@@ -189,70 +186,115 @@ export class DOMRenderer {
     headerBounds: Rectangle,
     scale: number
   ): Promise<void> {
-    const headerRect = headerElement.getBoundingClientRect();
-    
-    // Find and render each text element
+    // Editable/live headers use textareas.
     const textElements = headerElement.querySelectorAll('textarea');
-    
-    textElements.forEach(textElement => {
-      const rect = textElement.getBoundingClientRect();
-      const computedStyle = window.getComputedStyle(textElement);
 
-      // Adjust for padding inside the textarea
-      const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
-      const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
-      const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
-      
-      // Calculate position of the content box, not the border box
-      const contentX = headerBounds.x + ((rect.left - headerRect.left + paddingLeft) * scale);
-      const contentY = headerBounds.y + ((rect.top - headerRect.top + paddingTop) * scale);
-      const contentWidth = (rect.width - paddingLeft - paddingRight) * scale;
-      
-      // Extract styling from DOM
-      const rawFontSize = parseFloat(computedStyle.fontSize);
-      const style: TextStyle = {
-        family: computedStyle.fontFamily,
-        size: this.getScaledFontSize(rawFontSize, scale),
-        weight: computedStyle.fontWeight as any,
-        color: computedStyle.color,
-        lineHeight: parseFloat(computedStyle.lineHeight) / rawFontSize || 1.2,
-        textAlign: computedStyle.textAlign as any
-      };
-      
-      // Render text
-      const text = textElement.value || textElement.placeholder || '';
-      if (text) {
-        console.log('🔍 Header text DEBUG:', {
-          rawFontSize,
-          scale,
-          finalSize: style.size,
-          textContent: text.substring(0, 20)
-        });
-        this.renderTextFromDOM(text, contentX, contentY, contentWidth, style);
-      }
+    if (textElements.length > 0) {
+      textElements.forEach(textElement => {
+        this.renderHeaderTextElement(textElement, headerElement, headerBounds, scale);
+      });
+      return;
+    }
+
+    // Read-only/export headers render static divs, so locate those by their direct text.
+    const headerTargets = [
+      header.templateSettings.showProjectName ? header.projectName || 'Project Name' : null,
+      header.templateSettings.showProjectInfo ? header.projectInfo || 'Project Info' : null,
+      header.templateSettings.showClientAgency ? header.clientAgency || 'Client/Agency' : null,
+      header.templateSettings.showJobInfo ? header.jobInfo || 'Job Info' : null,
+    ].filter((text): text is string => Boolean(text));
+    const usedElements = new Set<Element>();
+
+    headerTargets.forEach((text) => {
+      const textElement = this.findHeaderStaticTextElement(headerElement, text, usedElements);
+      if (!textElement) return;
+      usedElements.add(textElement);
+      this.renderHeaderTextElement(textElement, headerElement, headerBounds, scale, text);
     });
+  }
+
+  private findHeaderStaticTextElement(
+    headerElement: Element,
+    text: string,
+    usedElements: Set<Element>
+  ): Element | null {
+    const candidates = Array.from(headerElement.querySelectorAll('div'));
+    return candidates.find((element) => {
+      if (usedElements.has(element)) return false;
+      const directText = Array.from(element.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent || '')
+        .join('')
+        .trim();
+      return directText === text;
+    }) || null;
+  }
+
+  private renderHeaderTextElement(
+    textElement: Element,
+    headerElement: Element,
+    headerBounds: Rectangle,
+    scale: number,
+    overrideText?: string
+  ): void {
+    const headerRect = headerElement.getBoundingClientRect();
+    const rect = textElement.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(textElement);
+
+    // Adjust for padding inside the text element.
+    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+    const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+    const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+    
+    // Calculate position of the content box, not the border box
+    const contentX = headerBounds.x + ((rect.left - headerRect.left + paddingLeft) * scale);
+    const contentY = headerBounds.y + ((rect.top - headerRect.top + paddingTop) * scale);
+    const contentWidth = (rect.width - paddingLeft - paddingRight) * scale;
+    
+    // Extract styling from DOM
+    const rawFontSize = parseFloat(computedStyle.fontSize);
+    const style: TextStyle = {
+      family: computedStyle.fontFamily,
+      size: this.getScaledFontSize(rawFontSize, scale),
+      weight: computedStyle.fontWeight as any,
+      color: computedStyle.color,
+      lineHeight: parseFloat(computedStyle.lineHeight) / rawFontSize || 1.2,
+      textAlign: computedStyle.textAlign as any
+    };
+    
+    // Render text
+    const text = overrideText || (
+      textElement instanceof HTMLTextAreaElement
+        ? textElement.value || textElement.placeholder || ''
+        : textElement.textContent?.trim() || ''
+    );
+    if (text) {
+      console.log('🔍 Header text DEBUG:', {
+        rawFontSize,
+        scale,
+        finalSize: style.size,
+        textContent: text.substring(0, 20)
+      });
+      this.renderTextFromDOM(text, contentX, contentY, contentWidth, style);
+    }
   }
   
   /**
    * Render grid using DOM-captured layout
    */
-  private async renderGridFromDOM(grid: any, scale: number): Promise<void> {
+  private async renderGridFromDOM(grid: any, scale: number, pageElement: HTMLElement): Promise<void> {
     // Render each shot using its captured bounds
     for (const shot of grid.shots) {
-      await this.renderShotFromDOM(shot, scale);
+      await this.renderShotFromDOM(shot, scale, pageElement);
     }
   }
   
   /**
    * Render individual shot using DOM-captured data
    */
-  private async renderShotFromDOM(shot: ExportShot, scale: number): Promise<void> {
+  private async renderShotFromDOM(shot: ExportShot, scale: number, pageElement: HTMLElement): Promise<void> {
     const bounds = shot.bounds;
-    
-    // Find the corresponding shot element in DOM
-    const pageElement = document.querySelector('[id^="storyboard-page-"]');
-    if (!pageElement) return;
-    
+
     const gridElement = pageElement.querySelector('[style*="grid-template-columns"]');
     if (!gridElement) return;
     

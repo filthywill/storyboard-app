@@ -24,7 +24,8 @@ import {
   Cloud,
   WifiOff,
   ArrowUpDown,
-  Lock
+  Lock,
+  ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { StorageManager } from '@/utils/storageManager';
@@ -350,9 +351,10 @@ export const ProjectDropdown = ({
             style={getToolbarContainerStyles()}
           >
             <FolderOpen size={16} className={`${TOOLBAR_STYLES.iconClasses} ${compact ? "mr-1" : "mr-2"}`} />
-            <span className={compact ? "max-w-24 truncate" : "max-w-32 truncate"}>
+            <span className={compact ? "max-w-32 truncate" : "max-w-40 truncate"}>
               {currentProject?.name || 'No Project'}
             </span>
+            <ChevronDown size={14} className={`${TOOLBAR_STYLES.iconClasses} ${compact ? "ml-1" : "ml-2"}`} />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">

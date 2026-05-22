@@ -19,6 +19,13 @@ export interface DOMCaptureResult {
   footer: { bounds: Rectangle; text: string | null; justify: 'start' | 'center' | 'end' } | null;
   backgroundColor: string;
   storyboardState: any;
+  sourcePageElement: HTMLElement;
+  sourceElementId: string;
+}
+
+interface DOMCaptureOptions {
+  element?: HTMLElement;
+  elementId?: string;
 }
 
 export class DOMCapture {
@@ -28,11 +35,13 @@ export class DOMCapture {
   static async captureStoryboardLayout(
     pageId: string,
     storyboardState: StoryboardState,
-    scale: number = 2
+    scale: number = 2,
+    options: DOMCaptureOptions = {}
   ): Promise<DOMCaptureResult> {
     try {
       // Find the storyboard page element
-      const pageElement = document.getElementById(`storyboard-page-${pageId}`);
+      const sourceElementId = options.elementId || `storyboard-page-${pageId}`;
+      const pageElement = options.element || document.getElementById(sourceElementId);
       if (!pageElement) {
         throw new ExportError('Storyboard page element not found', 'DOM_NOT_FOUND');
       }
@@ -108,7 +117,9 @@ export class DOMCapture {
         grid,
         footer: footerBounds ? { bounds: footerBounds, text: footerText, justify: footerJustify } : null,
         backgroundColor: storyboardState.storyboardTheme?.contentBackground || '#ffffff',
-        storyboardState
+        storyboardState,
+        sourcePageElement: pageElement,
+        sourceElementId
       };
 
     } catch (error) {

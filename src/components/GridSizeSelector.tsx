@@ -1,6 +1,6 @@
 import { useAppStore } from '@/store';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Grid3X3 } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { buttonVariants } from './ui/button';
 import { cn } from '@/lib/utils';
@@ -52,7 +52,7 @@ export const GridSizeSelector: React.FC<GridSizeSelectorProps> = ({ pageId }) =>
           className={cn(TOOLBAR_STYLES.containerClasses)}
           style={getToolbarContainerStyles()}
         >
-          <Grid3X3 size={16} className={TOOLBAR_STYLES.iconClasses} />
+          <LayoutGrid size={16} className={TOOLBAR_STYLES.iconClasses} />
           <div className="flex items-center gap-1">
             <Select value={gridCols.toString()} onValueChange={handleColsChange}>
               <SelectTrigger className={TOOLBAR_STYLES.selectTriggerClasses}>

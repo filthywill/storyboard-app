@@ -94,7 +94,7 @@ export const ThemeToolbar: React.FC = () => {
     try {
       await ThemeService.deleteTheme(themeToDelete);
       
-      // If deleting current theme, switch to Light
+      // If deleting current theme, switch to Default
       if (storyboardTheme.id === themeToDelete) {
         setStoryboardTheme(PRESET_THEMES.light);
       }
@@ -514,7 +514,7 @@ export const ThemeToolbar: React.FC = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="preset-light">Light</SelectItem>
+              <SelectItem value="preset-light">Default</SelectItem>
               <SelectItem value="preset-dark">Dark</SelectItem>
               
               {userThemes.length > 0 && (
@@ -564,9 +564,9 @@ export const ThemeToolbar: React.FC = () => {
 
         {/* Right: Inline Settings */}
         <div className="flex items-stretch gap-2">
-          {/* Page Style */}
+          {/* Page Colors */}
           <div className="flex flex-col gap-1 px-2 py-1 rounded h-full" style={getThemeSectionStyles()}>
-            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Page Style</Label>
+            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Page Colors</Label>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
                 <span title="Background">
@@ -638,9 +638,9 @@ export const ThemeToolbar: React.FC = () => {
             </div>
           </div>
 
-          {/* Image Frame */}
+          {/* Shot Border */}
           <div className="flex flex-col gap-1 px-2 py-1 rounded h-full" style={getThemeSectionStyles()}>
-            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Image Frame</Label>
+            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Shot Border</Label>
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
@@ -667,9 +667,9 @@ export const ThemeToolbar: React.FC = () => {
             </div>
           </div>
 
-          {/* Label Style */}
+          {/* Shot Numbers */}
           <div className="flex flex-col gap-1 px-2 py-1 rounded h-full" style={getThemeSectionStyles()}>
-            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Label Style</Label>
+            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Shot Numbers</Label>
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>

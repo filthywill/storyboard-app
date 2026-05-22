@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '@/store';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RectangleVertical } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
@@ -124,16 +123,15 @@ Switch to ${pageSizeLabel} and reduce the grid to ${activePage.gridCols}×${pend
             className={cn(TOOLBAR_STYLES.containerClasses)}
             style={getToolbarContainerStyles()}
           >
-            <RectangleVertical size={16} className={TOOLBAR_STYLES.iconClasses} />
             <Select value={pageSizeMode} onValueChange={handleModeChange}>
               <SelectTrigger
                 className={cn(
-                  "h-5 min-w-[140px] border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/20 hover:text-white text-white rounded-sm transition-colors"
+                  "h-5 w-[90px] pl-2 pr-0 border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/20 hover:text-white text-white rounded-sm transition-colors"
                 )}
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="min-w-[170px]">
+              <SelectContent className="min-w-[130px]">
                 {PAGE_SIZE_MODE_OPTIONS.map((option) => (
                   <SelectItem
                     key={option.value}

@@ -55,7 +55,7 @@ export const StartNumberSelector: React.FC = () => {
             onChange={handleInputChange}
             onBlur={handleInputBlur}
             onKeyDown={handleKeyDown}
-            className={`h-5 w-[45px] border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/10 ${TOOLBAR_STYLES.textClasses} rounded-sm transition-colors`}
+            className={`h-5 w-[45px] px-1 border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/10 ${TOOLBAR_STYLES.textClasses} rounded-sm transition-colors`}
             maxLength={10}
           />
         </div>
