@@ -1,5 +1,4 @@
 import { useAppStore } from '@/store';
-import { RectangleHorizontal } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { buttonVariants } from './ui/button';
@@ -14,6 +13,7 @@ const aspectRatios = [
   { value: '16/9', label: '16:9' },
   { value: '4/3', label: '4:3' },
   { value: '1/1', label: '1:1' },
+  { value: '9/16', label: '9:16' },
 ];
 
 export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId }) => {
@@ -37,7 +37,6 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
           className={cn(TOOLBAR_STYLES.containerClasses)}
           style={getToolbarContainerStyles()}
         >
-          <RectangleHorizontal size={16} className={TOOLBAR_STYLES.iconClasses} />
           <ToggleGroup
             type="single"
             value={currentAspectRatio} 

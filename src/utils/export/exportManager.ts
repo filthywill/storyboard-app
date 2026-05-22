@@ -6,6 +6,7 @@ import {
   ExportOptions,
   ExportError,
 } from '@/utils/types/exportTypes';
+import JSZip from 'jszip';
 import { DataTransformer } from './dataTransformer';
 import { CanvasRenderer } from './canvasRenderer';
 import { DOMCapture } from './domCapture';
@@ -13,6 +14,8 @@ import { DOMRenderer } from './domRenderer';
 import { PDFExportOptions } from '@/components/PDFExportModal';
 import { buildServerPdfPayload, type ExportablePage } from './serverPdfPayload';
 import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+import { OffscreenExportSurface, getOffscreenExportPageElementId } from './offscreenExportSurface';
+import { getDefaultTheme } from '@/styles/storyboardTheme';
 
 type SaveFilePickerHandle = {
   createWritable: () => Promise<{
@@ -21,10 +24,44 @@ type SaveFilePickerHandle = {
   }>;
 };
 
+type DirectoryFileHandle = {
+  createWritable: () => Promise<{
+    write: (data: Blob) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
+};
+
+type DirectoryPickerHandle = {
+  getDirectoryHandle: (
+    name: string,
+    options?: { create?: boolean }
+  ) => Promise<DirectoryPickerHandle>;
+  getFileHandle: (
+    name: string,
+    options?: { create?: boolean }
+  ) => Promise<DirectoryFileHandle>;
+};
+
+declare global {
+  interface Window {
+    showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<DirectoryPickerHandle>;
+  }
+}
+
+const CONTROL_CHARS_REGEX = new RegExp(
+  `[${String.fromCharCode(0)}-${String.fromCharCode(31)}]`,
+  'g'
+);
+
 export interface PDFSaveTarget {
   kind: 'file-handle';
   handle: SaveFilePickerHandle;
 }
+
+type ExportedPNGPage = {
+  page: StoryboardPage;
+  blob: Blob;
+};
 
 export class ExportManager {
   private canvas: HTMLCanvasElement;
@@ -167,6 +204,74 @@ export class ExportManager {
     }
   }
 
+  /**
+   * Download one or more storyboard pages as PNG files.
+   */
+  async downloadPNGs(
+    pages: StoryboardPage[],
+    storyboardState: StoryboardState,
+    filename: string,
+    options: Partial<ExportOptions> = {},
+    onProgress?: (current: number, total: number, pageName: string) => void
+  ): Promise<'file' | 'folder' | 'zip'> {
+    if (pages.length === 0) {
+      throw new ExportError('No pages to export', 'NO_PAGES');
+    }
+
+    const baseFilename = this.sanitizeFilenameBase(filename);
+
+    if (pages.length === 1) {
+      const [{ page, blob }] = await this.exportPNGsViaOffscreenSurface(
+        pages,
+        storyboardState,
+        options,
+        onProgress
+      );
+      this.downloadBlob(blob, this.buildPNGPageFilename(baseFilename, page, 0, storyboardState.pages));
+      return 'file';
+    }
+
+    if (typeof window.showDirectoryPicker === 'function') {
+      try {
+        const rootDirectory = await window.showDirectoryPicker({ mode: 'readwrite' });
+        const exportDirectory = await rootDirectory.getDirectoryHandle(baseFilename, { create: true });
+
+        const exportedPages = await this.exportPNGsViaOffscreenSurface(
+          pages,
+          storyboardState,
+          options,
+          onProgress
+        );
+
+        for (let index = 0; index < exportedPages.length; index += 1) {
+          const { page, blob } = exportedPages[index];
+          await this.writeBlobToDirectory(
+            exportDirectory,
+            this.buildPNGPageFilename(baseFilename, page, index, storyboardState.pages),
+            blob
+          );
+        }
+
+        return 'folder';
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          throw new ExportError('PNG export canceled', 'EXPORT_CANCELLED');
+        }
+
+        console.warn('Directory export unavailable, falling back to ZIP download:', error);
+      }
+    }
+
+    const exportedPages = await this.exportPNGsViaOffscreenSurface(
+      pages,
+      storyboardState,
+      options,
+      onProgress
+    );
+    await this.exportPNGsToZip(exportedPages, baseFilename, storyboardState.pages);
+    return 'zip';
+  }
+
   private async createBackendExportError(response: Response): Promise<ExportError> {
     const contentType = response.headers.get('content-type') || '';
 
@@ -225,6 +330,157 @@ export class ExportManager {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(objectUrl);
+  }
+
+  private sanitizeFilenameBase(rawName: string, fallback: string = 'storyboard'): string {
+    const withoutExtension = rawName
+      .trim()
+      .replace(/\.(png|zip)$/i, '')
+      .trim();
+    const sanitizedBase = withoutExtension
+      .replace(/[<>:"/\\|?*]/g, '_')
+      .replace(CONTROL_CHARS_REGEX, '_')
+      .replace(/\s+/g, ' ')
+      .replace(/[. ]+$/g, '')
+      .trim();
+
+    return sanitizedBase || fallback;
+  }
+
+  private ensureExtension(filename: string, extension: 'png' | 'zip'): string {
+    const suffix = `.${extension}`;
+    return filename.toLowerCase().endsWith(suffix) ? filename : `${filename}${suffix}`;
+  }
+
+  private buildPNGPageFilename(
+    baseFilename: string,
+    page: StoryboardPage,
+    index: number,
+    allPages: StoryboardPage[] = []
+  ): string {
+    const projectPageIndex = allPages.findIndex(projectPage => projectPage.id === page.id);
+    const pageNumber = String((projectPageIndex >= 0 ? projectPageIndex : index) + 1).padStart(2, '0');
+    return this.ensureExtension(`${baseFilename}-p${pageNumber}`, 'png');
+  }
+
+  private async writeBlobToDirectory(
+    directory: DirectoryPickerHandle,
+    filename: string,
+    blob: Blob
+  ): Promise<void> {
+    const fileHandle = await directory.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  }
+
+  private async exportPNGsViaOffscreenSurface(
+    pages: StoryboardPage[],
+    storyboardState: StoryboardState,
+    options: Partial<ExportOptions>,
+    onProgress?: (current: number, total: number, pageName: string) => void
+  ): Promise<ExportedPNGPage[]> {
+    const surface = new OffscreenExportSurface();
+
+    try {
+      surface.mount(
+        pages,
+        storyboardState.storyboardTheme || getDefaultTheme(),
+        {
+          pageSizeMode: storyboardState.pageSizeMode,
+          hideEmptySlots: false,
+        }
+      );
+      await surface.waitForReadiness();
+      surface.assertPageElementsResolvable(pages.map(page => page.id));
+
+      const exportedPages: ExportedPNGPage[] = [];
+      for (let index = 0; index < pages.length; index += 1) {
+        const page = pages[index];
+        const elementId = getOffscreenExportPageElementId(page.id);
+        const element = surface.resolvePageElementOrThrow(page.id);
+        const pageStoryboardState = {
+          ...storyboardState,
+          activePageId: page.id,
+        };
+
+        onProgress?.(index + 1, pages.length, page.name);
+        const blob = await this.exportPageAsPNGFromElement(
+          page,
+          pageStoryboardState,
+          options,
+          element,
+          elementId
+        );
+        exportedPages.push({ page, blob });
+      }
+
+      return exportedPages;
+    } catch (error) {
+      console.warn('Offscreen PNG export unavailable, falling back to legacy PNG export:', error);
+      return this.exportPNGsViaLegacyFallback(pages, storyboardState, options, onProgress);
+    } finally {
+      surface.cleanup();
+    }
+  }
+
+  private async exportPNGsViaLegacyFallback(
+    pages: StoryboardPage[],
+    storyboardState: StoryboardState,
+    options: Partial<ExportOptions>,
+    onProgress?: (current: number, total: number, pageName: string) => void
+  ): Promise<ExportedPNGPage[]> {
+    const exportedPages: ExportedPNGPage[] = [];
+    for (let index = 0; index < pages.length; index += 1) {
+      const page = pages[index];
+      onProgress?.(index + 1, pages.length, page.name);
+      const blob = await this.exportPageAsPNG(page, { ...storyboardState, activePageId: page.id }, options);
+      exportedPages.push({ page, blob });
+    }
+
+    return exportedPages;
+  }
+
+  private async exportPNGsToZip(
+    exportedPages: ExportedPNGPage[],
+    baseFilename: string,
+    allPages: StoryboardPage[] = []
+  ): Promise<void> {
+    const zip = new JSZip();
+
+    exportedPages.forEach(({ page, blob }, index) => {
+      zip.file(this.buildPNGPageFilename(baseFilename, page, index, allPages), blob);
+    });
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    this.downloadBlob(zipBlob, this.ensureExtension(baseFilename, 'zip'));
+  }
+
+  private async exportPageAsPNGFromElement(
+    page: StoryboardPage,
+    storyboardState: StoryboardState,
+    options: Partial<ExportOptions>,
+    element: HTMLElement,
+    elementId: string
+  ): Promise<Blob> {
+    const finalOptions: ExportOptions = {
+      format: 'png',
+      quality: 0.95,
+      scale: 2,
+      backgroundColor: '#ffffff',
+      includeGrid: true,
+      ...options
+    };
+
+    const captureResult = await DOMCapture.captureStoryboardLayout(
+      page.id,
+      storyboardState,
+      finalOptions.scale,
+      { element, elementId }
+    );
+
+    await this.domRenderer.renderFromDOMCapture(captureResult);
+    return await this.domRenderer.exportAsBlob('image/png', finalOptions.quality);
   }
   
   /**

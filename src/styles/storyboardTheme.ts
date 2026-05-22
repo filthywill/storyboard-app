@@ -7,8 +7,8 @@
 
 export interface StoryboardTheme {
   id: string; // UUID for saved themes
-  name: string; // "Light", "Dark", "My Custom Theme"
-  isPreset: boolean; // true for Light/Dark, false for user custom
+  name: string; // "Default", "Dark", "My Custom Theme"
+  isPreset: boolean; // true for Default/Dark, false for user custom
   createdBy?: string; // user ID (if custom theme)
   
   // Content container background (the single white container holding header + shots)
@@ -63,7 +63,7 @@ export interface StoryboardTheme {
 export const PRESET_THEMES: Record<string, StoryboardTheme> = {
   light: {
     id: 'preset-light',
-    name: 'Light',
+    name: 'Default',
     isPreset: true,
     contentBackground: '#ffffff',
     header: {
@@ -144,7 +144,7 @@ export const getThemeById = (id: string): StoryboardTheme | undefined => {
 };
 
 /**
- * Get default theme (Light)
+ * Get default theme
  */
 export const getDefaultTheme = (): StoryboardTheme => {
   return PRESET_THEMES.light;

@@ -5,62 +5,40 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Download, AlertTriangle, Info } from 'lucide-react';
+import { FileImage, Download, AlertTriangle, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
 import { exportManager } from '@/utils/export/exportManager';
-import type { PDFSaveTarget } from '@/utils/export/exportManager';
-import { attachDebugServerPdfPayloadHelpers } from '@/utils/export/debugServerPdfPayload';
 import { MODAL_OVERLAY_STYLES, getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 import { getPageSizeSpec, resolvePageSizeMode } from '@/utils/pageSize';
 
-export interface PDFExportOptions {
+export interface PNGExportOptions {
   pages: 'all' | 'current' | 'range';
   pageRange?: { start: number; end: number };
 }
 
-interface PDFExportModalProps {
+interface PNGExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentPageIndex: number;
 }
 
-type SaveFilePickerHandle = {
-  createWritable: () => Promise<{
-    write: (data: Blob) => Promise<void>;
-    close: () => Promise<void>;
-  }>;
-};
-
-type SaveFilePickerOptions = {
-  suggestedName?: string;
-  types?: Array<{
-    description?: string;
-    accept: Record<string, string[]>;
-  }>;
-};
-
-declare global {
-  interface Window {
-    showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<SaveFilePickerHandle>;
-  }
-}
-
-const INVALID_PDF_FILENAME_CHARS_REGEX = /[<>:"/\\|?*]/g;
+const INVALID_FILENAME_CHARS_REGEX = /[<>:"/\\|?*]/g;
 const CONTROL_CHARS_REGEX = new RegExp(
   `[${String.fromCharCode(0)}-${String.fromCharCode(31)}]`,
   'g'
 );
 
-export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportModalProps) {
-  const { 
-    pages, 
+export function PNGExportModal({ isOpen, onClose, currentPageIndex }: PNGExportModalProps) {
+  const {
+    pages,
     activePageId,
     startNumber,
     projectName,
@@ -79,20 +57,21 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{current: number; total: number; pageName: string} | null>(null);
   const [filenameInput, setFilenameInput] = useState('');
-  
-  const [options, setOptions] = useState<PDFExportOptions>({
+  const [options, setOptions] = useState<PNGExportOptions>({
     pages: 'all',
     pageRange: { start: 1, end: pages.length }
   });
 
   const normalizedPageSizeMode = resolvePageSizeMode(pageSizeMode);
   const pageSizeLabel = getPageSizeSpec(normalizedPageSizeMode).label;
+  const supportsDirectoryExport =
+    typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
 
-  const sanitizePdfFilenameBase = useCallback((rawName: string): string => {
+  const sanitizePNGFilename = useCallback((rawName: string): string => {
     const trimmed = rawName.trim();
-    const withoutExtension = trimmed.replace(/\.pdf$/i, '').trim();
+    const withoutExtension = trimmed.replace(/\.(png|zip)$/i, '').trim();
     const sanitizedBase = withoutExtension
-      .replace(INVALID_PDF_FILENAME_CHARS_REGEX, '_')
+      .replace(INVALID_FILENAME_CHARS_REGEX, '_')
       .replace(CONTROL_CHARS_REGEX, '_')
       .replace(/\s+/g, ' ')
       .replace(/[. ]+$/g, '')
@@ -103,10 +82,36 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
 
   const resolveDefaultFilename = useCallback((): string => {
     const projectTitle = (currentProject?.name || projectName || '').trim();
-    return sanitizePdfFilenameBase(projectTitle || 'storyboard');
-  }, [currentProject?.name, projectName, sanitizePdfFilenameBase]);
+    return sanitizePNGFilename(projectTitle || 'storyboard');
+  }, [currentProject?.name, projectName, sanitizePNGFilename]);
 
-  const getSelectedPages = useCallback(() => {
+  useEffect(() => {
+    if (!isOpen) return;
+    setFilenameInput(resolveDefaultFilename());
+    setOptions(prev => ({
+      ...prev,
+      pageRange: {
+        start: prev.pageRange?.start || 1,
+        end: pages.length
+      }
+    }));
+  }, [isOpen, pages.length, resolveDefaultFilename]);
+
+  const updateOptions = <K extends keyof PNGExportOptions>(key: K, value: PNGExportOptions[K]) => {
+    setOptions(prev => ({ ...prev, [key]: value }));
+  };
+
+  const updatePageRange = (field: 'start' | 'end', value: number) => {
+    setOptions(prev => ({
+      ...prev,
+      pageRange: {
+        ...prev.pageRange!,
+        [field]: Math.max(1, Math.min(pages.length, value))
+      }
+    }));
+  };
+
+  const getSelectedPages = () => {
     if (options.pages === 'current') {
       return pages[currentPageIndex] ? [pages[currentPageIndex]] : [];
     }
@@ -117,36 +122,26 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
     }
 
     return pages;
-  }, [currentPageIndex, options.pageRange, options.pages, pages]);
+  };
 
-  const buildPdfFilename = useCallback((rawName: string, pagesToExport: typeof pages): string => {
-    const baseFilename = sanitizePdfFilenameBase(rawName);
-    const selectedIndexes = pagesToExport
-      .map((page, index) => {
-        const projectPageIndex = pages.findIndex(projectPage => projectPage.id === page.id);
-        return projectPageIndex >= 0 ? projectPageIndex : index;
-      })
-      .sort((first, second) => first - second);
-
-    if (selectedIndexes.length === 0) {
-      return `${baseFilename}.pdf`;
+  const getSelectedPageCount = () => {
+    if (options.pages === 'all') return pages.length;
+    if (options.pages === 'current') return pages[currentPageIndex] ? 1 : 0;
+    if (options.pages === 'range' && options.pageRange) {
+      return Math.max(0, options.pageRange.end - options.pageRange.start + 1);
     }
+    return 0;
+  };
 
-    const startPage = String(selectedIndexes[0] + 1).padStart(2, '0');
-    const endPage = String(selectedIndexes[selectedIndexes.length - 1] + 1).padStart(2, '0');
-    const pageScope = selectedIndexes.length === 1 ? `p${startPage}` : `p${startPage}-${endPage}`;
-
-    return `${baseFilename}_${pageScope}.pdf`;
-  }, [pages, sanitizePdfFilenameBase]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setFilenameInput(resolveDefaultFilename());
-  }, [isOpen, resolveDefaultFilename]);
+  const isValidRange = () => {
+    if (options.pages !== 'range' || !options.pageRange) return true;
+    const { start, end } = options.pageRange;
+    return start >= 1 && end <= pages.length && start <= end;
+  };
 
   const handleExport = async () => {
+    const baseFilename = sanitizePNGFilename(filenameInput || resolveDefaultFilename());
     const pagesToExport = getSelectedPages();
-    const filename = buildPdfFilename(filenameInput || resolveDefaultFilename(), pagesToExport);
 
     if (pagesToExport.length === 0) {
       toast({
@@ -158,41 +153,13 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
     }
 
     try {
-      let saveTarget: PDFSaveTarget | undefined;
-      if (typeof window.showSaveFilePicker === 'function') {
-        try {
-          const handle = await window.showSaveFilePicker({
-            suggestedName: filename,
-            types: [
-              {
-                description: 'PDF Document',
-                accept: {
-                  'application/pdf': ['.pdf'],
-                },
-              },
-            ],
-          });
-          saveTarget = {
-            kind: 'file-handle',
-            handle,
-          };
-        } catch (error) {
-          if (error instanceof DOMException && error.name === 'AbortError') {
-            return;
-          }
-          throw error;
-        }
-      }
-
       setIsExporting(true);
 
-      // Convert new format to old format for export compatibility
       const legacyPages = pagesToExport.map(page => ({
         ...page,
         shots: getPageShots(page.id)
       }));
 
-      // Create storyboard state object for export
       const storyboardState = {
         pages: pages.map(page => ({
           ...page,
@@ -215,29 +182,37 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
         storyboardTheme
       };
 
-      // Export PDF using the server PDF backend with progress tracking
-      await exportManager.downloadPDF(
+      const result = await exportManager.downloadPNGs(
         legacyPages,
         storyboardState,
-        filename,
-        options,
+        baseFilename,
+        { scale: 2, quality: 0.95 },
         (current, total, pageName) => {
           setExportProgress({ current, total, pageName });
-        },
-        saveTarget
+        }
       );
-      
+
+      const destination =
+        result === 'folder'
+          ? `to folder "${baseFilename}"`
+          : result === 'zip'
+            ? `to ${baseFilename}.zip`
+            : `to ${baseFilename}.png`;
+
       toast({
-        title: 'PDF Export Successful',
-        description: `Exported ${pagesToExport.length} page(s) to ${filename}`,
+        title: 'PNG Export Successful',
+        description: `Exported ${pagesToExport.length} page(s) ${destination}`,
       });
-      
+
       onClose();
-      
     } catch (error) {
-      console.error('PDF export failed:', error);
+      if (error instanceof Error && 'code' in error && error.code === 'EXPORT_CANCELLED') {
+        return;
+      }
+
+      console.error('PNG export failed:', error);
       toast({
-        title: 'PDF Export Failed',
+        title: 'PNG Export Failed',
         description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive'
       });
@@ -247,64 +222,28 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
     }
   };
 
-  const updateOptions = <K extends keyof PDFExportOptions>(key: K, value: PDFExportOptions[K]) => {
-    setOptions(prev => ({ ...prev, [key]: value }));
-  };
-
-  const updatePageRange = (field: 'start' | 'end', value: number) => {
-    setOptions(prev => ({
-      ...prev,
-      pageRange: {
-        ...prev.pageRange!,
-        [field]: Math.max(1, Math.min(pages.length, value))
-      }
-    }));
-  };
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-
-    attachDebugServerPdfPayloadHelpers({
-      getPageId: () => pages[currentPageIndex]?.id ?? activePageId,
-    });
-  }, [activePageId, currentPageIndex, pages]);
-
-
-  const getSelectedPageCount = () => {
-    if (options.pages === 'all') return pages.length;
-    if (options.pages === 'current') return 1;
-    if (options.pages === 'range' && options.pageRange) {
-      return Math.max(0, options.pageRange.end - options.pageRange.start + 1);
-    }
-    return 0;
-  };
-
-  const isValidRange = () => {
-    if (options.pages !== 'range' || !options.pageRange) return true;
-    const { start, end } = options.pageRange;
-    return start >= 1 && end <= pages.length && start <= end;
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
+      <DialogContent
         className="max-w-2xl max-h-[90vh] overflow-y-auto"
         style={getGlassmorphismStyles('dark')}
       >
         <DialogHeader>
-          <DialogTitle 
+          <DialogTitle
             className="flex items-center gap-2"
             style={{ color: getColor('text', 'primary') as string }}
           >
-            <FileText className="h-5 w-5" />
-            Export as PDF
+            <FileImage className="h-5 w-5" />
+            Export as PNG
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Choose which storyboard pages to export as PNG files, review the page size, and set the export filename.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Page Selection */}
           <div className="space-y-3">
-            <Label 
+            <Label
               className="text-base font-medium"
               style={{ color: getColor('text', 'primary') as string }}
             >
@@ -312,30 +251,30 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
             </Label>
             <RadioGroup
               value={options.pages}
-              onValueChange={(value) => updateOptions('pages', value)}
+              onValueChange={(value) => updateOptions('pages', value as PNGExportOptions['pages'])}
             >
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="all" id="all-pages" />
-                <Label 
-                  htmlFor="all-pages"
+                <RadioGroupItem value="all" id="png-all-pages" />
+                <Label
+                  htmlFor="png-all-pages"
                   style={{ color: getColor('text', 'secondary') as string }}
                 >
                   All Pages ({pages.length})
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="current" id="current-page" />
-                <Label 
-                  htmlFor="current-page"
+                <RadioGroupItem value="current" id="png-current-page" />
+                <Label
+                  htmlFor="png-current-page"
                   style={{ color: getColor('text', 'secondary') as string }}
                 >
                   Current Page ({currentPageIndex + 1}: {pages[currentPageIndex]?.name || 'Untitled'})
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="range" id="page-range" />
-                <Label 
-                  htmlFor="page-range"
+                <RadioGroupItem value="range" id="png-page-range" />
+                <Label
+                  htmlFor="png-page-range"
                   style={{ color: getColor('text', 'secondary') as string }}
                 >
                   Page Range
@@ -345,19 +284,19 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
 
             {options.pages === 'range' && (
               <div className="ml-6 flex items-center gap-2">
-                <Label 
-                  htmlFor="start-page"
+                <Label
+                  htmlFor="png-start-page"
                   style={{ color: getColor('text', 'secondary') as string }}
                 >
                   From:
                 </Label>
                 <input
-                  id="start-page"
+                  id="png-start-page"
                   type="number"
                   min="1"
                   max={pages.length}
                   value={options.pageRange?.start || 1}
-                  onChange={(e) => updatePageRange('start', parseInt(e.target.value) || 1)}
+                  onChange={(event) => updatePageRange('start', parseInt(event.target.value) || 1)}
                   className="w-16 px-2 py-1 rounded text-sm"
                   style={{
                     backgroundColor: getColor('input', 'background') as string,
@@ -365,19 +304,19 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
                     color: getColor('text', 'primary') as string
                   }}
                 />
-                <Label 
-                  htmlFor="end-page"
+                <Label
+                  htmlFor="png-end-page"
                   style={{ color: getColor('text', 'secondary') as string }}
                 >
                   To:
                 </Label>
                 <input
-                  id="end-page"
+                  id="png-end-page"
                   type="number"
                   min="1"
                   max={pages.length}
                   value={options.pageRange?.end || pages.length}
-                  onChange={(e) => updatePageRange('end', parseInt(e.target.value) || pages.length)}
+                  onChange={(event) => updatePageRange('end', parseInt(event.target.value) || pages.length)}
                   className="w-16 px-2 py-1 rounded text-sm"
                   style={{
                     backgroundColor: getColor('input', 'background') as string,
@@ -392,9 +331,8 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
             )}
           </div>
 
-          {/* Export Settings */}
           <div className="space-y-3">
-            <Label 
+            <Label
               className="text-base font-medium"
               style={{ color: getColor('text', 'primary') as string }}
             >
@@ -422,18 +360,18 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
               </p>
             </div>
             <div className="space-y-2">
-              <Label 
-                htmlFor="pdf-filename"
+              <Label
+                htmlFor="png-filename"
                 style={{ color: getColor('text', 'secondary') as string }}
               >
                 Filename
               </Label>
               <input
-                id="pdf-filename"
+                id="png-filename"
                 type="text"
                 value={filenameInput}
                 onChange={(event) => setFilenameInput(event.target.value)}
-                placeholder="storyboard.pdf"
+                placeholder="storyboard"
                 className="w-full px-3 py-2 rounded text-sm"
                 style={{
                   backgroundColor: getColor('input', 'background') as string,
@@ -444,7 +382,6 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
             </div>
           </div>
 
-          {/* Export Summary */}
           <Alert
             style={{
               backgroundColor: getColor('background', 'subtle') as string,
@@ -456,7 +393,14 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
             <AlertDescription
               style={{ color: getColor('text', 'secondary') as string }}
             >
-              Exporting {getSelectedPageCount()} page(s) as PDF.
+              Exporting {getSelectedPageCount()} page(s) as PNG.
+              {getSelectedPageCount() > 1 && (
+                <div className="mt-1">
+                  {supportsDirectoryExport
+                    ? 'Multiple pages will be saved into a folder when you choose a destination.'
+                    : 'Multiple pages will be downloaded as a ZIP archive in this browser.'}
+                </div>
+              )}
               {normalizedPageSizeMode === 'dynamic' && (
                 <div className="mt-1">
                   Dynamic mode preserves exact layout and measured canvas size.
@@ -464,7 +408,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
               )}
               {(normalizedPageSizeMode === 'letter-portrait' || normalizedPageSizeMode === 'letter-landscape') && (
                 <div className="mt-1">
-                  Letter mode uses fixed 8.5" × 11" sizing from Template Layout.
+                  Letter mode uses fixed 8.5&quot; × 11&quot; sizing from Template Layout.
                 </div>
               )}
             </AlertDescription>
@@ -481,15 +425,15 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
         </div>
 
         <DialogFooter>
-          <Button 
-            onClick={onClose} 
+          <Button
+            onClick={onClose}
             disabled={isExporting}
             style={getGlassmorphismStyles('button')}
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleExport} 
+          <Button
+            onClick={handleExport}
             disabled={isExporting || !isValidRange()}
             className="min-w-[100px]"
             style={getGlassmorphismStyles('buttonAccent')}
@@ -502,37 +446,36 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
             ) : (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Export PDF
+                Export PNG
               </>
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
-      
-      {/* Export Progress Overlay - Fullscreen to hide page switching */}
+
       {exportProgress && (
-        <div 
+        <div
           className="fixed inset-0 z-[100] flex items-center justify-center"
           style={MODAL_OVERLAY_STYLES}
         >
-          <div 
+          <div
             className="rounded-lg shadow-2xl p-8 max-w-md w-full mx-4"
             style={getGlassmorphismStyles('dark')}
           >
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div 
+                <div
                   className="animate-spin rounded-full h-8 w-8 border-b-2"
                   style={{ borderColor: getColor('button', 'accent') as string }}
                 />
                 <div>
-                  <h3 
+                  <h3
                     className="font-semibold text-lg"
                     style={{ color: getColor('text', 'primary') as string }}
                   >
-                    Exporting PDF...
+                    Exporting PNG...
                   </h3>
-                  <p 
+                  <p
                     className="text-sm"
                     style={{ color: getColor('text', 'secondary') as string }}
                   >
@@ -540,40 +483,39 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
                   </p>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span style={{ color: getColor('text', 'secondary') as string }}>Current page:</span>
-                  <span 
+                  <span
                     className="font-medium"
                     style={{ color: getColor('text', 'primary') as string }}
                   >
                     {exportProgress.pageName}
                   </span>
                 </div>
-                
-                {/* Progress bar */}
-                <div 
+
+                <div
                   className="w-full rounded-full h-2.5 overflow-hidden"
                   style={{ backgroundColor: getColor('progress', 'background') as string }}
                 >
                   <div
                     className="h-2.5 rounded-full transition-all duration-300"
-                    style={{ 
+                    style={{
                       backgroundColor: getColor('progress', 'fill') as string,
-                      width: `${(exportProgress.current / exportProgress.total) * 100}%` 
+                      width: `${(exportProgress.current / exportProgress.total) * 100}%`
                     }}
                   />
                 </div>
-                
-                <p 
+
+                <p
                   className="text-xs text-center"
                   style={{ color: getColor('text', 'muted') as string }}
                 >
                   {Math.round((exportProgress.current / exportProgress.total) * 100)}% complete
                 </p>
               </div>
-              
+
               <Alert
                 style={{
                   backgroundColor: getColor('background', 'subtle') as string,
@@ -582,7 +524,7 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
                 }}
               >
                 <Info className="h-4 w-4" />
-                <AlertDescription 
+                <AlertDescription
                   className="text-xs"
                   style={{ color: getColor('text', 'secondary') as string }}
                 >
@@ -595,4 +537,4 @@ export function PDFExportModal({ isOpen, onClose, currentPageIndex }: PDFExportM
       )}
     </Dialog>
   );
-} 
+}

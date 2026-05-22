@@ -6,6 +6,7 @@ import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { calculatePreviewDimensions } from '@/utils/export/previewDimensions';
 import type { StoryboardTheme } from '@/styles/storyboardTheme';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
+import { getFixedPageFrameHeight, resolvePageSizeMode, type PageSizeMode } from '@/utils/pageSize';
 
 interface ExportStoryboardPageContentProps {
   page: StoryboardPage | null;
@@ -16,6 +17,7 @@ interface ExportStoryboardPageContentProps {
   pageElementId: string;
   hideEmptySlots?: boolean;
   exportPayload?: ServerPDFExportPayload;
+  pageSizeMode?: PageSizeMode;
 }
 
 // IMPORTANT: This component intentionally mirrors the live StoryboardPage inner content subtree.
@@ -28,11 +30,15 @@ export const ExportStoryboardPageContent: React.FC<ExportStoryboardPageContentPr
   pageNumber,
   pageElementId,
   hideEmptySlots = false,
-  exportPayload
+  exportPayload,
+  pageSizeMode
 }) => {
   const previewDimensions = React.useMemo(() => {
     return calculatePreviewDimensions(page);
   }, [page]);
+  const normalizedPageSizeMode = resolvePageSizeMode(pageSizeMode ?? exportPayload?.pageSizeMode);
+  const fixedPageFrameHeight = getFixedPageFrameHeight(normalizedPageSizeMode);
+  const isFixedPageMode = normalizedPageSizeMode !== 'dynamic';
 
   if (!page) {
     return (
@@ -42,19 +48,24 @@ export const ExportStoryboardPageContent: React.FC<ExportStoryboardPageContentPr
     );
   }
 
+  const pageStyle = {
+    height: fixedPageFrameHeight ? `${fixedPageFrameHeight}px` : 'min-content',
+    display: isFixedPageMode ? 'flex' : undefined,
+    flexDirection: isFixedPageMode ? 'column' : undefined,
+    overflow: isFixedPageMode ? 'hidden' : 'visible',
+    fontFamily: '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    '--inline-bg-color': storyboardTheme.contentBackground,
+    '--inline-border-radius': '6px'
+  } satisfies React.CSSProperties & Record<'--inline-bg-color' | '--inline-border-radius', string>;
+
   return (
     <div
       id={pageElementId}
       className="shadow-lg overflow-visible relative z-20 storyboard-themeable"
-      style={{
-        height: 'min-content',
-        fontFamily: '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-        ['--inline-bg-color' as any]: storyboardTheme.contentBackground,
-        ['--inline-border-radius' as any]: '6px'
-      }}
+      style={pageStyle}
     >
       <MasterHeader readOnly exportPayload={exportPayload} />
-      <div className='p-1'>
+      <div className={isFixedPageMode ? 'p-1 flex-1 min-h-0' : 'p-1'}>
         <SortableContext items={pageShots.map(s => s.id)} strategy={rectSortingStrategy}>
           <ShotGrid
             pageId={pageId}

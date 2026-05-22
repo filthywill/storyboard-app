@@ -17,7 +17,7 @@ export const TOOLBAR_STYLES = {
   },
   
   // Container classes
-  containerClasses: 'flex items-center justify-between px-3 py-1 gap-2 rounded-md',
+  containerClasses: 'flex items-center justify-between px-1 py-1 gap-1 rounded-md',
   
   // Icon styling
   iconClasses: 'text-white',
@@ -31,7 +31,7 @@ export const TOOLBAR_STYLES = {
   buttonClasses: 'h-5 w-[35px] border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/20 hover:text-white text-white rounded-sm transition-colors',
   
   // Select trigger styling
-  selectTriggerClasses: 'h-5 w-[35px] border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/20 hover:text-white text-white rounded-sm transition-colors [&>svg]:hidden',
+  selectTriggerClasses: 'h-5 w-[24px] justify-center px-0 border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/20 hover:text-white text-white rounded-sm transition-colors [&>svg]:hidden',
   
   // Select content styling
   selectContentClasses: 'w-[45px] min-w-[45px]'

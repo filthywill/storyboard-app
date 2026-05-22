@@ -44,14 +44,14 @@ const PAGE_SIZE_SPECS: Record<PageSizeMode, PageSizeSpec> = {
   },
   'letter-portrait': {
     mode: 'letter-portrait',
-    label: 'Letter Portrait',
+    label: 'Portrait',
     widthInches: LETTER_WIDTH_INCHES,
     heightInches: LETTER_HEIGHT_INCHES,
     frameAspectRatio: LETTER_WIDTH_INCHES / LETTER_HEIGHT_INCHES,
   },
   'letter-landscape': {
     mode: 'letter-landscape',
-    label: 'Letter Landscape',
+    label: 'Landscape',
     widthInches: LETTER_HEIGHT_INCHES,
     heightInches: LETTER_WIDTH_INCHES,
     frameAspectRatio: LETTER_HEIGHT_INCHES / LETTER_WIDTH_INCHES,
@@ -60,8 +60,8 @@ const PAGE_SIZE_SPECS: Record<PageSizeMode, PageSizeSpec> = {
 
 export const PAGE_SIZE_MODE_OPTIONS = [
   { value: 'dynamic', label: 'Dynamic' },
-  { value: 'letter-portrait', label: 'Letter Portrait' },
-  { value: 'letter-landscape', label: 'Letter Landscape' },
+  { value: 'letter-portrait', label: 'Portrait' },
+  { value: 'letter-landscape', label: 'Landscape' },
 ] as const;
 
 const GRID_GAP_PX = 8;

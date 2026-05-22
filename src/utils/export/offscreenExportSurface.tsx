@@ -4,7 +4,8 @@ import { StoryboardPage as LegacyStoryboardPage } from '@/store/storyboardStore'
 import type { Shot, StoryboardPage } from '@/store';
 import { ExportError } from '@/utils/types/exportTypes';
 import { ExportStoryboardPageContent } from '@/components/export/ExportStoryboardPageContent';
-import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+import { RENDERED_PAGE_WIDTH_PX, type PageSizeMode } from '@/utils/pageSize';
+import type { StoryboardTheme } from '@/styles/storyboardTheme';
 
 const OFFSCREEN_EXPORT_PAGE_ID_PREFIX = 'offscreen-storyboard-page-';
 
@@ -13,12 +14,22 @@ export const getOffscreenExportPageElementId = (pageId: string): string =>
 
 interface OffscreenExportSurfaceProps {
   pages: LegacyStoryboardPage[];
-  storyboardTheme: {
-    contentBackground: string;
-  };
+  storyboardTheme: StoryboardTheme;
+  pageSizeMode?: PageSizeMode;
+  hideEmptySlots?: boolean;
 }
 
-const OffscreenExportSurfaceContent: React.FC<OffscreenExportSurfaceProps> = ({ pages, storyboardTheme }) => {
+interface OffscreenExportSurfaceOptions {
+  pageSizeMode?: PageSizeMode;
+  hideEmptySlots?: boolean;
+}
+
+const OffscreenExportSurfaceContent: React.FC<OffscreenExportSurfaceProps> = ({
+  pages,
+  storyboardTheme,
+  pageSizeMode,
+  hideEmptySlots = false,
+}) => {
   return (
     <div data-offscreen-export-surface>
       {pages.map((page, index) => (
@@ -40,7 +51,8 @@ const OffscreenExportSurfaceContent: React.FC<OffscreenExportSurfaceProps> = ({ 
               pageId={page.id}
               pageNumber={index + 1}
               pageElementId={getOffscreenExportPageElementId(page.id)}
-              hideEmptySlots
+              hideEmptySlots={hideEmptySlots}
+              pageSizeMode={pageSizeMode}
             />
           </div>
         </div>
@@ -56,7 +68,8 @@ export class OffscreenExportSurface {
 
   mount(
     pages: LegacyStoryboardPage[],
-    storyboardTheme: { contentBackground: string } = { contentBackground: '#ffffff' }
+    storyboardTheme: StoryboardTheme,
+    options: OffscreenExportSurfaceOptions = {}
   ): void {
     if (pages.length === 0) {
       throw new ExportError('No pages provided for offscreen export surface', 'NO_PAGES');
@@ -84,7 +97,12 @@ export class OffscreenExportSurface {
 
     this.reactRoot = createRoot(container);
     this.reactRoot.render(
-      <OffscreenExportSurfaceContent pages={pages} storyboardTheme={storyboardTheme} />
+      <OffscreenExportSurfaceContent
+        pages={pages}
+        storyboardTheme={storyboardTheme}
+        pageSizeMode={options.pageSizeMode}
+        hideEmptySlots={options.hideEmptySlots}
+      />
     );
   }
 

@@ -141,7 +141,7 @@ export const ThemeEditorModal: React.FC<ThemeEditorModalProps> = ({ open, onClos
       await ThemeService.deleteTheme(editingTheme.id);
       toast.success(`Theme "${editingTheme.name}" deleted`);
       
-      // Switch to Light theme
+      // Switch to Default theme
       setStoryboardTheme(PRESET_THEMES.light);
       setEditingTheme(PRESET_THEMES.light);
     } catch (error: any) {

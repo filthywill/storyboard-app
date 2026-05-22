@@ -62,7 +62,7 @@ export const StyleSettings: React.FC = () => {
             </SelectTrigger>
             <SelectContent>
               {/* Preset Themes */}
-              <SelectItem value="preset-light">Light</SelectItem>
+              <SelectItem value="preset-light">Default</SelectItem>
               <SelectItem value="preset-dark">Dark</SelectItem>
               
               {/* User Custom Themes */}
