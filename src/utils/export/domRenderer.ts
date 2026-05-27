@@ -6,6 +6,7 @@ import {
   ExportError
 } from '@/utils/types/exportTypes';
 import { DOMCaptureResult } from './domCapture';
+import { getShotTextSpacing } from '@/styles/storyboardTheme';
 
 export class DOMRenderer {
   private canvas: HTMLCanvasElement;
@@ -590,7 +591,7 @@ export class DOMRenderer {
     shotBounds: Rectangle,
     scale: number
   ): void {
-    const textElements = shotElement.querySelectorAll('textarea');
+    const textElements = shotElement.querySelectorAll<HTMLElement>('textarea, .action-text, .script-text');
     const shotRect = shotElement.getBoundingClientRect();
     
     textElements.forEach(textElement => {
@@ -601,19 +602,18 @@ export class DOMRenderer {
       const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
       const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
       const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+      const rawFontSize = parseFloat(computedStyle.fontSize);
 
       // Calculate position of the content box, not the border box
       const contentX = shotBounds.x + ((rect.left - shotRect.left + paddingLeft) * scale);
       
-      // CRITICAL FIX for spacing: Add extra spacing to match browser rendering
-      // Canvas doesn't account for CSS "half-leading" space above text lines
-      // Adding ~6px compensates for the visual gap that CSS line-height creates
-      const extraSpacing = 6; // Additional pixels to match browser visual spacing
-      const contentY = shotBounds.y + ((rect.top - shotRect.top + extraSpacing) * scale);
+      // Canvas doesn't account for CSS half-leading above text lines, so mirror it
+      // proportionally to the rendered shot text size.
+      const extraSpacing = getShotTextSpacing(rawFontSize).domTextYOffset;
+      const contentY = shotBounds.y + ((rect.top - shotRect.top + paddingTop + extraSpacing) * scale);
       const contentWidth = (rect.width - paddingLeft - paddingRight) * scale;
       
       // Extract styling from DOM
-      const rawFontSize = parseFloat(computedStyle.fontSize);
       const fontWeight = computedStyle.fontWeight || 'normal';
       
       // Use Inter if loaded, otherwise fall back to system fonts
@@ -643,7 +643,9 @@ export class DOMRenderer {
       };
       
       // Render text
-      const text = textElement.value || '';
+      const text = textElement instanceof HTMLTextAreaElement
+        ? textElement.value || ''
+        : textElement.textContent || '';
       if (text) {
         console.log('🔍 Shot text DEBUG:', {
           shotId: shot.id,

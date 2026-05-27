@@ -22,7 +22,15 @@ import { Plus, X, Trash2, ChevronUp, ChevronDown, FileText, Type, Save, Spline, 
 import { HexColorPicker } from 'react-colorful';
 import { getToolbarContainerStyles, getThemeSectionStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
-import { PRESET_THEMES, getThemeById, StoryboardTheme } from '@/styles/storyboardTheme';
+import {
+  PRESET_THEMES,
+  getThemeById,
+  StoryboardTheme,
+  SHOT_TEXT_FONT_SIZE_MAX,
+  SHOT_TEXT_FONT_SIZE_MIN,
+  SHOT_TEXT_FONT_SIZE_STEP,
+  normalizeShotTextFontSize,
+} from '@/styles/storyboardTheme';
 import { ThemeService } from '@/services/themeService';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -316,6 +324,30 @@ export const ThemeToolbar: React.FC = () => {
     padding: '4px 6px',
   });
 
+  const themeSectionHeadClasses = cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses);
+  const themeSubHeadClasses = cn("text-[8px] font-semibold uppercase leading-none", TOOLBAR_STYLES.mutedTextClasses);
+
+  const ThemeSubHead = ({ children }: { children: React.ReactNode }) => (
+    <span className={themeSubHeadClasses}>{children}</span>
+  );
+
+  const LabeledControlGroup = ({
+    label,
+    children,
+    className,
+  }: {
+    label: string;
+    children: React.ReactNode;
+    className?: string;
+  }) => (
+    <div className={cn("flex flex-col items-start gap-0.5", className)}>
+      <ThemeSubHead>{label}</ThemeSubHead>
+      <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+        {children}
+      </div>
+    </div>
+  );
+
   // Border Width input with up/down arrows
   const BorderWidthInput = ({ value, onChange, min, max, disabled = false }: { value: number; onChange: (value: number) => void; min: number; max: number; disabled?: boolean }) => {
     const handleIncrement = () => {
@@ -400,16 +432,16 @@ export const ThemeToolbar: React.FC = () => {
   };
 
   // Number input with up/down arrows (reusable for radius and other numeric inputs)
-  const NumberInputWithArrows = ({ value, onChange, min, max, disabled = false }: { value: number; onChange: (value: number) => void; min: number; max: number; disabled?: boolean }) => {
+  const NumberInputWithArrows = ({ value, onChange, min, max, step = 1, disabled = false }: { value: number; onChange: (value: number) => void; min: number; max: number; step?: number; disabled?: boolean }) => {
     const handleIncrement = () => {
       if (!disabled && value < max) {
-        onChange(value + 1);
+        onChange(Math.min(max, value + step));
       }
     };
 
     const handleDecrement = () => {
       if (!disabled && value > min) {
-        onChange(value - 1);
+        onChange(Math.max(min, value - step));
       }
     };
 
@@ -429,6 +461,7 @@ export const ThemeToolbar: React.FC = () => {
           onChange={handleInputChange}
           min={min}
           max={max}
+          step={step}
           disabled={disabled}
           className={cn(
             "w-8 h-6 px-1 text-xs text-center border-0 bg-transparent focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
@@ -566,29 +599,29 @@ export const ThemeToolbar: React.FC = () => {
         <div className="flex items-stretch gap-2">
           {/* Page Colors */}
           <div className="flex flex-col gap-1 px-2 py-1 rounded h-full" style={getThemeSectionStyles()}>
-            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Page Colors</Label>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+            <Label className={themeSectionHeadClasses}>Page Colors</Label>
+            <div className="flex flex-wrap items-end gap-2">
+              <LabeledControlGroup label="BG">
                 <span title="Background">
                   <PaintBucket size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
                 </span>
                 <ColorSwatchButton path="contentBackground" value={storyboardTheme.contentBackground} />
-              </div>
-              <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+              </LabeledControlGroup>
+              <LabeledControlGroup label="Text">
                 <span title="Header">
                   <Type size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
                 </span>
                 <ColorSwatchButton path="header.text" value={storyboardTheme.header.text} />
-              </div>
+              </LabeledControlGroup>
             </div>
           </div>
 
           {/* Shot Card */}
           <div className="flex flex-col gap-1 px-2 py-1 rounded h-full" style={getThemeSectionStyles()}>
-            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Shot Card</Label>
+            <Label className={themeSectionHeadClasses}>Shot Card</Label>
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+              <div className="flex items-end justify-between gap-2">
+                <LabeledControlGroup label="BG">
                   <IconToggle 
                     checked={storyboardTheme.shotCard.backgroundEnabled} 
                     onChange={(val) => handleBooleanChange('shotCard.backgroundEnabled', val)}
@@ -600,8 +633,8 @@ export const ThemeToolbar: React.FC = () => {
                     value={storyboardTheme.shotCard.background}
                     disabled={!storyboardTheme.shotCard.backgroundEnabled}
                   />
-                </div>
-                <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+                </LabeledControlGroup>
+                <LabeledControlGroup label="Corners">
                   <span title="Radius">
                     <Spline size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
                   </span>
@@ -611,74 +644,72 @@ export const ThemeToolbar: React.FC = () => {
                     min={0}
                     max={20}
                   />
-                </div>
+                </LabeledControlGroup>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
-                  <IconToggle 
-                    checked={storyboardTheme.shotCard.borderEnabled} 
-                    onChange={(val) => handleBooleanChange('shotCard.borderEnabled', val)}
-                    icon={Square}
-                    label="Border"
-                  />
-                  <ColorSwatchButton 
-                    path="shotCard.border" 
-                    value={storyboardTheme.shotCard.border}
-                    disabled={!storyboardTheme.shotCard.borderEnabled}
-                  />
-                  <BorderWidthInput 
-                    value={storyboardTheme.shotCard.borderWidth}
-                    onChange={(val) => handleNumberChange('shotCard.borderWidth', val)}
-                    min={0}
-                    max={5}
-                    disabled={!storyboardTheme.shotCard.borderEnabled}
-                  />
-                </div>
-              </div>
+              <LabeledControlGroup label="Border">
+                <IconToggle 
+                  checked={storyboardTheme.shotCard.borderEnabled} 
+                  onChange={(val) => handleBooleanChange('shotCard.borderEnabled', val)}
+                  icon={Square}
+                  label="Border"
+                />
+                <ColorSwatchButton 
+                  path="shotCard.border" 
+                  value={storyboardTheme.shotCard.border}
+                  disabled={!storyboardTheme.shotCard.borderEnabled}
+                />
+                <BorderWidthInput 
+                  value={storyboardTheme.shotCard.borderWidth}
+                  onChange={(val) => handleNumberChange('shotCard.borderWidth', val)}
+                  min={0}
+                  max={5}
+                  disabled={!storyboardTheme.shotCard.borderEnabled}
+                />
+              </LabeledControlGroup>
             </div>
           </div>
 
           {/* Shot Border */}
           <div className="flex flex-col gap-1 px-2 py-1 rounded h-full" style={getThemeSectionStyles()}>
-            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Shot Border</Label>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
-                  <IconToggle 
-                    checked={storyboardTheme.imageFrame.borderEnabled} 
-                    onChange={(val) => handleBooleanChange('imageFrame.borderEnabled', val)}
-                    icon={Square}
-                    label="Border"
-                  />
-                  <ColorSwatchButton 
-                    path="imageFrame.border" 
-                    value={storyboardTheme.imageFrame.border}
-                    disabled={!storyboardTheme.imageFrame.borderEnabled}
-                  />
-                  <BorderWidthInput 
-                    value={storyboardTheme.imageFrame.borderWidth}
-                    onChange={(val) => handleNumberChange('imageFrame.borderWidth', val)}
-                    min={0}
-                    max={5}
-                    disabled={!storyboardTheme.imageFrame.borderEnabled}
-                  />
-                </div>
-              </div>
+            <Label className={themeSectionHeadClasses}>Shot Border</Label>
+            <div className="flex items-end gap-2">
+              <LabeledControlGroup label="Color">
+                <IconToggle 
+                  checked={storyboardTheme.imageFrame.borderEnabled} 
+                  onChange={(val) => handleBooleanChange('imageFrame.borderEnabled', val)}
+                  icon={Square}
+                  label="Border"
+                />
+                <ColorSwatchButton 
+                  path="imageFrame.border" 
+                  value={storyboardTheme.imageFrame.border}
+                  disabled={!storyboardTheme.imageFrame.borderEnabled}
+                />
+              </LabeledControlGroup>
+              <LabeledControlGroup label="Size">
+                <BorderWidthInput 
+                  value={storyboardTheme.imageFrame.borderWidth}
+                  onChange={(val) => handleNumberChange('imageFrame.borderWidth', val)}
+                  min={0}
+                  max={5}
+                  disabled={!storyboardTheme.imageFrame.borderEnabled}
+                />
+              </LabeledControlGroup>
             </div>
           </div>
 
           {/* Shot Numbers */}
           <div className="flex flex-col gap-1 px-2 py-1 rounded h-full" style={getThemeSectionStyles()}>
-            <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Shot Numbers</Label>
+            <Label className={themeSectionHeadClasses}>Shot Numbers</Label>
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+              <div className="flex items-end gap-2">
+                <LabeledControlGroup label="Text">
                   <div className="w-6 h-6 flex items-center justify-center" title="Text">
                     <Type size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
                   </div>
                   <ColorSwatchButton path="shotNumber.text" value={storyboardTheme.shotNumber.text} />
-                </div>
-                <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+                </LabeledControlGroup>
+                <LabeledControlGroup label="Corners">
                   <div className="w-6 h-6 flex items-center justify-center" title="Radius">
                     <Spline size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
                   </div>
@@ -688,16 +719,16 @@ export const ThemeToolbar: React.FC = () => {
                     min={0}
                     max={20}
                   />
-                </div>
+                </LabeledControlGroup>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+              <div className="flex items-end justify-between gap-2">
+                <LabeledControlGroup label="BG">
                   <div className="w-6 h-6 flex items-center justify-center" title="Background">
                     <PaintBucket size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
                   </div>
                   <ColorSwatchButton path="shotNumber.background" value={storyboardTheme.shotNumber.background} />
-                </div>
-                <div className="flex items-center gap-1.5 rounded" style={getSubContainerStyles()}>
+                </LabeledControlGroup>
+                <LabeledControlGroup label="Borders">
                   <IconToggle 
                     checked={storyboardTheme.shotNumber.borderEnabled} 
                     onChange={(val) => handleBooleanChange('shotNumber.borderEnabled', val)}
@@ -716,7 +747,7 @@ export const ThemeToolbar: React.FC = () => {
                     max={5}
                     disabled={!storyboardTheme.shotNumber.borderEnabled}
                   />
-                </div>
+                </LabeledControlGroup>
               </div>
             </div>
           </div>
@@ -725,13 +756,27 @@ export const ThemeToolbar: React.FC = () => {
           <div className="flex flex-col gap-1 px-2 py-1 rounded h-full" style={getThemeSectionStyles()}>
             <Label className={cn("text-[10px] font-semibold uppercase mb-1", TOOLBAR_STYLES.textClasses)}>Shot Text</Label>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center justify-between gap-1.5 rounded w-[80px]" style={getSubContainerStyles()}>
+              <div className="flex items-center justify-between gap-1.5 rounded w-[122px]" style={getSubContainerStyles()}>
                 <Label className={cn("text-xs font-light", TOOLBAR_STYLES.textClasses)}>Action</Label>
                 <ColorSwatchButton path="actionText.text" value={storyboardTheme.actionText.text} />
+                <NumberInputWithArrows
+                  value={normalizeShotTextFontSize(storyboardTheme.actionText.fontSize)}
+                  onChange={(val) => handleNumberChange('actionText.fontSize', val)}
+                  min={SHOT_TEXT_FONT_SIZE_MIN}
+                  max={SHOT_TEXT_FONT_SIZE_MAX}
+                  step={SHOT_TEXT_FONT_SIZE_STEP}
+                />
               </div>
-              <div className="flex items-center justify-between gap-1.5 rounded w-[80px]" style={getSubContainerStyles()}>
+              <div className="flex items-center justify-between gap-1.5 rounded w-[122px]" style={getSubContainerStyles()}>
                 <Label className={cn("text-xs font-light", TOOLBAR_STYLES.textClasses)}>Script</Label>
                 <ColorSwatchButton path="scriptText.text" value={storyboardTheme.scriptText.text} />
+                <NumberInputWithArrows
+                  value={normalizeShotTextFontSize(storyboardTheme.scriptText.fontSize)}
+                  onChange={(val) => handleNumberChange('scriptText.fontSize', val)}
+                  min={SHOT_TEXT_FONT_SIZE_MIN}
+                  max={SHOT_TEXT_FONT_SIZE_MAX}
+                  step={SHOT_TEXT_FONT_SIZE_STEP}
+                />
               </div>
             </div>
           </div>

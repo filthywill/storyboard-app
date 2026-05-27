@@ -12,6 +12,7 @@ import {
   resolvePageSizeMode,
   type PageSizeMode,
 } from './utils/pageSize';
+import { getShotTextSpacing, normalizeShotTextFontSize } from './styles/storyboardTheme';
 
 const EXPORT_ROUTE_PATH = '/export/pdf/render-static';
 const READY_EVENT_NAME = 'server-pdf-export-ready';
@@ -142,6 +143,23 @@ function validateTheme(theme: unknown): theme is StoryboardTheme {
     isRecord(theme.scriptText) &&
     isString(theme.scriptText.text)
   );
+}
+
+function normalizePayloadTheme(payload: ServerPDFExportPayload): ServerPDFExportPayload {
+  return {
+    ...payload,
+    theme: {
+      ...payload.theme,
+      actionText: {
+        ...payload.theme.actionText,
+        fontSize: normalizeShotTextFontSize(payload.theme.actionText.fontSize),
+      },
+      scriptText: {
+        ...payload.theme.scriptText,
+        fontSize: normalizeShotTextFontSize(payload.theme.scriptText.fontSize),
+      },
+    },
+  };
 }
 
 function validatePayload(input: unknown): input is ServerPDFExportPayload {
@@ -588,6 +606,8 @@ function buildShotCard(
   const imageSource = getImageSource(shot.image);
   const actualOffsetX = (shot.imageOffsetX || 0) * previewDimensions.width;
   const actualOffsetY = (shot.imageOffsetY || 0) * previewDimensions.imageHeight;
+  const actionTextSpacing = getShotTextSpacing(theme.actionText.fontSize);
+  const scriptTextSpacing = getShotTextSpacing(theme.scriptText.fontSize);
 
   const card = createElement('div', {
     className: 'group relative transition-all duration-200 shot-card storyboard-themeable',
@@ -689,6 +709,10 @@ function buildShotCard(
           textContent: shot.actionText || '',
           style: {
             color: theme.actionText.text,
+            fontSize: `${actionTextSpacing.fontSize}px`,
+            lineHeight: `${actionTextSpacing.lineHeight}`,
+            paddingTop: `${actionTextSpacing.blockPaddingY}px`,
+            paddingBottom: `${actionTextSpacing.blockPaddingY}px`,
           },
         })
       );
@@ -701,6 +725,10 @@ function buildShotCard(
           textContent: shot.scriptText || '',
           style: {
             color: theme.scriptText.text,
+            fontSize: `${scriptTextSpacing.fontSize}px`,
+            lineHeight: `${scriptTextSpacing.lineHeight}`,
+            paddingTop: `${scriptTextSpacing.blockPaddingY}px`,
+            paddingBottom: `${scriptTextSpacing.blockPaddingY}px`,
           },
         })
       );
@@ -902,13 +930,14 @@ async function bootstrap(): Promise<void> {
     routePath: EXPORT_ROUTE_PATH,
   });
 
-  const payload = getInjectedPayload();
-  if (!validatePayload(payload)) {
+  const rawPayload = getInjectedPayload();
+  if (!validatePayload(rawPayload)) {
     emitError(
       'EXPORT_PAYLOAD_INVALID: Export route received an invalid payload. This route is payload-only and does not fall back to live app state.'
     );
     return;
   }
+  const payload = normalizePayloadTheme(rawPayload);
 
   updateRuntime({
     status: 'rendering',

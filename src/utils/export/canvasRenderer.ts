@@ -6,6 +6,7 @@ import {
   ExportError
 } from '@/utils/types/exportTypes';
 import { LayoutCalculator } from './layoutCalculator';
+import { getShotTextSpacing, normalizeShotTextFontSize } from '@/styles/storyboardTheme';
 
 export class CanvasRenderer {
   private canvas: HTMLCanvasElement;
@@ -390,7 +391,8 @@ export class CanvasRenderer {
       // Text container starts after image with mt-1 spacing (6px to match visual spacing)
       let textY = imageY + scaledImageHeight + (6 * scale); // mt-1 = 4px + extra visual spacing
       const textPaddingX = 4 * scale; // px-1 = 4px horizontal padding
-      const textPaddingY = 2 * scale; // py-0.5 = 2px vertical padding
+      const actionTextSpacing = getShotTextSpacing(this.storyboardTheme?.actionText?.fontSize);
+      const scriptTextSpacing = getShotTextSpacing(this.storyboardTheme?.scriptText?.fontSize);
       
       const textX = imageX + textPaddingX; // Account for px-1 padding
       const textWidth = scaledImageContainerWidth - (textPaddingX * 2); // Account for px-1 padding on both sides
@@ -398,14 +400,15 @@ export class CanvasRenderer {
       // Action text (if present and enabled)
       if (shot.actionText && showActionText) {
         // Add vertical padding to Y position
-        const actionTextY = textY + textPaddingY;
+        const actionPaddingY = actionTextSpacing.blockPaddingY * scale;
+        const actionTextY = textY + actionPaddingY;
         
         const actionStyle: TextStyle = {
           family: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          size: 12 * scale, // text-xs in preview mode
+          size: actionTextSpacing.fontSize * scale,
           weight: '600', // font-semibold in CSS
-          color: '#111827', // text-gray-900
-          lineHeight: 1.3,
+          color: this.storyboardTheme?.actionText?.text || '#111827',
+          lineHeight: actionTextSpacing.lineHeight,
           textAlign: 'left'
         };
         
@@ -421,7 +424,7 @@ export class CanvasRenderer {
         );
         
         // Update textY for next element (add bottom padding)
-        textY = actionTextEndY + textPaddingY;
+        textY = actionTextEndY + actionPaddingY;
         
         // Small gap between action and script text (if both present)
         if (shot.scriptText && showScriptText) {
@@ -432,14 +435,15 @@ export class CanvasRenderer {
       // Script text (if present and enabled)
       if (shot.scriptText && showScriptText) {
         // Add vertical padding to Y position
-        const scriptTextY = textY + textPaddingY;
+        const scriptPaddingY = scriptTextSpacing.blockPaddingY * scale;
+        const scriptTextY = textY + scriptPaddingY;
         
         const scriptStyle: TextStyle = {
           family: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          size: 12 * scale, // text-xs in preview mode
+          size: scriptTextSpacing.fontSize * scale,
           weight: 'normal', // normal weight
-          color: '#6b7280', // text-gray-500
-          lineHeight: 1.4,
+          color: this.storyboardTheme?.scriptText?.text || '#6b7280',
+          lineHeight: scriptTextSpacing.lineHeight,
           textAlign: 'left'
         };
         
@@ -828,9 +832,9 @@ export class CanvasRenderer {
     
     const style: TextStyle = {
       family: 'Inter, system-ui, sans-serif',
-      size: 10 * scale,
-      weight: 'normal',
-      color: '#374151',
+      size: normalizeShotTextFontSize(this.storyboardTheme?.[`${type}Text`]?.fontSize) * scale,
+      weight: type === 'action' ? '600' : 'normal',
+      color: this.storyboardTheme?.[`${type}Text`]?.text || '#374151',
       lineHeight: 1.2,
       textAlign: 'left'
     };

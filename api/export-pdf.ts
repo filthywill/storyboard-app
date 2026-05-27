@@ -49,6 +49,9 @@ const DEFAULT_VIEWPORT = {
   height: 2400,
   deviceScaleFactor: 1,
 };
+const DEFAULT_SHOT_TEXT_FONT_SIZE = 12;
+const SHOT_TEXT_FONT_SIZE_MIN = 8;
+const SHOT_TEXT_FONT_SIZE_MAX = 18;
 
 type TimingMarkName =
   | 'request_received'
@@ -212,6 +215,15 @@ function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function normalizeShotTextFontSize(fontSize: unknown): number {
+  if (!isNumber(fontSize)) {
+    return DEFAULT_SHOT_TEXT_FONT_SIZE;
+  }
+
+  const roundedFontSize = Math.round(fontSize);
+  return Math.min(SHOT_TEXT_FONT_SIZE_MAX, Math.max(SHOT_TEXT_FONT_SIZE_MIN, roundedFontSize));
+}
+
 function isPositiveInteger(value: unknown): value is number {
   return Number.isInteger(value) && Number(value) > 0;
 }
@@ -352,6 +364,23 @@ function validatePayload(input: unknown): input is ServerPDFExportPayload {
   }
 
   return Array.isArray(input.pages) && input.pages.length > 0 && input.pages.every((page) => validatePageContent(page));
+}
+
+function normalizePayloadTheme(payload: ServerPDFExportPayload): ServerPDFExportPayload {
+  return {
+    ...payload,
+    theme: {
+      ...payload.theme,
+      actionText: {
+        ...payload.theme.actionText,
+        fontSize: normalizeShotTextFontSize(payload.theme.actionText.fontSize),
+      },
+      scriptText: {
+        ...payload.theme.scriptText,
+        fontSize: normalizeShotTextFontSize(payload.theme.scriptText.fontSize),
+      },
+    },
+  };
 }
 
 function sanitizeFilename(filename: string): string {
@@ -636,7 +665,7 @@ export default async function handler(
       return;
     }
 
-    const payload = parsedBody;
+    const payload = normalizePayloadTheme(parsedBody);
     if (process.env.NODE_ENV === 'development' && payload.debug) {
       console.debug('[server-pdf][api][received-debug]', payload.debug ?? null);
       console.debug('[server-pdf][api][received-shot-sources]', summarizePayloadImageSources(payload));

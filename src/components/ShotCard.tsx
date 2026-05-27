@@ -11,6 +11,7 @@ import { compressImage, getImageSource, revokeImageObjectURL, shouldUseBase64, M
 import { toast } from 'sonner';
 import { SecurityNotificationService } from '@/services/securityNotificationService';
 import { getColor } from '@/styles/glassmorphism-styles';
+import { getShotTextSpacing } from '@/styles/storyboardTheme';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
 
 interface ShotCardProps {
@@ -55,20 +56,30 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
   const scriptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const actionTextSpacing = getShotTextSpacing(storyboardTheme.actionText.fontSize);
+  const scriptTextSpacing = getShotTextSpacing(storyboardTheme.scriptText.fontSize);
 
   useEffect(() => {
-    if (actionTextareaRef.current) {
-      actionTextareaRef.current.style.height = 'auto';
-      actionTextareaRef.current.style.height = `${actionTextareaRef.current.scrollHeight}px`;
-    }
-  }, [shot.actionText]);
+    const animationFrame = requestAnimationFrame(() => {
+      if (actionTextareaRef.current) {
+        actionTextareaRef.current.style.height = 'auto';
+        actionTextareaRef.current.style.height = `${actionTextareaRef.current.scrollHeight}px`;
+      }
+    });
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [shot.actionText, actionTextSpacing.fontSize, actionTextSpacing.blockPaddingY, templateSettings.showActionText]);
 
   useEffect(() => {
-    if (scriptTextareaRef.current) {
-      scriptTextareaRef.current.style.height = 'auto';
-      scriptTextareaRef.current.style.height = `${scriptTextareaRef.current.scrollHeight}px`;
-    }
-  }, [shot.scriptText]);
+    const animationFrame = requestAnimationFrame(() => {
+      if (scriptTextareaRef.current) {
+        scriptTextareaRef.current.style.height = 'auto';
+        scriptTextareaRef.current.style.height = `${scriptTextareaRef.current.scrollHeight}px`;
+      }
+    });
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [shot.scriptText, scriptTextSpacing.fontSize, scriptTextSpacing.blockPaddingY, templateSettings.showScriptText]);
 
   const {
     attributes,
@@ -604,7 +615,11 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                     "text-xs px-1 py-0.5 action-text whitespace-pre-wrap"
                   )}
                   style={{
-                    color: storyboardTheme.actionText.text
+                    color: storyboardTheme.actionText.text,
+                    fontSize: `${actionTextSpacing.fontSize}px`,
+                    lineHeight: actionTextSpacing.lineHeight,
+                    paddingTop: `${actionTextSpacing.blockPaddingY}px`,
+                    paddingBottom: `${actionTextSpacing.blockPaddingY}px`
                   }}
                 >
                   {shot.actionText || ''}
@@ -622,6 +637,10 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                   )}
                   style={{ 
                     color: storyboardTheme.actionText.text,
+                    fontSize: `${actionTextSpacing.fontSize}px`,
+                    lineHeight: actionTextSpacing.lineHeight,
+                    paddingTop: `${actionTextSpacing.blockPaddingY}px`,
+                    paddingBottom: `${actionTextSpacing.blockPaddingY}px`,
                     ['--placeholder-color' as any]: storyboardTheme.actionText.text
                   }}
                   maxLength={200}
@@ -639,7 +658,11 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                     "text-xs px-1 py-0.5 script-text whitespace-pre-wrap"
                   )}
                   style={{
-                    color: storyboardTheme.scriptText.text
+                    color: storyboardTheme.scriptText.text,
+                    fontSize: `${scriptTextSpacing.fontSize}px`,
+                    lineHeight: scriptTextSpacing.lineHeight,
+                    paddingTop: `${scriptTextSpacing.blockPaddingY}px`,
+                    paddingBottom: `${scriptTextSpacing.blockPaddingY}px`
                   }}
                 >
                   {shot.scriptText || ''}
@@ -657,6 +680,10 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                   )}
                   style={{ 
                     color: storyboardTheme.scriptText.text,
+                    fontSize: `${scriptTextSpacing.fontSize}px`,
+                    lineHeight: scriptTextSpacing.lineHeight,
+                    paddingTop: `${scriptTextSpacing.blockPaddingY}px`,
+                    paddingBottom: `${scriptTextSpacing.blockPaddingY}px`,
                     ['--placeholder-color' as any]: storyboardTheme.scriptText.text
                   }}
                   maxLength={200}
@@ -699,6 +726,8 @@ const ExportShotCard: React.FC<ShotCardProps> = ({
   const containerHeight = previewDimensions.imageHeight;
   const actualOffsetX = (shot.imageOffsetX || 0) * containerWidth;
   const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
+  const actionTextSpacing = getShotTextSpacing(theme.actionText.fontSize);
+  const scriptTextSpacing = getShotTextSpacing(theme.scriptText.fontSize);
 
   return (
     <div
@@ -786,7 +815,11 @@ const ExportShotCard: React.FC<ShotCardProps> = ({
                   "text-xs px-1 py-0.5 action-text whitespace-pre-wrap"
                 )}
                 style={{
-                  color: theme.actionText.text
+                  color: theme.actionText.text,
+                  fontSize: `${actionTextSpacing.fontSize}px`,
+                  lineHeight: actionTextSpacing.lineHeight,
+                  paddingTop: `${actionTextSpacing.blockPaddingY}px`,
+                  paddingBottom: `${actionTextSpacing.blockPaddingY}px`
                 }}
               >
                 {shot.actionText || ''}
@@ -800,7 +833,11 @@ const ExportShotCard: React.FC<ShotCardProps> = ({
                   "text-xs px-1 py-0.5 script-text whitespace-pre-wrap"
                 )}
                 style={{
-                  color: theme.scriptText.text
+                  color: theme.scriptText.text,
+                  fontSize: `${scriptTextSpacing.fontSize}px`,
+                  lineHeight: scriptTextSpacing.lineHeight,
+                  paddingTop: `${scriptTextSpacing.blockPaddingY}px`,
+                  paddingBottom: `${scriptTextSpacing.blockPaddingY}px`
                 }}
               >
                 {shot.scriptText || ''}

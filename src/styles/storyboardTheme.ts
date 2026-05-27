@@ -49,13 +49,42 @@ export interface StoryboardTheme {
   // Action text styling
   actionText: {
     text: string;        // rgba(0, 0, 0, 0.8)
+    fontSize: number;   // 12 (in pixels)
   };
   
   // Script text styling
   scriptText: {
     text: string;        // rgba(0, 0, 0, 0.6)
+    fontSize: number;   // 12 (in pixels)
   };
 }
+
+export const DEFAULT_SHOT_TEXT_FONT_SIZE = 12;
+export const SHOT_TEXT_FONT_SIZE_MIN = 8;
+export const SHOT_TEXT_FONT_SIZE_MAX = 18;
+export const SHOT_TEXT_FONT_SIZE_STEP = 1;
+
+export const normalizeShotTextFontSize = (fontSize: unknown): number => {
+  if (typeof fontSize !== 'number' || !Number.isFinite(fontSize)) {
+    return DEFAULT_SHOT_TEXT_FONT_SIZE;
+  }
+
+  const roundedFontSize = Math.round(fontSize);
+  return Math.min(SHOT_TEXT_FONT_SIZE_MAX, Math.max(SHOT_TEXT_FONT_SIZE_MIN, roundedFontSize));
+};
+
+export const SHOT_TEXT_LINE_HEIGHT = 1.2;
+
+export const getShotTextSpacing = (fontSize: unknown) => {
+  const normalizedFontSize = normalizeShotTextFontSize(fontSize);
+
+  return {
+    fontSize: normalizedFontSize,
+    lineHeight: SHOT_TEXT_LINE_HEIGHT,
+    blockPaddingY: Math.max(1, Math.round(normalizedFontSize * 0.16)),
+    domTextYOffset: Math.max(3, Math.round(normalizedFontSize * 0.35)),
+  };
+};
 
 /**
  * Preset Themes
@@ -92,9 +121,11 @@ export const PRESET_THEMES: Record<string, StoryboardTheme> = {
     },
     actionText: {
       text: '#333333',
+      fontSize: DEFAULT_SHOT_TEXT_FONT_SIZE,
     },
     scriptText: {
       text: '#666666',
+      fontSize: DEFAULT_SHOT_TEXT_FONT_SIZE,
     },
   },
   
@@ -129,9 +160,11 @@ export const PRESET_THEMES: Record<string, StoryboardTheme> = {
     },
     actionText: {
       text: '#dddddd',
+      fontSize: DEFAULT_SHOT_TEXT_FONT_SIZE,
     },
     scriptText: {
       text: '#aaaaaa',
+      fontSize: DEFAULT_SHOT_TEXT_FONT_SIZE,
     },
   },
 };
@@ -154,9 +187,8 @@ export const getDefaultTheme = (): StoryboardTheme => {
  * Migrate old theme to include new shotNumber border properties if missing
  */
 export const migrateTheme = (theme: any): StoryboardTheme => {
-  // If it's a valid preset, return it as-is
-  if (theme.isPreset && PRESET_THEMES[theme.id as keyof typeof PRESET_THEMES]) {
-    return theme as StoryboardTheme;
+  if (!theme) {
+    return getDefaultTheme();
   }
 
   // If it's missing shotNumber border properties, add defaults
@@ -184,6 +216,19 @@ export const migrateTheme = (theme: any): StoryboardTheme => {
       }
     } as StoryboardTheme;
   }
+
+  // If it's missing shot text font sizes, add safe defaults
+  theme = {
+    ...theme,
+    actionText: {
+      ...theme.actionText,
+      fontSize: normalizeShotTextFontSize(theme.actionText?.fontSize),
+    },
+    scriptText: {
+      ...theme.scriptText,
+      fontSize: normalizeShotTextFontSize(theme.scriptText?.fontSize),
+    },
+  } as StoryboardTheme;
 
   return theme as StoryboardTheme;
 };
