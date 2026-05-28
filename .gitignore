@@ -31,3 +31,9 @@ dist-ssr
 TO DO NOTES
 
 .vercel
+
+# Manual PDF export smoke test artifacts (curl output)
+smoke-*
+
+# Supabase CLI release tarball — use package manager; migrations live in supabase/
+supabase.tar.gz
