@@ -11,7 +11,7 @@ export class CloudProjectSyncService {
   private static isLoadingProject = false;
   private static readonly DEFAULT_SHOT_NUMBER_FORMAT = '01';
   private static readonly DEFAULT_TEMPLATE_SETTINGS = {
-    showLogo: true,
+    showLogo: false,
     showProjectName: true,
     showProjectInfo: true,
     showClientAgency: true,

@@ -200,7 +200,7 @@ export const useStoryboardStore = create<StoryboardStore>()(
       isExporting: false,
       showDeleteConfirmation: true,
       templateSettings: {
-        showLogo: true,
+        showLogo: false,
         showProjectName: true,
         showProjectInfo: true,
         showClientAgency: true,

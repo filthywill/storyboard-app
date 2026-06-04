@@ -2,6 +2,25 @@ import { supabase } from '@/lib/supabase'
 import { SecurityNotificationService } from './securityNotificationService'
 import { authRateLimiter } from '@/utils/rateLimiter'
 
+export type SessionValidationReason =
+  | 'valid'
+  | 'restored_local_session'
+  | 'missing_local_session'
+  | 'no_authenticated_user'
+  | 'unconfirmed_user'
+  | 'expired'
+  | 'unknown';
+
+export interface SessionValidationResult {
+  isValid: boolean;
+  reason: SessionValidationReason;
+}
+
+interface EnsureCurrentSessionResult {
+  ok: boolean;
+  reason: Exclude<SessionValidationReason, 'expired'>;
+}
+
 /** Canonical site URL for auth redirects (e.g. confirmation emails). Uses VITE_SITE_URL in production. */
 function getSiteUrl(): string {
   const raw = import.meta.env.VITE_SITE_URL
@@ -258,11 +277,18 @@ export class AuthService {
     }
   }
 
-  static async validateCurrentSession(): Promise<boolean> {
+  static async validateCurrentSession(): Promise<SessionValidationResult> {
     try {
       if (!this.currentSessionId) {
-        console.log('No current session ID, validation failed');
-        return false;
+        console.warn('No current session ID, attempting to restore local session reference');
+        const ensureResult = await this.ensureCurrentSession();
+        if (ensureResult.ok) {
+          console.log('Session ID restored for authenticated user');
+          return { isValid: true, reason: 'restored_local_session' };
+        }
+
+        console.warn('Unable to restore current session ID:', ensureResult.reason);
+        return { isValid: false, reason: ensureResult.reason };
       }
 
       const { data: session, error } = await supabase
@@ -273,15 +299,15 @@ export class AuthService {
 
       if (error) {
         console.error('Session validation error:', error);
-        return false;
+        return { isValid: false, reason: 'unknown' };
       }
 
       const isValid = session?.is_active === true;
       console.log('Session validation result:', { sessionId: this.currentSessionId, isValid });
-      return isValid;
+      return { isValid, reason: isValid ? 'valid' : 'expired' };
     } catch (error) {
       console.error('Error validating session:', error);
-      return false;
+      return { isValid: false, reason: 'unknown' };
     }
   }
 
@@ -300,6 +326,33 @@ export class AuthService {
 
   static getCurrentSessionId(): string | null {
     return this.currentSessionId;
+  }
+
+  static async ensureCurrentSession(): Promise<EnsureCurrentSessionResult> {
+    if (this.currentSessionId) {
+      return { ok: true, reason: 'valid' };
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return { ok: false, reason: 'no_authenticated_user' };
+      }
+
+      if (!this.isUserConfirmed(user)) {
+        return { ok: false, reason: 'unconfirmed_user' };
+      }
+
+      await this.initializeCurrentSession();
+      if (this.currentSessionId) {
+        return { ok: true, reason: 'restored_local_session' };
+      }
+
+      return { ok: false, reason: 'missing_local_session' };
+    } catch (error) {
+      console.error('Error ensuring current session:', error);
+      return { ok: false, reason: 'unknown' };
+    }
   }
 
   static async cleanupExpiredSessions(): Promise<void> {

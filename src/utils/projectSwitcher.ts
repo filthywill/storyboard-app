@@ -27,6 +27,24 @@ import { resolvePageSizeMode } from '@/utils/pageSize';
 export class ProjectSwitcher {
   private static isSwitching = false;
 
+  private static createDefaultShotData() {
+    const now = new Date();
+
+    return {
+      id: crypto.randomUUID(),
+      number: '01',
+      subShotGroupId: null,
+      imageFile: null,
+      imageScale: 1.0,
+      imageOffsetX: 0,
+      imageOffsetY: 0,
+      actionText: '',
+      scriptText: '',
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
   private static resolvePersistedProjectLogoUrl(
     projectLogoUrl: string | null | undefined,
     projectLogoDataUrl: string | null | undefined
@@ -771,7 +789,7 @@ export class ProjectSwitcher {
         jobInfo: 'Job Info',
         pageSizeMode: 'dynamic',
         templateSettings: {
-          showLogo: true,
+          showLogo: false,
           showProjectName: true,
           showProjectInfo: true,
           showClientAgency: true,
@@ -809,11 +827,13 @@ export class ProjectSwitcher {
    */
   private static applyDefaultStateToStores(projectName?: string): void {
     try {
+      const defaultShot = this.createDefaultShotData();
+
       // Create default page data
       const defaultPage = {
         id: crypto.randomUUID(),
         name: 'Page 1',
-        shots: [],
+        shots: [defaultShot.id],
         gridRows: 2,
         gridCols: 4,
         aspectRatio: '16/9',
@@ -828,8 +848,10 @@ export class ProjectSwitcher {
       });
 
       useShotStore.setState({
-        shots: {},
-        shotOrder: [],
+        shots: {
+          [defaultShot.id]: defaultShot,
+        },
+        shotOrder: [defaultShot.id],
       });
 
       useProjectStore.setState({
@@ -842,7 +864,7 @@ export class ProjectSwitcher {
         jobInfo: 'Job Info',
         pageSizeMode: 'dynamic',
         templateSettings: {
-          showLogo: true,
+          showLogo: false,
           showProjectName: true,
           showProjectInfo: true,
           showClientAgency: true,
@@ -869,11 +891,13 @@ export class ProjectSwitcher {
    */
   private static initializeNewProjectWithDefaults(projectId: string, projectName?: string): void {
     try {
+      const defaultShot = this.createDefaultShotData();
+
       // Create default page data
       const defaultPage = {
         id: crypto.randomUUID(),
         name: 'Page 1',
-        shots: [],
+        shots: [defaultShot.id],
         gridRows: 2,
         gridCols: 4,
         aspectRatio: '16/9',
@@ -888,8 +912,10 @@ export class ProjectSwitcher {
 
       // Create default shot data (empty)
       const shotData = {
-        shots: {},
-        shotOrder: [],
+        shots: {
+          [defaultShot.id]: defaultShot,
+        },
+        shotOrder: [defaultShot.id],
       };
 
       // Create default project data
@@ -902,7 +928,7 @@ export class ProjectSwitcher {
         jobInfo: 'Job Info',
         pageSizeMode: 'dynamic',
         templateSettings: {
-          showLogo: true,
+          showLogo: false,
           showProjectName: true,
           showProjectInfo: true,
           showClientAgency: true,

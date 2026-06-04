@@ -14,7 +14,8 @@ interface OfflineBannerProps {
 
 export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
   const { isOnline, isReconnecting } = useNetworkStatus()
-  const { logoutReason, setLogoutReason } = useAuthStore()
+  const { authStatus, logoutReason, setLogoutReason } = useAuthStore()
+  const isEmailVerificationPending = authStatus === 'authenticated_unconfirmed'
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     totalPending: 0,
     totalSyncing: 0,
@@ -86,8 +87,15 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
     }
   }, [setLogoutReason])
   
+  const shouldShowCloudQueueStatus = !isEmailVerificationPending
+  const shouldShowFailedUploadWarning = shouldShowCloudQueueStatus && syncStatus.totalFailed > 0
+  const shouldShowSyncingStatus = shouldShowCloudQueueStatus && syncStatus.isProcessing
+  const shouldShowPendingUploadStatus = shouldShowCloudQueueStatus && syncStatus.totalPending > 0
+  const hasVisibleQueueStatus =
+    shouldShowFailedUploadWarning || shouldShowSyncingStatus || shouldShowPendingUploadStatus
+  
   // Don't show banner if online and no queued changes and no session issues and no security warnings
-  if (isOnline && !syncStatus.isProcessing && syncStatus.totalPending === 0 && syncStatus.totalFailed === 0 && logoutReason !== 'expired' && !sessionTimeout && !securityWarning) return null
+  if (isOnline && !hasVisibleQueueStatus && logoutReason !== 'expired' && !sessionTimeout && !securityWarning) return null
   
   const getStatusMessage = () => {
     // Session expiry takes priority
@@ -110,15 +118,18 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
       return '📡 You\'re offline - changes are saving locally and will sync when you reconnect'
     }
     
-    if (syncStatus.isProcessing) {
-      return `🔄 Syncing ${syncStatus.totalPending} pending uploads...`
+    if (shouldShowSyncingStatus) {
+      const syncingCount = syncStatus.totalSyncing + syncStatus.totalPending
+      return syncingCount > 0
+        ? `🔄 Syncing ${syncingCount} upload(s)...`
+        : '🔄 Syncing uploads...'
     }
     
-    if (syncStatus.totalFailed > 0) {
+    if (shouldShowFailedUploadWarning) {
       return `❌ ${syncStatus.totalFailed} upload(s) failed - will retry automatically`
     }
     
-    if (syncStatus.totalPending > 0) {
+    if (shouldShowPendingUploadStatus) {
       return `⏳ ${syncStatus.totalPending} upload(s) queued for sync`
     }
     
@@ -143,10 +154,10 @@ export function OfflineBanner({ onSignIn }: OfflineBannerProps = {}) {
     if (!isOnline) {
       return { bg: getColor('status', 'offline') as string, border, text: textPrimary }
     }
-    if (syncStatus.totalFailed > 0) {
+    if (shouldShowFailedUploadWarning) {
       return { bg: getColor('status', 'error') as string, border, text: textPrimary }
     }
-    if (syncStatus.isProcessing || syncStatus.totalPending > 0) {
+    if (shouldShowSyncingStatus || shouldShowPendingUploadStatus) {
       return { bg: getColor('status', 'info') as string, border, text: textPrimary }
     }
     return { bg: getColor('status', 'success') as string, border, text: textPrimary }

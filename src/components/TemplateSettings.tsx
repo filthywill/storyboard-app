@@ -49,7 +49,7 @@ export const TemplateSettings: React.FC = () => {
               type="button"
               className={cn(
                 TOOLBAR_STYLES.containerClasses,
-                "h-[30px] justify-center transition-all duration-200",
+                "h-[30px] px-2.5 justify-center transition-all duration-200",
                 "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent",
                 "active:outline-none active:ring-0 active:border-transparent",
                 "hover:border-transparent",

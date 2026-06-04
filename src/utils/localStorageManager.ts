@@ -193,7 +193,7 @@ export class LocalStorageManager {
         clientAgency: parsed.clientAgency || 'Client/Agency',
         jobInfo: parsed.jobInfo || 'Job Info',
         templateSettings: parsed.templateSettings || {
-          showLogo: true,
+          showLogo: false,
           showProjectName: true,
           showProjectInfo: true,
           showClientAgency: true,

@@ -95,15 +95,64 @@ export class ProjectService {
     }
   
     const now = new Date().toISOString();
-    // Create empty project data entry
+    const defaultPageId = crypto.randomUUID();
+    const defaultShotId = crypto.randomUUID();
+
+    // Create default project data entry with one empty shot.
     const { error: dataError } = await supabase
       .from("project_data")
       .insert({
         project_id: data.id,
-        pages: [],
-        shots: {},
-        project_settings: {},
-        ui_settings: {},
+        pages: [{
+          id: defaultPageId,
+          name: 'Page 1',
+          shots: [defaultShotId],
+          gridRows: 2,
+          gridCols: 4,
+          aspectRatio: '16/9',
+          createdAt: now,
+          updatedAt: now,
+        }],
+        shots: {
+          [defaultShotId]: {
+            id: defaultShotId,
+            number: '01',
+            subShotGroupId: null,
+            imageFile: null,
+            imageScale: 1.0,
+            imageOffsetX: 0,
+            imageOffsetY: 0,
+            actionText: '',
+            scriptText: '',
+            createdAt: now,
+            updatedAt: now,
+          },
+        },
+        shot_order: [defaultShotId],
+        project_settings: {
+          projectName: name || 'Project Name',
+          projectInfo: 'Project Info',
+          projectLogoUrl: null,
+          clientAgency: 'Client/Agency',
+          jobInfo: 'Job Info',
+          pageSizeMode: 'dynamic',
+          templateSettings: {
+            showLogo: false,
+            showProjectName: true,
+            showProjectInfo: true,
+            showClientAgency: true,
+            showJobInfo: true,
+            showActionText: true,
+            showScriptText: true,
+            showPageNumber: true,
+            shotNumberFormat: '01',
+          },
+        },
+        ui_settings: {
+          isDragging: false,
+          isExporting: false,
+          showDeleteConfirmation: true,
+        },
         updated_at: now
       });
   

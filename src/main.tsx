@@ -8,6 +8,14 @@ const AUTH_BROADCAST_CHANNEL = 'sbflow_auth';
 const CONFIRM_HANDLED_KEY = 'sbflow_confirm_handled';
 const CONFIRM_COMPLETE_FLAG = 'confirmComplete';
 
+type AuthSubscriptionResult = {
+  data?: {
+    subscription?: {
+      unsubscribe: () => void;
+    };
+  };
+};
+
 function isSupabaseAuthArtifactPresent(): boolean {
   if (typeof window === 'undefined') return false;
 
@@ -67,22 +75,10 @@ function ConfirmationCompleteScreen() {
       <div className="w-full max-w-md text-center rounded-xl bg-black/40 border border-white/10 p-6 shadow-2xl">
         <h1 className="text-lg font-semibold text-white">Email confirmed</h1>
         <p className="mt-2 text-sm text-white/70">
-          Return to your original tab to continue. You can close this tab.
+          Your account has been successfully verified.
         </p>
-        <button
-          className="mt-5 w-full h-10 rounded-md bg-white/10 hover:bg-white/15 text-white text-sm font-medium border border-white/15"
-          onClick={() => {
-            try {
-              window.close();
-            } catch {
-              // ignored
-            }
-          }}
-        >
-          Close this tab
-        </button>
         <p className="mt-3 text-xs text-white/60">
-          If this tab doesn’t close, just switch back to your original StoryboardFlow tab. Continuing here may not recover unsynced local work.
+          You can close this tab and return to StoryboardFlow.
         </p>
       </div>
     </div>
@@ -296,7 +292,7 @@ async function waitForSessionUser(timeoutMs: number): Promise<boolean> {
         }
       });
       // supabase-js v2 returns { data: { subscription } }
-      subscription = (result as any)?.data?.subscription ?? null;
+      subscription = (result as AuthSubscriptionResult).data?.subscription ?? null;
     } catch {
       subscription = null;
     }
@@ -325,14 +321,6 @@ async function waitForSessionUser(timeoutMs: number): Promise<boolean> {
 async function bootstrap(): Promise<void> {
   // Safe landing mode: never boot the full app here.
   if (isConfirmCompleteMode()) {
-    // Attempt to close again (may be blocked)
-    setTimeout(() => {
-      try {
-        window.close();
-      } catch {
-        // ignored
-      }
-    }, 200);
     root.render(<ConfirmationCompleteScreen />);
     return;
   }
@@ -367,15 +355,6 @@ async function bootstrap(): Promise<void> {
     clearAuthArtifactsFromUrl();
 
     broadcastAuthConfirmed();
-
-    // Attempt to close this confirmation tab (may be blocked by browser policy)
-    setTimeout(() => {
-      try {
-        window.close();
-      } catch {
-        // ignored
-      }
-    }, 200);
 
     root.render(<ConfirmationCompleteScreen />);
     return;

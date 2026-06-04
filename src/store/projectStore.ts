@@ -71,7 +71,7 @@ export interface ProjectActions {
 export type ProjectStore = ProjectState & ProjectActions;
 
 const defaultTemplateSettings: TemplateSettings = {
-  showLogo: true,
+  showLogo: false,
   showProjectName: true,
   showProjectInfo: true,
   showClientAgency: true,

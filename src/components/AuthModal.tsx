@@ -7,11 +7,15 @@ import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
 import { Github, Chrome, Apple } from 'lucide-react'
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles'
+import { AuthService } from '@/services/authService'
 
 interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
 }
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -19,6 +23,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [signupNoticeEmail, setSignupNoticeEmail] = useState<string | null>(null)
   const idBase = useId()
   const emailId = `${idBase}-email`
   const passwordId = `${idBase}-password`
@@ -33,15 +38,42 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     try {
       if (isSignUp) {
         await signUp(email, password, displayName)
+        setSignupNoticeEmail(email)
       } else {
         await signIn(email, password)
         toast.success('Signed in successfully!')
+        onClose()
       }
       // Reset any previous forced-logout reason once user successfully authenticates
       setLogoutReason('none')
-      onClose()
-    } catch (error: any) {
-      toast.error(error.message || 'Authentication failed')
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Authentication failed'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleContinueAfterSignup = () => {
+    setSignupNoticeEmail(null)
+    onClose()
+  }
+
+  const handleModalOpenChange = (open: boolean) => {
+    if (open) return
+    setSignupNoticeEmail(null)
+    onClose()
+  }
+
+  const handleChangeEmailAfterSignup = async () => {
+    setLoading(true)
+    try {
+      await AuthService.signOut()
+      setSignupNoticeEmail(null)
+      setIsSignUp(true)
+      setEmail('')
+      setPassword('')
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to change email'))
     } finally {
       setLoading(false)
     }
@@ -61,42 +93,93 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       // Reset any previous forced-logout reason
       setLogoutReason('none')
       // Note: User will be redirected, so we don't close the modal here
-    } catch (error: any) {
-      toast.error(error.message || `${provider} authentication failed`)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, `${provider} authentication failed`))
       setLoading(false)
     }
   }
   
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog open={isOpen} onOpenChange={handleModalOpenChange}>
       <DialogContent 
         className="sm:max-w-[360px]"
         style={getGlassmorphismStyles('dark')}
       >
-        <DialogHeader className="text-center space-y-2">
-          <DialogTitle 
-            className="text-2xl font-bold"
-            style={{ 
-              color: getColor('text', 'primary') as string,
-              textAlign: 'center'
-            }}
-          >
-            {isSignUp ? 'Create Account' : 'Sign In'}
-          </DialogTitle>
-          <DialogDescription 
-            className="text-sm"
-            style={{ 
-              color: getColor('text', 'secondary') as string,
-              textAlign: 'center'
-            }}
-          >
-            {isSignUp ? (
-              <>Already have an account? <button type="button" onClick={() => setIsSignUp(false)} style={{ color: getColor('button', 'primary') as string, textDecoration: 'underline' }}>Sign in</button></>
-            ) : (
-              <>New user? <button type="button" onClick={() => setIsSignUp(true)} style={{ color: getColor('button', 'primary') as string, textDecoration: 'underline' }}>Create an account</button></>
-            )}
-          </DialogDescription>
-        </DialogHeader>
+        {signupNoticeEmail ? (
+          <>
+            <DialogHeader className="text-center space-y-2">
+              <DialogTitle
+                className="text-2xl font-bold"
+                style={{
+                  color: getColor('text', 'primary') as string,
+                  textAlign: 'center'
+                }}
+              >
+                Check your inbox
+              </DialogTitle>
+              <DialogDescription
+                className="text-sm"
+                style={{
+                  color: getColor('text', 'secondary') as string,
+                  textAlign: 'center'
+                }}
+              >
+                We sent a verification email to:
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 px-4 pb-4 text-center">
+              <p className="text-sm font-medium" style={{ color: getColor('text', 'primary') as string }}>
+                {signupNoticeEmail}
+              </p>
+              <p className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                You can continue using StoryboardFlow while you verify your account. Your work stays saved on this device until verification is complete.
+              </p>
+              <Button
+                type="button"
+                className="w-full"
+                style={getGlassmorphismStyles('buttonAccent')}
+                onClick={handleContinueAfterSignup}
+                disabled={loading}
+              >
+                Continue
+              </Button>
+              <Button
+                type="button"
+                className="w-full"
+                style={getGlassmorphismStyles('buttonSecondary')}
+                onClick={() => void handleChangeEmailAfterSignup()}
+                disabled={loading}
+              >
+                Change email
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <DialogHeader className="text-center space-y-2">
+              <DialogTitle 
+                className="text-2xl font-bold"
+                style={{ 
+                  color: getColor('text', 'primary') as string,
+                  textAlign: 'center'
+                }}
+              >
+                {isSignUp ? 'Create Account' : 'Sign In'}
+              </DialogTitle>
+              <DialogDescription 
+                className="text-sm"
+                style={{ 
+                  color: getColor('text', 'secondary') as string,
+                  textAlign: 'center'
+                }}
+              >
+                {isSignUp ? (
+                  <>Already have an account? <button type="button" onClick={() => setIsSignUp(false)} style={{ color: getColor('button', 'primary') as string, textDecoration: 'underline' }}>Sign in</button></>
+                ) : (
+                  <>New user? <button type="button" onClick={() => setIsSignUp(true)} style={{ color: getColor('button', 'primary') as string, textDecoration: 'underline' }}>Create an account</button></>
+                )}
+              </DialogDescription>
+            </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 px-4">
           {isSignUp && (
@@ -225,6 +308,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             Continue with Apple
           </Button>
         </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )

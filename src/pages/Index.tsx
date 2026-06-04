@@ -45,6 +45,9 @@ import {
 
 const AUTH_BROADCAST_CHANNEL = 'sbflow_auth';
 const AUTH_CONFIRMED_STALE_MS = 60_000;
+const RESEND_COOLDOWN_SECONDS = 60;
+const VERIFICATION_RETRY_INTERVAL_MS = 2_000;
+const VERIFICATION_RETRY_WINDOW_MS = 14_000;
 
 const Index = () => {
   const { 
@@ -97,17 +100,31 @@ const Index = () => {
   const showReadOnlyOverlay = Boolean(
     currentProject?.id && (isReadOnlyLease || isTakeoverPending)
   );
-  const isUnconfirmedEmail = authStatus === 'authenticated_unconfirmed';
-  const confirmOverlayRef = useRef<HTMLDivElement | null>(null);
-  const handleCheckConfirmedRef = useRef<() => Promise<void>>(async () => {});
-  const [isConfirmingEmail, setIsConfirmingEmail] = useState(false);
+  const isUnconfirmedEmail = isAuthenticated && authStatus === 'authenticated_unconfirmed';
+  const refreshEmailConfirmationStatusRef = useRef<(options?: { silent?: boolean; showSuccess?: boolean }) => Promise<boolean>>(async () => false);
+  const runVerificationRefreshWithRetryRef = useRef<(showSuccess: boolean) => void>(() => {});
+  const [isRefreshingVerification, setIsRefreshingVerification] = useState(false);
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
+  const [resendError, setResendError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
+  const verificationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const verificationRetryStartedAtRef = useRef<number | null>(null);
   const [isStorageCritical, setIsStorageCritical] = useState(false);
+
+  const clearVerificationRetry = () => {
+    if (verificationRetryTimerRef.current) {
+      clearTimeout(verificationRetryTimerRef.current);
+      verificationRetryTimerRef.current = null;
+    }
+    verificationRetryStartedAtRef.current = null;
+  };
   
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      clearVerificationRetry();
     };
   }, []);
 
@@ -128,6 +145,11 @@ const Index = () => {
         setShowLimitDialog(true);
         return;
       }
+      setShowCreateProjectDialog(true);
+      return;
+    }
+
+    if (isUnconfirmedEmail) {
       setShowCreateProjectDialog(true);
       return;
     }
@@ -153,6 +175,12 @@ const Index = () => {
       return;
     }
 
+    if (isUnconfirmedEmail) {
+      setShowProjectPicker(false);
+      setShowCreateProjectDialog(true);
+      return;
+    }
+
     try {
       const canCreate = await canCreateProjectServerSide(user?.id);
       if (!canCreate) {
@@ -169,14 +197,20 @@ const Index = () => {
   };
 
   const handleResendConfirmation = async () => {
-    if (!user?.email) return;
+    if (!user?.email || resendStatus === 'sending' || resendCooldownSeconds > 0) return;
+    setResendStatus('sending');
+    setResendError(null);
     try {
       const { AuthService } = await import('@/services/authService');
       await AuthService.resendConfirmationEmail(user.email);
-      toast.success('Confirmation email sent');
-    } catch (error) {
+      setResendStatus('sent');
+      setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
+    } catch (error: unknown) {
       console.error('Failed to resend confirmation email:', error);
-      toast.error('Failed to resend confirmation email');
+      setResendStatus('error');
+      setResendError(
+        error instanceof Error ? error.message : 'Failed to resend verification email.'
+      );
     }
   };
 
@@ -191,7 +225,9 @@ const Index = () => {
     }
   };
 
-  const handleCheckConfirmed = async () => {
+  const refreshEmailConfirmationStatus = async (
+    options: { silent?: boolean; showSuccess?: boolean } = {}
+  ): Promise<boolean> => {
     try {
       const { AuthService } = await import('@/services/authService');
       const refreshedUser = await AuthService.getCurrentUser();
@@ -207,21 +243,68 @@ const Index = () => {
         };
         useAuthStore.getState().setUser(normalizedUser);
         await AuthService.ensureUserProfile(refreshedUser);
+        await AuthService.initializeSessionManagement();
         const { CloudAccessService } = await import('@/services/cloudAccessService');
         CloudAccessService.clearCache();
-        toast.success('Email confirmed — project saved to your account.');
-        return;
+        if (options.showSuccess !== false) {
+          toast.success('Email verified');
+        }
+        return true;
       }
 
-      toast.error('Email not confirmed yet. Please check your inbox.');
+      if (!options.silent) {
+        toast.error('Email not verified yet. Please check your inbox.');
+      }
+      return false;
     } catch (error) {
       console.error('Confirmation check failed:', error);
-      toast.error('Could not verify confirmation status');
+      if (!options.silent) {
+        toast.error('Could not verify confirmation status');
+      }
+      return false;
     }
   };
 
-  // Keep ref updated to avoid stale closures in broadcast listener
-  handleCheckConfirmedRef.current = handleCheckConfirmed;
+  // Keep ref updated to avoid stale closures in broadcast/focus listeners
+  refreshEmailConfirmationStatusRef.current = refreshEmailConfirmationStatus;
+
+  runVerificationRefreshWithRetryRef.current = (showSuccess: boolean) => {
+    if (verificationRetryStartedAtRef.current !== null) return;
+    verificationRetryStartedAtRef.current = Date.now();
+
+    const attempt = async () => {
+      if (useAuthStore.getState().authStatus !== 'authenticated_unconfirmed') {
+        clearVerificationRetry();
+        return;
+      }
+
+      if (isMountedRef.current) setIsRefreshingVerification(true);
+      let verified = false;
+      try {
+        verified = await refreshEmailConfirmationStatusRef.current({ silent: true, showSuccess });
+      } finally {
+        if (isMountedRef.current) setIsRefreshingVerification(false);
+      }
+
+      if (verified || useAuthStore.getState().authStatus !== 'authenticated_unconfirmed') {
+        clearVerificationRetry();
+        return;
+      }
+
+      const startedAt = verificationRetryStartedAtRef.current ?? Date.now();
+      if (Date.now() - startedAt >= VERIFICATION_RETRY_WINDOW_MS) {
+        clearVerificationRetry();
+        return;
+      }
+
+      verificationRetryTimerRef.current = setTimeout(() => {
+        verificationRetryTimerRef.current = null;
+        void attempt();
+      }, VERIFICATION_RETRY_INTERVAL_MS);
+    };
+
+    void attempt();
+  };
 
   // Listen for auth confirmation events from the confirmation tab.
   // Safety: ignore unless we are currently in authenticated_unconfirmed state.
@@ -231,7 +314,7 @@ const Index = () => {
 
     const channel = new BroadcastChannel(AUTH_BROADCAST_CHANNEL);
     const onMessage = async (event: MessageEvent) => {
-      const payload = (event as any)?.data;
+      const payload = event.data as { type?: string; at?: unknown } | null;
       if (!payload || payload.type !== 'AUTH_CONFIRMED') return;
 
       const at = typeof payload.at === 'number' ? payload.at : null;
@@ -243,12 +326,7 @@ const Index = () => {
       const currentStatus = useAuthStore.getState().authStatus;
       if (currentStatus !== 'authenticated_unconfirmed') return;
 
-      if (isMountedRef.current) setIsConfirmingEmail(true);
-      try {
-        await handleCheckConfirmedRef.current();
-      } finally {
-        if (isMountedRef.current) setIsConfirmingEmail(false);
-      }
+      runVerificationRefreshWithRetryRef.current(true);
     };
 
     channel.addEventListener('message', onMessage);
@@ -258,22 +336,50 @@ const Index = () => {
     };
   }, []);
 
-  // When showing the unconfirmed overlay, focus it to keep keyboard interactions contained.
+  useEffect(() => {
+    if (resendCooldownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldownSeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldownSeconds]);
+
   useEffect(() => {
     if (!isUnconfirmedEmail) return;
-    confirmOverlayRef.current?.focus();
+    if (typeof window === 'undefined') return;
+
+    const refreshIfVisible = async (showSuccess: boolean) => {
+      if (document.visibilityState === 'hidden') return;
+      runVerificationRefreshWithRetryRef.current(showSuccess);
+    };
+
+    const handleFocus = () => {
+      void refreshIfVisible(true);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshIfVisible(true);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const verificationInterval = setInterval(() => {
+      void refreshIfVisible(false);
+    }, 60_000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(verificationInterval);
+    };
   }, [isUnconfirmedEmail]);
 
-  // Lock background scrolling while the unconfirmed overlay is shown.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!isUnconfirmedEmail) return;
-    const body = document.body;
-    const prevOverflow = body.style.overflow;
-    body.style.overflow = 'hidden';
-    return () => {
-      body.style.overflow = prevOverflow;
-    };
+    if (isUnconfirmedEmail) return;
+    setResendStatus('idle');
+    setResendCooldownSeconds(0);
+    setResendError(null);
   }, [isUnconfirmedEmail]);
 
   const reloadProjectFromCloud = async (projectId: string) => {
@@ -542,14 +648,15 @@ const Index = () => {
       } catch (error) {
         console.error('Failed to sync cloud projects:', error);
       } finally {
-        if (cancelled) return;
-        setIsLoadingCloudProjects(false);
-        // After loading completes, check if we need to show project picker
-        const projectManager = useProjectManagerStore.getState();
-        const latestProjects = projectManager.getAllProjects();
-        const latestCurrentProject = projectManager.getCurrentProject();
-        if (!latestCurrentProject && latestProjects.length > 0) {
-          setShowProjectPicker(true);
+        if (!cancelled) {
+          setIsLoadingCloudProjects(false);
+          // After loading completes, check if we need to show project picker
+          const projectManager = useProjectManagerStore.getState();
+          const latestProjects = projectManager.getAllProjects();
+          const latestCurrentProject = projectManager.getCurrentProject();
+          if (!latestCurrentProject && latestProjects.length > 0) {
+            setShowProjectPicker(true);
+          }
         }
       }
     };
@@ -743,10 +850,18 @@ const Index = () => {
       const validateSession = async () => {
         try {
           const { AuthService } = await import('@/services/authService');
-          const isValid = await AuthService.validateCurrentSession();
+          const validation = await AuthService.validateCurrentSession();
           
-          if (!isValid) {
-            console.warn('Session is no longer valid, setting expired reason');
+          if (!validation.isValid) {
+            if (
+              validation.reason === 'missing_local_session' ||
+              validation.reason === 'unknown'
+            ) {
+              console.warn('Session validation could not be confirmed, keeping editor mounted:', validation.reason);
+              return;
+            }
+
+            console.warn('Session is no longer valid, setting expired reason:', validation.reason);
             const { setLogoutReason } = useAuthStore.getState();
             setLogoutReason('expired');
             // Don't force logout - let them continue working locally
@@ -855,7 +970,7 @@ const Index = () => {
         return channel;
       };
       
-      let sessionChannel: any = null;
+      let sessionChannel: ReturnType<typeof supabase.channel> | null = null;
       setupRealtimeSessionMonitoring().then(channel => {
         sessionChannel = channel;
       });
@@ -889,7 +1004,15 @@ const Index = () => {
 
   // STEP 1: Handle forced logout (session expired or logged out from another device)
   if (authStore.logoutReason === 'expired' || authStore.logoutReason === 'other_session') {
-    return <LoggedOutElsewhereScreen onSignIn={openAuthModal} />;
+    const isOtherSession = authStore.logoutReason === 'other_session';
+    return (
+      <LoggedOutElsewhereScreen
+        onSignIn={openAuthModal}
+        title={isOtherSession ? undefined : 'Please sign in again'}
+        message={isOtherSession ? undefined : 'Your session could not be restored. Sign in again to continue.'}
+        buttonText="Sign in again"
+      />
+    );
   }
 
   // STEP 2: Handle auth loading
@@ -920,14 +1043,7 @@ const Index = () => {
   // The EmptyProjectState will show as an overlay when appropriate
   return (
     <div className="min-h-screen flex flex-col relative" style={{ position: 'relative', zIndex: 2 }}>
-      <div
-        aria-hidden={isUnconfirmedEmail ? true : undefined}
-        style={
-          isUnconfirmedEmail
-            ? { pointerEvents: 'none', userSelect: 'none' }
-            : undefined
-        }
-      >
+      <div>
         {/* Header Section (unified AppHeader) */}
         <AppHeader />
         
@@ -938,6 +1054,20 @@ const Index = () => {
           showCreateDialog={showCreateProjectDialog}
           onCloseCreateDialog={() => setShowCreateProjectDialog(false)}
         />
+
+        {isUnconfirmedEmail && (
+          <div className="mx-auto w-full max-w-7xl px-6 pt-4">
+            <ConfirmEmailScreen
+              email={user?.email ?? ''}
+              onResend={handleResendConfirmation}
+              onChangeEmail={handleChangeEmail}
+              resendStatus={resendStatus}
+              resendCooldownSeconds={resendCooldownSeconds}
+              resendError={resendError}
+              isChecking={isRefreshingVerification}
+            />
+          </div>
+        )}
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-6 py-8 flex-grow w-full relative">
@@ -975,7 +1105,9 @@ const Index = () => {
                       </div>
                     ) : (
                       <div className="text-white/80">
-                        {isAuthenticated
+                        {isUnconfirmedEmail
+                          ? 'Auto-saved locally (verify email to enable cloud backup)'
+                          : isAuthenticated
                           ? 'Auto-saved locally (syncs to cloud when available)'
                           : 'Auto-saved to local storage'}
                       </div>
@@ -1104,42 +1236,6 @@ const Index = () => {
           onUpgrade={() => navigate("/billing")}
         />
       </div>
-
-      {isUnconfirmedEmail && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          tabIndex={-1}
-          ref={confirmOverlayRef}
-          onKeyDownCapture={(e) => {
-            e.stopPropagation();
-          }}
-        >
-          <div className="relative">
-            {isConfirmingEmail && (
-              <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-center pt-6">
-                <div
-                  className="flex items-center gap-3 rounded-lg px-4 py-2 shadow-2xl"
-                  style={getGlassmorphismStyles('dark')}
-                >
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white/80"></div>
-                  <div className="text-sm text-white/80">Checking confirmation…</div>
-                </div>
-              </div>
-            )}
-
-            <div style={isConfirmingEmail ? { pointerEvents: 'none' } : undefined}>
-              <ConfirmEmailScreen
-                email={user?.email ?? ''}
-                onResend={handleResendConfirmation}
-                onChangeEmail={handleChangeEmail}
-                onCheckConfirmed={handleCheckConfirmed}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
