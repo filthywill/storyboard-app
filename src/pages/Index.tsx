@@ -110,6 +110,7 @@ const Index = () => {
   const isMountedRef = useRef(true);
   const verificationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const verificationRetryStartedAtRef = useRef<number | null>(null);
+  const hasRecoveredGuestEditorRef = useRef(false);
   const [isStorageCritical, setIsStorageCritical] = useState(false);
 
   const clearVerificationRetry = () => {
@@ -993,6 +994,37 @@ const Index = () => {
       setActivePage(pages[0].id);
     }
   }, [activePageId, pages, setActivePage]);
+
+  // Keep the logged-out welcome overlay backed by the real editor canvas.
+  useEffect(() => {
+    if (isAuthenticated || authLoading || currentProject || isStorageCritical) {
+      hasRecoveredGuestEditorRef.current = false;
+      return;
+    }
+
+    const hasActivePage = pages.some(p => p.id === activePageId);
+    if (hasActivePage) {
+      hasRecoveredGuestEditorRef.current = false;
+      return;
+    }
+
+    if (hasRecoveredGuestEditorRef.current) return;
+    hasRecoveredGuestEditorRef.current = true;
+
+    initializeAppContent();
+    setTimeout(() => {
+      reconcileFromShotOrder();
+    }, 50);
+  }, [
+    activePageId,
+    authLoading,
+    currentProject,
+    initializeAppContent,
+    isAuthenticated,
+    isStorageCritical,
+    pages,
+    reconcileFromShotOrder,
+  ]);
 
 
   const activePage = pages.find(p => p.id === activePageId);
