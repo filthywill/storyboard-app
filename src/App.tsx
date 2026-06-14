@@ -18,7 +18,7 @@ import BillingSuccessPage from "./pages/billing/BillingSuccessPage";
 import BillingCanceledPage from "./pages/billing/BillingCanceledPage";
 import { useAuthStore } from "@/store/authStore";
 import { useAuthModalStore } from "@/store/authModalStore";
-import { AppVersionStamp } from "@/components/system/AppVersionStamp";
+import { AppFooterLinks } from "@/components/system/AppFooterLinks";
 
 const queryClient = new QueryClient();
 
@@ -91,7 +91,7 @@ const AppContent = () => {
         {/* Catch-all MUST be last */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      <AppVersionStamp />
+      <AppFooterLinks />
     </>
   );
 };
