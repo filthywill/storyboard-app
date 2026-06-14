@@ -467,6 +467,7 @@ function summarizeShotImageSources(payload: ServerPDFExportPayload) {
 function buildMasterHeader(payload: ServerPDFExportPayload): HTMLElement {
   const { template, project, theme } = payload;
   const logoSource = getImageSource(project.projectLogo);
+  const showLowerMetadataRow = template.showProjectInfo || template.showJobInfo;
 
   const root = createElement('div', {
     className: 'flex items-end justify-between w-full max-w-5xl mx-auto pt-8 pb-2 gap-6 flex-shrink-0 master-header',
@@ -549,6 +550,24 @@ function buildMasterHeader(payload: ServerPDFExportPayload): HTMLElement {
       })
     );
   }
+  if (showLowerMetadataRow && !template.showProjectInfo) {
+    leftText.appendChild(
+      createElement('div', {
+        className: 'w-full p-0 mt-1 pr-6 text-xs whitespace-pre-wrap invisible pointer-events-none',
+        attrs: {
+          'aria-hidden': 'true',
+        },
+        style: {
+          fontSize: '14px',
+          lineHeight: '1.4',
+          minHeight: '20px',
+          marginTop: '4px',
+          backgroundColor: 'transparent',
+          visibility: 'hidden',
+        },
+      })
+    );
+  }
 
   left.appendChild(leftText);
 
@@ -587,6 +606,24 @@ function buildMasterHeader(payload: ServerPDFExportPayload): HTMLElement {
           marginTop: '4px',
           backgroundColor: 'transparent',
           color: theme.header.text,
+        },
+      })
+    );
+  }
+  if (showLowerMetadataRow && !template.showJobInfo) {
+    right.appendChild(
+      createElement('div', {
+        className: 'w-full p-0 mt-1 text-right pl-6 text-xs whitespace-pre-wrap invisible pointer-events-none',
+        attrs: {
+          'aria-hidden': 'true',
+        },
+        style: {
+          fontSize: '14px',
+          lineHeight: '1.4',
+          minHeight: '20px',
+          marginTop: '4px',
+          backgroundColor: 'transparent',
+          visibility: 'hidden',
         },
       })
     );

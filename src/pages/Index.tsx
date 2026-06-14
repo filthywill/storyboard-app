@@ -799,7 +799,7 @@ const Index = () => {
 
   // Show project picker for authenticated users with no current project (after loading)
   useEffect(() => {
-    if (isAuthenticated && !isLoadingCloudProjects && !currentProject && allProjects.length > 0) {
+    if (isAuthenticated && !isLoadingCloudProjects && !currentProject) {
       setShowProjectPicker(true);
     } else if (currentProject) {
       setShowProjectPicker(false);
@@ -1028,9 +1028,10 @@ const Index = () => {
 
 
   const activePage = pages.find(p => p.id === activePageId);
+  const canRenderStoryboardPage = Boolean(activePage) && (!isAuthenticated || Boolean(currentProject));
 
   // Determine what to display in the main content area
-  const shouldShowTemplate = !activePage && (!currentProject || (isAuthenticated && allProjects.length === 0));
+  const shouldShowTemplate = !canRenderStoryboardPage && (!currentProject || (isAuthenticated && allProjects.length === 0));
 
   const activePageIndex = pages.findIndex(p => p.id === activePageId);
 
@@ -1103,7 +1104,7 @@ const Index = () => {
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-6 py-8 flex-grow w-full relative">
-          {activePage ? (
+          {activePage && canRenderStoryboardPage ? (
             <>
               <StoryboardPage pageId={activePage.id} />
               
@@ -1187,15 +1188,6 @@ const Index = () => {
               </div>
             </div>
           )}
-          
-          {/* Empty State Overlay for authenticated users with no projects */}
-          {isAuthenticated && allProjects.length === 0 && !isLoadingCloudProjects && (
-            <EmptyProjectState 
-              isAuthenticated={true}
-              onCreateProject={() => void handleRequestCreateProject()}
-              onSignIn={openAuthModal}
-            />
-          )}
         </main>
         
         {/* Full-screen EmptyProjectState overlay for unauthenticated users with no current project */}
@@ -1233,7 +1225,7 @@ const Index = () => {
           onClose={() => cloudSaveConflict.close()}
         />
         
-        {/* Project Picker Modal - for authenticated users with projects but no active project */}
+        {/* Project Picker Modal - for authenticated users with no active project */}
         {showProjectPicker && isAuthenticated && (
           <ProjectPickerModal
             projects={allProjects.map(p => ({

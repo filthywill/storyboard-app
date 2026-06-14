@@ -67,6 +67,8 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = fa
     }
   }, [jobInfo]);
 
+  const showLowerMetadataRow = templateSettings.showProjectInfo || templateSettings.showJobInfo;
+
   // Handle dynamic width when projectLogoUrl changes (e.g., loading existing project)
   useEffect(() => {
     // Only process if this is a new/different logo URL
@@ -308,6 +310,19 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = fa
               )}
             </div>
           )}
+          {showLowerMetadataRow && !templateSettings.showProjectInfo && (
+            <div
+              aria-hidden="true"
+              className="w-full p-0 mt-1 pr-6 text-xs whitespace-pre-wrap invisible pointer-events-none"
+              style={{
+                fontSize: '14px',
+                lineHeight: '1.4',
+                minHeight: '20px',
+                marginTop: '4px',
+                backgroundColor: 'transparent'
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -407,6 +422,19 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = fa
             )}
           </div>
         )}
+        {showLowerMetadataRow && !templateSettings.showJobInfo && (
+          <div
+            aria-hidden="true"
+            className="w-full p-0 mt-1 text-right pl-6 text-xs whitespace-pre-wrap invisible pointer-events-none"
+            style={{
+              fontSize: '14px',
+              lineHeight: '1.4',
+              minHeight: '20px',
+              marginTop: '4px',
+              backgroundColor: 'transparent'
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -419,6 +447,7 @@ const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload }> = 
       ? project.projectLogo.dataUrl
       : project.projectLogo.url
     : null;
+  const showLowerMetadataRow = template.showProjectInfo || template.showJobInfo;
 
   return (
     <div
@@ -499,6 +528,21 @@ const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload }> = 
               {project.projectInfo || 'Project Info'}
             </div>
           )}
+          {showLowerMetadataRow && !template.showProjectInfo && (
+            <div
+              aria-hidden="true"
+              className={cn(
+                "w-full p-0 mt-1 pr-6 text-xs whitespace-pre-wrap invisible pointer-events-none"
+              )}
+              style={{
+                fontSize: '14px',
+                lineHeight: '1.4',
+                minHeight: '20px',
+                marginTop: '4px',
+                backgroundColor: 'transparent'
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -541,6 +585,21 @@ const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload }> = 
           >
             {project.jobInfo || 'Job Info'}
           </div>
+        )}
+        {showLowerMetadataRow && !template.showJobInfo && (
+          <div
+            aria-hidden="true"
+            className={cn(
+              "w-full p-0 mt-1 text-right pl-6 text-xs whitespace-pre-wrap invisible pointer-events-none"
+            )}
+            style={{
+              fontSize: '14px',
+              lineHeight: '1.4',
+              minHeight: '20px',
+              marginTop: '4px',
+              backgroundColor: 'transparent'
+            }}
+          />
         )}
       </div>
     </div>
