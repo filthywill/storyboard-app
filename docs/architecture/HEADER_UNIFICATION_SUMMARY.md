@@ -52,7 +52,7 @@ Updated all three billing pages to use unified header:
 
 ### 4. Pages Not Changed
 **Privacy Policy and Terms of Service** pages were intentionally left unchanged. These are public/static content pages with different header requirements:
-- Different logo asset (`/storyflow-whc_01.png`)
+- Same logo asset as main app (`/storyboardflow-whc_01.png`)
 - Different logo size (42px)
 - Simple "Back to App" button instead of auth UI
 - No offline banner needed

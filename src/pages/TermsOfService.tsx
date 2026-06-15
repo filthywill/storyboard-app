@@ -15,7 +15,7 @@ export default function TermsOfService() {
           <div className="flex items-center justify-between">
             <div>
               <img 
-                src="/storyflow-whc_01.png" 
+                src="/storyboardflow-whc_01.png"
                 alt="Storyboard Flow" 
                 className="h-4 object-contain"
                 style={{
