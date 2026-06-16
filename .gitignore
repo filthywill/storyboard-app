@@ -26,6 +26,8 @@ dist-ssr
 # Environment files
 .env
 .env.*
+.env.admin
+!.env.admin.example
 
 # Local-only notes (do not push to GitHub)
 TO DO NOTES

@@ -349,6 +349,7 @@ export class GuestProjectSyncService {
 
     const { StorageService } = await import('./storageService');
     const { useShotStore } = await import('@/store/shotStore');
+    const { BackgroundSyncService } = await import('@/services/backgroundSyncService');
     
     let migratedCount = 0;
     let failedCount = 0;
@@ -373,6 +374,7 @@ export class GuestProjectSyncService {
             imageUrl,
             imageData: undefined // Remove base64 to save space
           });
+          BackgroundSyncService.reconcileImageUploadSuccess(projectId, shotId);
           
           console.log(`Successfully migrated image for shot ${shotId}`);
           migratedCount++;

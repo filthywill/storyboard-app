@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 import { createClient } from '@supabase/supabase-js';
+import { config as loadDotenv } from 'dotenv';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const ADMIN_ENV_FILE = '.env.admin';
+const REQUIRED_ADMIN_ENV_VARS = ['SUPABASE_URL', 'SERVICE_ROLE_KEY'];
 
 const STORAGE_BUCKETS = [
   {
@@ -64,24 +70,47 @@ Delete one Supabase test user and all app data.
 Usage:
   npm run cleanup:test-user -- user@example.com
   npm run cleanup:test-user -- user@example.com --confirm-delete
+  npm run cleanup:test-user -- --list-users
 
 Required environment variables:
   SUPABASE_URL        Supabase project URL
   SERVICE_ROLE_KEY    Supabase service role key
 
+You can set these in your shell or in a local ${ADMIN_ENV_FILE} file.
+Shell environment variables take precedence over ${ADMIN_ENV_FILE}.
+
 Default mode is DRY RUN. Add --confirm-delete to actually delete data.
+Use --list-users for read-only user inventory.
 `);
 }
 
 function parseArgs(argv) {
   const args = argv.slice(2);
   const confirmDelete = args.includes('--confirm-delete');
+  const listUsers = args.includes('--list-users');
   const help = args.includes('--help') || args.includes('-h');
   const emails = args.filter((arg) => !arg.startsWith('--'));
 
   if (help) {
     printHelp();
     process.exit(0);
+  }
+
+  const unknownFlags = args.filter(
+    (arg) => arg.startsWith('--') && arg !== '--confirm-delete' && arg !== '--list-users'
+  );
+  if (unknownFlags.length > 0) {
+    throw new Error(`Unknown flag(s): ${unknownFlags.join(', ')}`);
+  }
+
+  if (listUsers) {
+    if (confirmDelete) {
+      throw new Error('--list-users cannot be combined with --confirm-delete.');
+    }
+    if (emails.length !== 0) {
+      throw new Error('--list-users does not accept an email address.');
+    }
+    return { email: null, confirmDelete: false, listUsers: true };
   }
 
   if (emails.length !== 1) {
@@ -93,14 +122,7 @@ function parseArgs(argv) {
     throw new Error(`Invalid email address: ${emails[0]}`);
   }
 
-  const unknownFlags = args.filter(
-    (arg) => arg.startsWith('--') && arg !== '--confirm-delete'
-  );
-  if (unknownFlags.length > 0) {
-    throw new Error(`Unknown flag(s): ${unknownFlags.join(', ')}`);
-  }
-
-  return { email, confirmDelete };
+  return { email, confirmDelete, listUsers };
 }
 
 function requireEnv(name) {
@@ -109,6 +131,32 @@ function requireEnv(name) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
+}
+
+function loadAdminEnvironment() {
+  const hasAllShellValues = REQUIRED_ADMIN_ENV_VARS.every((name) => Boolean(process.env[name]));
+  if (hasAllShellValues) {
+    console.log('Using environment variables from shell');
+    return;
+  }
+
+  const envPath = resolve(process.cwd(), ADMIN_ENV_FILE);
+  const envFileExists = existsSync(envPath);
+
+  loadDotenv({
+    path: envPath,
+    override: false,
+    quiet: true,
+  });
+
+  const hasAllValuesAfterLoad = REQUIRED_ADMIN_ENV_VARS.every((name) => Boolean(process.env[name]));
+  if (hasAllValuesAfterLoad) {
+    console.log(`Using environment variables from ${ADMIN_ENV_FILE}`);
+  } else if (envFileExists) {
+    console.log(`${ADMIN_ENV_FILE} was loaded, but required variables are incomplete`);
+  } else {
+    console.log(`No complete shell environment found and ${ADMIN_ENV_FILE} was not found`);
+  }
 }
 
 function assertServiceRoleKey(key) {
@@ -173,6 +221,22 @@ async function findAuthUserByEmail(supabase, email) {
     if (matches.length === 1) return matches[0];
     if (users.length < perPage) return null;
   }
+}
+
+async function listAuthUsers(supabase) {
+  const perPage = 1000;
+  const users = [];
+
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+
+    const pageUsers = data?.users ?? [];
+    users.push(...pageUsers);
+    if (pageUsers.length < perPage) break;
+  }
+
+  return users;
 }
 
 async function selectRows(supabase, table, select, filter, optional = false) {
@@ -251,6 +315,73 @@ async function listStorageFiles(supabase, bucketName, prefix) {
 
   const result = await walk(prefix);
   return { files, missing: result?.missing ?? false };
+}
+
+function incrementCount(map, key, amount = 1) {
+  map.set(key, (map.get(key) ?? 0) + amount);
+}
+
+async function buildProjectCountByUser(supabase) {
+  const { rows: projects } = await selectRows(
+    supabase,
+    'projects',
+    'id,user_id',
+    (query) => query.not('user_id', 'is', null),
+    false
+  );
+  const counts = new Map();
+
+  for (const project of projects) {
+    incrementCount(counts, project.user_id);
+  }
+
+  return counts;
+}
+
+async function buildStorageFileCountByUser(supabase) {
+  const counts = new Map();
+
+  for (const bucket of STORAGE_BUCKETS) {
+    const result = await listStorageFiles(supabase, bucket.name, '');
+    if (result.missing) continue;
+
+    for (const file of result.files) {
+      const userId = file.path.split('/')[0];
+      if (userId) incrementCount(counts, userId);
+    }
+  }
+
+  return counts;
+}
+
+function printUserInventory(users, projectCounts, storageFileCounts) {
+  console.log('Supabase user inventory');
+  console.log('Mode: LIST USERS ONLY - no data will be deleted.');
+  console.log('');
+  console.log(['email', 'user id', 'created_at', 'project count', 'storage file count'].join('\t'));
+
+  for (const user of users) {
+    console.log([
+      user.email ?? '(no email)',
+      user.id,
+      user.created_at ?? '',
+      projectCounts.get(user.id) ?? 0,
+      storageFileCounts.get(user.id) ?? 0,
+    ].join('\t'));
+  }
+
+  console.log('');
+  console.log(`Total users: ${users.length}`);
+}
+
+async function listUsersReport(supabase) {
+  const users = await listAuthUsers(supabase);
+  const [projectCounts, storageFileCounts] = await Promise.all([
+    buildProjectCountByUser(supabase),
+    buildStorageFileCountByUser(supabase),
+  ]);
+
+  printUserInventory(users, projectCounts, storageFileCounts);
 }
 
 async function buildInventory(supabase, user) {
@@ -452,8 +583,14 @@ async function performDeletion(supabase, inventory) {
 }
 
 async function main() {
-  const { email, confirmDelete } = parseArgs(process.argv);
+  const { email, confirmDelete, listUsers } = parseArgs(process.argv);
+  loadAdminEnvironment();
   const supabase = createAdminClient();
+
+  if (listUsers) {
+    await listUsersReport(supabase);
+    return;
+  }
 
   console.log('Developer-only Supabase test user cleanup');
   console.log(`Looking up Auth user by email: ${email}`);

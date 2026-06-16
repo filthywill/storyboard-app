@@ -55,6 +55,7 @@ class BackgroundSyncServiceClass {
             item.lastAttempt = Number(item.lastAttempt);
           }
         });
+        this.pruneInvalidImageUploadItems('load');
       }
     } catch (error) {
       console.error('Failed to load sync queue from storage:', error);
@@ -148,6 +149,8 @@ class BackgroundSyncServiceClass {
   private async processQueue(): Promise<void> {
     if (this.isProcessing || !navigator.onLine) return;
     
+    this.pruneInvalidImageUploadItems('process');
+
     // Run cleanup every time we process the queue
     await this.cleanupOrphanedUploads();
     
@@ -205,6 +208,36 @@ class BackgroundSyncServiceClass {
     } catch (error) {
       console.error('Failed to cleanup orphaned uploads:', error);
     }
+  }
+
+  private isImageUploadItem(item: SyncQueueItem): boolean {
+    return item.type === 'image' && Boolean(item.shotId) && !item.id.startsWith('cleanup-');
+  }
+
+  private hasUsableFile(item: SyncQueueItem): boolean {
+    return (
+      typeof File !== 'undefined' &&
+      item.file instanceof File &&
+      typeof item.file.name === 'string' &&
+      item.file.name.length > 0
+    );
+  }
+
+  private pruneInvalidImageUploadItems(context: string): number {
+    const beforeCount = this.queue.length;
+
+    this.queue = this.queue.filter(item => {
+      if (!this.isImageUploadItem(item)) return true;
+      return this.hasUsableFile(item);
+    });
+
+    const removedCount = beforeCount - this.queue.length;
+    if (removedCount > 0) {
+      console.warn(`BackgroundSyncService: Removed ${removedCount} invalid image upload queue item(s) during ${context}`);
+      this.saveQueueToStorage();
+    }
+
+    return removedCount;
   }
 
   private async processItem(item: SyncQueueItem): Promise<void> {
@@ -411,6 +444,8 @@ class BackgroundSyncServiceClass {
   }
 
   public getQueueStatus(): SyncStatus {
+    this.pruneInvalidImageUploadItems('status');
+
     const totalPending = this.queue.filter(item => item.status === 'pending').length;
     const totalSyncing = this.queue.filter(item => item.status === 'syncing').length;
     const totalSynced = this.queue.filter(item => item.status === 'synced').length;
@@ -427,6 +462,8 @@ class BackgroundSyncServiceClass {
   }
 
   public hasQueuedChanges(): boolean {
+    this.pruneInvalidImageUploadItems('queued-changes');
+
     return this.queue.some(item => 
       item.status === 'pending' || item.status === 'syncing' || item.status === 'failed'
     );
@@ -457,7 +494,25 @@ class BackgroundSyncServiceClass {
   }
 
   public getFailedItems(): SyncQueueItem[] {
+    this.pruneInvalidImageUploadItems('failed-items');
+
     return this.queue.filter(item => item.status === 'failed');
+  }
+
+  public reconcileImageUploadSuccess(projectId: string, shotId: string): number {
+    const beforeCount = this.queue.length;
+
+    this.queue = this.queue.filter(item =>
+      !(this.isImageUploadItem(item) && item.projectId === projectId && item.shotId === shotId)
+    );
+
+    const removedCount = beforeCount - this.queue.length;
+    if (removedCount > 0) {
+      console.log(`BackgroundSyncService: Reconciled ${removedCount} queued upload(s) for shot ${shotId}`);
+      this.saveQueueToStorage();
+    }
+
+    return removedCount;
   }
 
   public markShotDeleted(shotId: string): void {

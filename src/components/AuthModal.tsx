@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,23 @@ interface AuthModalProps {
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback
 
+const RESEND_COOLDOWN_SECONDS = 60
+
+type ResendStatus = 'idle' | 'sending' | 'sent' | 'error'
+
+const isEmailNotConfirmedError = (error: unknown) => {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code
+    if (code === 'email_not_confirmed') return true
+  }
+
+  const message = getErrorMessage(error, '').toLowerCase()
+  return (
+    message.includes('user not confirmed') ||
+    message.includes('email address is not confirmed')
+  )
+}
+
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
@@ -24,6 +41,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [signupNoticeEmail, setSignupNoticeEmail] = useState<string | null>(null)
+  const [verificationRecoveryMode, setVerificationRecoveryMode] = useState(false)
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null)
+  const [resendStatus, setResendStatus] = useState<ResendStatus>('idle')
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0)
+  const [resendError, setResendError] = useState<string | null>(null)
   const idBase = useId()
   const emailId = `${idBase}-email`
   const passwordId = `${idBase}-password`
@@ -48,6 +70,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setLogoutReason('none')
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Authentication failed'))
+      if (!isSignUp && isEmailNotConfirmedError(error)) {
+        setPendingVerificationEmail(email)
+        setVerificationRecoveryMode(true)
+        setResendStatus('idle')
+        setResendError(null)
+      }
     } finally {
       setLoading(false)
     }
@@ -61,7 +89,44 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleModalOpenChange = (open: boolean) => {
     if (open) return
     setSignupNoticeEmail(null)
+    setVerificationRecoveryMode(false)
+    setPendingVerificationEmail(null)
+    setResendStatus('idle')
+    setResendError(null)
     onClose()
+  }
+
+  useEffect(() => {
+    if (resendCooldownSeconds <= 0) return
+    const timer = setInterval(() => {
+      setResendCooldownSeconds((seconds) => Math.max(0, seconds - 1))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [resendCooldownSeconds])
+
+  const handleResendVerificationEmail = async () => {
+    if (!pendingVerificationEmail || resendStatus === 'sending' || resendCooldownSeconds > 0) return
+
+    setResendStatus('sending')
+    setResendError(null)
+    try {
+      await AuthService.resendConfirmationEmail(pendingVerificationEmail)
+      setResendStatus('sent')
+      setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS)
+      toast.success('Verification email sent')
+    } catch (error: unknown) {
+      setResendStatus('error')
+      setResendError(getErrorMessage(error, 'Failed to resend verification email'))
+      toast.error(getErrorMessage(error, 'Failed to resend verification email'))
+    }
+  }
+
+  const handleBackToSignIn = () => {
+    setVerificationRecoveryMode(false)
+    setPendingVerificationEmail(null)
+    setIsSignUp(false)
+    setResendStatus('idle')
+    setResendError(null)
   }
 
   const handleChangeEmailAfterSignup = async () => {
@@ -151,6 +216,79 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 disabled={loading}
               >
                 Change email
+              </Button>
+            </div>
+          </>
+        ) : verificationRecoveryMode ? (
+          <>
+            <DialogHeader className="text-center space-y-2">
+              <DialogTitle
+                className="text-2xl font-bold"
+                style={{
+                  color: getColor('text', 'primary') as string,
+                  textAlign: 'center'
+                }}
+              >
+                Verify Your Email
+              </DialogTitle>
+              <DialogDescription
+                className="text-sm"
+                style={{
+                  color: getColor('text', 'secondary') as string,
+                  textAlign: 'center'
+                }}
+              >
+                Your account exists, but your email address has not yet been verified.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 px-4 pb-4 text-center">
+              <p className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                Verify your email to access your saved project.
+              </p>
+              {pendingVerificationEmail && (
+                <p className="text-sm font-medium" style={{ color: getColor('text', 'primary') as string }}>
+                  {pendingVerificationEmail}
+                </p>
+              )}
+              <p className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                If your original verification link has expired, request a new verification email below. If your account has been verified please use the Sign In button below.
+              </p>
+              <p
+                className="min-h-[1rem] text-xs"
+                aria-live="polite"
+                aria-atomic="true"
+                style={{
+                  color: (resendStatus === 'error' ? getColor('text', 'secondary') : getColor('text', 'muted')) as string,
+                  visibility: resendStatus === 'idle' ? 'hidden' : 'visible'
+                }}
+              >
+                {resendStatus === 'sent'
+                  ? 'Verification email sent. Please check your inbox.'
+                  : resendStatus === 'error'
+                    ? resendError || 'Failed to resend verification email.'
+                    : '\u00A0'}
+              </p>
+              <Button
+                type="button"
+                className="w-full"
+                style={getGlassmorphismStyles('buttonAccent')}
+                onClick={() => void handleResendVerificationEmail()}
+                disabled={loading || resendStatus === 'sending' || resendCooldownSeconds > 0 || !pendingVerificationEmail}
+              >
+                {resendStatus === 'sending'
+                  ? 'Sending...'
+                  : resendCooldownSeconds > 0
+                    ? `Resend available in ${resendCooldownSeconds} seconds`
+                    : 'Resend Verification Email'}
+              </Button>
+              <Button
+                type="button"
+                className="w-full"
+                style={getGlassmorphismStyles('buttonSecondary')}
+                onClick={handleBackToSignIn}
+                disabled={loading}
+              >
+                Sign In
               </Button>
             </div>
           </>

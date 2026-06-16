@@ -632,6 +632,12 @@ const Index = () => {
         const { CloudProjectSyncService } = await import('@/services/cloudProjectSyncService');
         await CloudProjectSyncService.syncProjectList();
 
+        const { LocalProjectRecoveryService } = await import('@/services/localProjectRecoveryService');
+        const recoveredCount = LocalProjectRecoveryService.recoverOrphanedLocalProjects();
+        if (recoveredCount > 0) {
+          toast.success(`Recovered ${recoveredCount} saved local project${recoveredCount > 1 ? 's' : ''}`);
+        }
+
         if (cancelled) return;
 
         const projectManager = useProjectManagerStore.getState();
