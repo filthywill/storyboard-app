@@ -45,12 +45,11 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
       <Card className="w-96 shadow-2xl" style={getGlassmorphismStyles('dark')}>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div
-              className="h-16 w-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: getColor('background', 'accent') as string }}
-            >
-              <FolderPlus className="h-8 w-8" style={{ color: getColor('text', 'primary') as string }} />
-            </div>
+            <img
+              src="/sf_icon_01.svg"
+              alt="Storyboard Flow logo"
+              className="h-16 w-16"
+            />
           </div>
           <CardTitle className="text-2xl" style={{ color: getColor('text', 'primary') as string }}>Welcome to Storyboard Flow</CardTitle>
           <CardDescription className="text-base mt-2" style={{ color: getColor('text', 'secondary') as string }}>
@@ -62,7 +61,6 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
             onClick={onSignIn}
             size="lg"
             className="w-full text-white"
-            variant="default"
             style={getGlassmorphismStyles('buttonSecondary')}
           >
             <LogIn className="h-5 w-5 mr-2" />
@@ -72,7 +70,6 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
             onClick={onCreateProject}
             size="lg"
             className="w-full text-white"
-            variant="outline"
             style={getGlassmorphismStyles('button')}
           >
             <FolderPlus className="h-5 w-5 mr-2" />

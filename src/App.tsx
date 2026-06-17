@@ -8,6 +8,7 @@ import { AuthModal } from "@/components/AuthModal";
 import Index from "./pages/Index";
 import TestIndex from "./pages/TestIndex";
 import AuthCallback from "./pages/AuthCallback";
+import ResetPassword from "./pages/ResetPassword";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
@@ -58,6 +59,7 @@ const AppContent = () => {
         <Route path="/" element={<Index />} />
         <Route path="/test" element={<TestIndex />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/export/pdf/render" element={<ExportPdfRender />} />

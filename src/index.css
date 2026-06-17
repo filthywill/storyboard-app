@@ -430,10 +430,17 @@ html[style] {
 
 /* Nuclear option: prevent ANY element from adding padding that affects layout */
 #root {
+  /*
+    App UI layer: standalone routes and app pages live above the global body
+    background/filter overlays. Modal portals manage their own higher z-indexes.
+  */
+  position: relative;
+  z-index: 2;
   padding: 0 !important;
   margin: 0 !important;
   width: 100% !important;
   max-width: 100vw !important;
+  min-height: 100vh;
   overflow-x: hidden !important;
 }
 

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
-import { Github, Chrome, Apple } from 'lucide-react'
+import { Chrome } from 'lucide-react'
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles'
 import { AuthService } from '@/services/authService'
 
@@ -20,6 +20,7 @@ const getErrorMessage = (error: unknown, fallback: string) =>
 const RESEND_COOLDOWN_SECONDS = 60
 
 type ResendStatus = 'idle' | 'sending' | 'sent' | 'error'
+type PasswordResetStatus = 'idle' | 'sent'
 
 const isEmailNotConfirmedError = (error: unknown) => {
   if (typeof error === 'object' && error !== null && 'code' in error) {
@@ -46,12 +47,15 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [resendStatus, setResendStatus] = useState<ResendStatus>('idle')
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0)
   const [resendError, setResendError] = useState<string | null>(null)
+  const [passwordResetMode, setPasswordResetMode] = useState(false)
+  const [passwordResetStatus, setPasswordResetStatus] = useState<PasswordResetStatus>('idle')
   const idBase = useId()
   const emailId = `${idBase}-email`
   const passwordId = `${idBase}-password`
   const displayNameId = `${idBase}-displayName`
+  const resetEmailId = `${idBase}-reset-email`
   
-  const { signIn, signUp, signInWithGoogle, signInWithGitHub, signInWithApple, setLogoutReason } = useAuthStore()
+  const { signIn, signUp, signInWithGoogle, setLogoutReason } = useAuthStore()
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,6 +97,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setPendingVerificationEmail(null)
     setResendStatus('idle')
     setResendError(null)
+    setPasswordResetMode(false)
+    setPasswordResetStatus('idle')
     onClose()
   }
 
@@ -127,6 +133,30 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setIsSignUp(false)
     setResendStatus('idle')
     setResendError(null)
+    setPasswordResetMode(false)
+    setPasswordResetStatus('idle')
+  }
+
+  const handleForgotPassword = () => {
+    setIsSignUp(false)
+    setPassword('')
+    setPasswordResetMode(true)
+    setPasswordResetStatus('idle')
+  }
+
+  const handlePasswordResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      await AuthService.requestPasswordReset(email)
+      setPasswordResetStatus('sent')
+      toast.success('Password reset email sent')
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to send password reset email'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleChangeEmailAfterSignup = async () => {
@@ -144,22 +174,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
   }
 
-  const handleSocialLogin = async (provider: 'google' | 'github' | 'apple') => {
+  const handleGoogleLogin = async () => {
     setLoading(true)
     
     try {
-      if (provider === 'google') {
-        await signInWithGoogle()
-      } else if (provider === 'github') {
-        await signInWithGitHub()
-      } else if (provider === 'apple') {
-        await signInWithApple()
-      }
+      await signInWithGoogle()
       // Reset any previous forced-logout reason
       setLogoutReason('none')
       // Note: User will be redirected, so we don't close the modal here
     } catch (error: unknown) {
-      toast.error(getErrorMessage(error, `${provider} authentication failed`))
+      toast.error(getErrorMessage(error, 'Google authentication failed'))
       setLoading(false)
     }
   }
@@ -218,6 +242,88 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 Change email
               </Button>
             </div>
+          </>
+        ) : passwordResetMode ? (
+          <>
+            <DialogHeader className="text-center space-y-2">
+              <DialogTitle
+                className="text-2xl font-bold"
+                style={{
+                  color: getColor('text', 'primary') as string,
+                  textAlign: 'center'
+                }}
+              >
+                Reset Password
+              </DialogTitle>
+              <DialogDescription
+                className="text-sm"
+                style={{
+                  color: getColor('text', 'secondary') as string,
+                  textAlign: 'center'
+                }}
+              >
+                {passwordResetStatus === 'sent'
+                  ? "Check your email for a password reset link. If you don't see it, check your spam folder."
+                  : 'Enter your email and we will send you a secure reset link.'}
+              </DialogDescription>
+            </DialogHeader>
+            {passwordResetStatus === 'sent' ? (
+              <div className="space-y-4 px-4 pb-4 text-center">
+                <p className="text-sm" style={{ color: getColor('text', 'secondary') as string }}>
+                  If an account exists for this email, you will receive instructions to choose a new password.
+                </p>
+                <p className="text-sm font-medium" style={{ color: getColor('text', 'primary') as string }}>
+                  {email}
+                </p>
+                <Button
+                  type="button"
+                  className="w-full"
+                  style={getGlassmorphismStyles('buttonAccent')}
+                  onClick={handleBackToSignIn}
+                  disabled={loading}
+                >
+                  Back to Sign In
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handlePasswordResetSubmit} className="space-y-4 px-4 pb-4">
+                <div>
+                  <Label htmlFor={resetEmailId} style={{ color: getColor('text', 'secondary') as string }}>Email</Label>
+                  <Input
+                    id={resetEmailId}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                    style={{
+                      backgroundColor: getColor('input', 'background') as string,
+                      border: `1px solid ${getColor('input', 'border') as string}`,
+                      color: getColor('text', 'primary') as string
+                    }}
+                    className="placeholder:opacity-50"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={loading}
+                  style={getGlassmorphismStyles('buttonAccent')}
+                >
+                  {loading ? 'Sending...' : 'Send Reset Link'}
+                </Button>
+                <Button
+                  type="button"
+                  className="w-full"
+                  style={getGlassmorphismStyles('buttonSecondary')}
+                  onClick={handleBackToSignIn}
+                  disabled={loading}
+                >
+                  Back to Sign In
+                </Button>
+              </form>
+            )}
           </>
         ) : verificationRecoveryMode ? (
           <>
@@ -377,6 +483,19 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               className="placeholder:opacity-50"
             />
           </div>
+          {!isSignUp && (
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={loading}
+                className="text-sm underline disabled:opacity-50"
+                style={{ color: getColor('button', 'primary') as string }}
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
           
           <Button 
             type="submit" 
@@ -417,33 +536,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             type="button"
             className="w-full"
             style={getGlassmorphismStyles('button')}
-            onClick={() => handleSocialLogin('google')}
+            onClick={handleGoogleLogin}
             disabled={loading}
           >
             <Chrome className="w-4 h-4 mr-2" />
             Continue with Google
-          </Button>
-          
-          <Button
-            type="button"
-            className="w-full"
-            style={getGlassmorphismStyles('button')}
-            onClick={() => handleSocialLogin('github')}
-            disabled={loading}
-          >
-            <Github className="w-4 h-4 mr-2" />
-            Continue with GitHub
-          </Button>
-          
-          <Button
-            type="button"
-            className="w-full"
-            style={getGlassmorphismStyles('button')}
-            onClick={() => handleSocialLogin('apple')}
-            disabled={loading}
-          >
-            <Apple className="w-4 h-4 mr-2" />
-            Continue with Apple
           </Button>
         </div>
           </>

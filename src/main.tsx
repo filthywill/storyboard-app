@@ -21,6 +21,8 @@ function isSupabaseAuthArtifactPresent(): boolean {
 
   // Never hijack OAuth callback route
   if (window.location.pathname.startsWith('/auth/callback')) return false;
+  // Password recovery links need to reach the reset form with Supabase artifacts intact.
+  if (window.location.pathname.startsWith('/reset-password')) return false;
 
   const hash = window.location.hash || '';
   const search = window.location.search || '';

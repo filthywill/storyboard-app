@@ -99,8 +99,6 @@ export default function PrivacyPolicy() {
             <ul className="list-disc pl-6 text-white/80 mb-4">
               <li><strong>Supabase:</strong> For authentication and data storage</li>
               <li><strong>Google OAuth:</strong> For social login (optional)</li>
-              <li><strong>GitHub OAuth:</strong> For social login (optional)</li>
-              <li><strong>Apple OAuth:</strong> For social login (optional)</li>
             </ul>
             <p className="text-white/80 mb-4">
               These services have their own privacy policies and data handling practices.

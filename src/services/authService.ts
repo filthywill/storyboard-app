@@ -91,7 +91,6 @@ export class AuthService {
     if (error) throw error
   }
 
-  // Social login methods
   static async signInWithGoogle() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -108,28 +107,18 @@ export class AuthService {
     return data
   }
 
-  static async signInWithGitHub() {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: `${getSiteUrl()}/auth/callback`
-      }
+  static async requestPasswordReset(email: string): Promise<void> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${getSiteUrl()}/reset-password`
     })
-    
+
     if (error) throw error
-    return data
   }
 
-  static async signInWithApple() {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: {
-        redirectTo: `${getSiteUrl()}/auth/callback`
-      }
-    })
-    
+  static async updatePassword(password: string): Promise<void> {
+    const { error } = await supabase.auth.updateUser({ password })
+
     if (error) throw error
-    return data
   }
   
   static async getCurrentUser() {
