@@ -7,7 +7,7 @@ import { Shot, useAppStore } from '@/store';
 import { Move, Plus, X, Upload, FolderOpen, Pen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { compressImage, getImageSource, revokeImageObjectURL, shouldUseBase64, MAX_BASE64_SIZE, AUTO_COMPRESS_THRESHOLD } from '@/utils/imageCompression';
+import { compressImage, getImageSource, revokeImageObjectURL, shouldAllowImageUpload, getImageUploadLimitMessage, AUTO_COMPRESS_THRESHOLD } from '@/utils/imageCompression';
 import { toast } from 'sonner';
 import { SecurityNotificationService } from '@/services/securityNotificationService';
 import { getColor } from '@/styles/glassmorphism-styles';
@@ -124,9 +124,9 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
     }
 
     try {
-      // Check if file is too large for base64 storage
-      if (!shouldUseBase64(file)) {
-        toast.warning(`Image too large (${(file.size / 1024).toFixed(1)}KB). Please use an image under ${MAX_BASE64_SIZE / 1024}KB.`);
+      // Check if the original file is too large to enter compression.
+      if (!shouldAllowImageUpload(file)) {
+        toast.warning(getImageUploadLimitMessage(file));
         return;
       }
 
@@ -146,6 +146,10 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
         imageSize: file.size,
         imageStorageType: 'base64'
       });
+      if (import.meta.env.DEV) {
+        const { logSingleImageUploadDiagnostics } = await import('@/utils/storyboardDiagnostics');
+        logSingleImageUploadDiagnostics({ file, compressedResult, shotId: shot.id });
+      }
       
       setImageError(false);
       

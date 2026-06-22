@@ -118,6 +118,19 @@ const renumberShots = (
   console.log('Shot renumbering completed');
 };
 
+const serializeShotForActiveStorage = (shot: Shot): Shot => {
+  const serializedShot: Shot = {
+    ...shot,
+    imageFile: null,
+  };
+
+  if (serializedShot.imageUrl) {
+    delete serializedShot.imageData;
+  }
+
+  return serializedShot;
+};
+
 export const useShotStore = create<ShotStore>()(
   persist(
     immer((set, get) => ({
@@ -472,19 +485,7 @@ export const useShotStore = create<ShotStore>()(
         shots: Object.fromEntries(
           Object.entries(state.shots).map(([id, shot]) => [
             id,
-            {
-              ...shot,
-              imageFile: null, // Don't persist File objects
-              // Keep base64 data and other image properties
-              imageData: shot.imageData,
-              imageUrl: shot.imageUrl,
-              imageSize: shot.imageSize,
-              imageStorageType: shot.imageStorageType,
-              // Keep sync status fields
-              cloudSyncStatus: shot.cloudSyncStatus,
-              cloudSyncRetries: shot.cloudSyncRetries,
-              lastSyncAttempt: shot.lastSyncAttempt
-            }
+            serializeShotForActiveStorage(shot)
           ])
         ),
         shotOrder: state.shotOrder,

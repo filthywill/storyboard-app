@@ -169,10 +169,11 @@ export class CloudProjectSyncService {
       await this.preloadProjectLogo(projectId, normalizedProjectData.projectSettings);
       
       console.log('Project data validated, saving locally...');
+      const localCacheProjectData = this.omitPreloadedImageDataForUrlBackedShots(normalizedProjectData);
       
       // Save to local storage ONLY (don't touch stores yet!)
       // The stores will be updated by switchToProject() after currentProjectId is set
-      await CloudSyncService.saveToLocalStorage(projectId, normalizedProjectData);
+      await CloudSyncService.saveToLocalStorage(projectId, localCacheProjectData);
       
       // Mark project as local (so it's no longer "cloud only")
       const projectManager = useProjectManagerStore.getState();
@@ -336,6 +337,30 @@ export class CloudProjectSyncService {
         },
         storyboardTheme: existingSettings.storyboardTheme,
       },
+    };
+  }
+
+  private static omitPreloadedImageDataForUrlBackedShots(projectData: ProjectData): ProjectData {
+    let omittedCount = 0;
+    const shots = Object.fromEntries(
+      Object.entries(projectData.shots || {}).map(([shotId, shot]) => {
+        if (!shot?.imageUrl || !shot.imageData) {
+          return [shotId, shot];
+        }
+
+        const { imageData: _preloadedImageData, ...urlBackedShot } = shot;
+        omittedCount += 1;
+        return [shotId, urlBackedShot];
+      })
+    );
+
+    if (omittedCount > 0) {
+      console.log(`Omitted preloaded imageData for ${omittedCount} URL-backed shot(s) before local cache save`);
+    }
+
+    return {
+      ...projectData,
+      shots,
     };
   }
 

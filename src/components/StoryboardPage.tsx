@@ -462,6 +462,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
           if (result.successful.length > 0) {
             // Insert shots at the specific position
             let createdCount = 0;
+            const diagnosticUploads: Array<{ file: File; compressedResult: any; shotId: string }> = [];
             
             for (const parsedFile of result.successful) {
               const compressedResult = (parsedFile as any).compressedResult;
@@ -476,10 +477,19 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
                 imageSize: parsedFile.file.size,
                 imageStorageType: 'base64'
               });
+              diagnosticUploads.push({
+                file: parsedFile.file,
+                compressedResult,
+                shotId,
+              });
               
               createdCount++;
             }
             
+            if (import.meta.env.DEV) {
+              const { logBatchImageUploadDiagnostics } = await import('@/utils/storyboardDiagnostics');
+              logBatchImageUploadDiagnostics(diagnosticUploads);
+            }
             toast.success(`Successfully inserted ${createdCount} images at position ${shotIndex + 1}`);
             
             if (result.failed.length > 0) {

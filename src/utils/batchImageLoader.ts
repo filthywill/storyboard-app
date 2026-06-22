@@ -1,5 +1,5 @@
 // Batch image loading with intelligent file name parsing
-import { compressImage, shouldUseBase64, MAX_BASE64_SIZE } from './imageCompression';
+import { compressImage, getImageUploadLimitMessage, shouldAllowImageUpload } from './imageCompression';
 
 export interface ParsedImageFile {
   file: File;
@@ -171,11 +171,11 @@ export const processBatchImages = async (
         continue;
       }
       
-      // Check file size
-      if (!shouldUseBase64(file)) {
+      // Check if the original file is too large to enter compression.
+      if (!shouldAllowImageUpload(file)) {
         failed.push({ 
           file, 
-          error: `File too large (${(file.size / 1024).toFixed(1)}KB). Maximum size is ${MAX_BASE64_SIZE / 1024}KB.` 
+          error: getImageUploadLimitMessage(file, 'File')
         });
         continue;
       }

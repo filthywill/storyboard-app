@@ -159,19 +159,7 @@ form-action 'self';                   # Forms submit to same origin only
   - Event filtering and export
   - Memory-based storage (1000 events)
 
-### 12. **Advanced Session Security**
-- **File**: `src/utils/sessionSecurity.ts`
-- **Features**:
-  - Session timeout warnings (5 minutes before expiry)
-  - Maximum session duration (8 hours)
-  - Maximum inactive time (2 hours)
-  - Device fingerprinting
-  - Suspicious activity detection (threshold: 200 actions per minute)
-  - Activity pattern analysis with throttling (500ms minimum between logs)
-  - Automated behavior detection
-  - Session monitoring and cleanup
-
-### 13. **Recent Security Fixes (October 22, 2025)**
+### 12. **Recent Security Fixes (October 22, 2025)**
 - **Fixed**: `BackgroundSyncService.isProcessingOfflineQueue()` method returning wrong property
 - **Fixed**: Excessive audit log spam during batch operations (threshold increased 10→200, throttling improved 100ms→500ms)
 - **Fixed**: CSP blocking base64 images (added `data:` to `connect-src` directive)
@@ -228,7 +216,6 @@ For security concerns, please contact: [your-email@example.com]
 2. **Request Size Limits** - Protects against large payload attacks
 3. **Enhanced Data Validation** - Comprehensive save/load validation with corruption detection
 4. **Audit Logging** - Security event tracking and monitoring
-5. **Advanced Session Security** - Timeout warnings, device fingerprinting, suspicious activity detection
 
 ### 🔴 Known Issues
 1. **Dependency Vulnerabilities** - ESLint v9 vs typescript-eslint v7 conflict blocking updates
@@ -239,7 +226,6 @@ For security concerns, please contact: [your-email@example.com]
 ### 📋 Next Steps
 1. Resolve dependency conflicts to enable security updates
 2. Integrate new security features into existing services
-3. Add UI components for session timeout warnings
-4. Set up external logging service integration
-5. Conduct security testing of new features
+3. Set up external logging service integration
+4. Conduct security testing of new features
 

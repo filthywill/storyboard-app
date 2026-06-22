@@ -49,18 +49,33 @@ export class GuestProjectSyncService {
       const projectManager = useProjectManagerStore.getState();
       const conflictState = getProjectConflictState(projectManager.getAllProjects());
 
-      if (conflictState.hasConflict) {
-        console.log('Conflict state detected, skipping guest project sync');
+      const hasFreePlanWorkspaceConflict =
+        access.plan === 'free' &&
+        !access.canCreateCloudProject &&
+        conflictState.localProjects.length > 0 &&
+        conflictState.cloudProjects.length > 0;
+
+      if (hasFreePlanWorkspaceConflict) {
+        console.log('Free-plan workspace conflict detected, skipping guest project sync');
         return;
       }
 
-      // CRITICAL FIX: Only sync projects that are BOTH isLocal AND have actual data
+      // Only sync true guest/local-only projects; cached cloud projects can also be local.
       const localProjects = projectManager.getAllProjects().filter(p => {
         // Must be marked as local
         if (!p.isLocal) return false;
         
         // Must NOT be cloud-only
         if (p.isCloudOnly) return false;
+
+        // Must NOT already be backed by cloud metadata
+        if (p.isCloudBacked || p.baseCloudUpdatedAt) {
+          console.log('Skipping cached cloud project during guest sync:', {
+            projectId: p.id,
+            name: p.name,
+          });
+          return false;
+        }
         
         // Must have actual shot data (not empty projects)
         if (p.shotCount === 0) {

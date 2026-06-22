@@ -4,6 +4,10 @@ import './index.css'
 import { getAppBackgroundCSSVars, getColor } from './styles/glassmorphism-styles'
 import { supabase } from '@/lib/supabase'
 
+if (import.meta.env.DEV) {
+  void import('@/utils/storyboardDiagnostics');
+}
+
 const AUTH_BROADCAST_CHANNEL = 'sbflow_auth';
 const CONFIRM_HANDLED_KEY = 'sbflow_confirm_handled';
 const CONFIRM_COMPLETE_FLAG = 'confirmComplete';

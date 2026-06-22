@@ -53,7 +53,7 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
           </div>
           <CardTitle className="text-2xl" style={{ color: getColor('text', 'primary') as string }}>Welcome to Storyboard Flow</CardTitle>
           <CardDescription className="text-base mt-2" style={{ color: getColor('text', 'secondary') as string }}>
-            Create professional storyboards with ease
+            Layout storyboards fast and easy
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 pb-6">

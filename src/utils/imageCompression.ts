@@ -1,5 +1,6 @@
 // Image compression and base64 utilities
 export const MAX_BASE64_SIZE = 1024 * 1024; // 1MB
+export const MAX_IMAGE_UPLOAD_SIZE = 5 * 1024 * 1024; // 5MB original upload limit
 export const AUTO_COMPRESS_THRESHOLD = 750 * 1024; // 750KB - images over this get auto-compressed
 
 export interface CompressedImageResult {
@@ -8,6 +9,8 @@ export interface CompressedImageResult {
   originalSize: number;
   compressionRatio: number;
   wasCompressed: boolean;
+  width: number;
+  height: number;
 }
 
 /**
@@ -80,7 +83,9 @@ export const compressImage = async (file: File, maxSize: number = MAX_BASE64_SIZ
         size: compressedSize,
         originalSize,
         compressionRatio,
-        wasCompressed: needsCompression
+        wasCompressed: needsCompression,
+        width,
+        height
       });
     };
 
@@ -106,6 +111,26 @@ export const fileToBase64 = (file: File): Promise<string> => {
  */
 export const shouldUseBase64 = (file: File): boolean => {
   return file.size <= MAX_BASE64_SIZE;
+};
+
+/**
+ * Check if an original image file may enter the compression pipeline.
+ */
+export const shouldAllowImageUpload = (file: File): boolean => {
+  return file.size <= MAX_IMAGE_UPLOAD_SIZE;
+};
+
+export const formatImageUploadSize = (bytes: number): string => {
+  if (bytes >= 1024 * 1024) {
+    const megabytes = bytes / (1024 * 1024);
+    return `${Number.isInteger(megabytes) ? megabytes.toFixed(0) : megabytes.toFixed(1)} MB`;
+  }
+
+  return `${(bytes / 1024).toFixed(1)} KB`;
+};
+
+export const getImageUploadLimitMessage = (file: File, subject: 'Image' | 'File' = 'Image'): string => {
+  return `${subject} too large (${formatImageUploadSize(file.size)}). Maximum original image size is ${formatImageUploadSize(MAX_IMAGE_UPLOAD_SIZE)}.`;
 };
 
 /**

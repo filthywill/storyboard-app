@@ -23,6 +23,29 @@ import { useCloudSaveConflictStore } from '@/store/cloudSaveConflictStore';
 import { setSavePaused } from '@/utils/autoSave';
 import { CloudProjectSyncService } from '@/services/cloudProjectSyncService';
 import { resolvePageSizeMode } from '@/utils/pageSize';
+import { DataValidator } from '@/utils/dataValidator';
+
+type ProjectCacheEntry = {
+  key: string;
+  value: string;
+};
+
+type ParsedProjectCache = {
+  pageData: {
+    pages: any[];
+    activePageId: string | null;
+  };
+  shotData: {
+    shots: Record<string, any>;
+    shotOrder: string[];
+  };
+  projectData: Record<string, any>;
+  uiData: {
+    isDragging: boolean;
+    isExporting: boolean;
+    showDeleteConfirmation: boolean;
+  };
+};
 
 export class ProjectSwitcher {
   private static isSwitching = false;
@@ -87,7 +110,9 @@ export class ProjectSwitcher {
         return false;
       }
 
-      this.saveCurrentProjectState(currentProjectId);
+      if (!this.saveCurrentProjectState(currentProjectId)) {
+        return false;
+      }
       this.updateProjectMetadata(currentProjectId);
 
       // If cloud sync is enabled, also save to cloud
@@ -195,13 +220,21 @@ export class ProjectSwitcher {
       if (currentProjectId && !skipSaveCurrent) {
         try {
           console.log('💾 Final save before project switch...');
-          this.saveCurrentProjectState(currentProjectId);
+          const saved = this.saveCurrentProjectState(currentProjectId);
+          if (!saved) {
+            console.warn('Aborting project switch because final local save failed');
+            Telemetry.event('project.switch.error', { projectId, reason: 'final-save-failed' });
+            endTimer.end({ projectId, success: false });
+            return false;
+          }
           
           // Wait a moment to ensure save completes
           await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
           console.warn('Could not save current project before switch:', error);
-          // Continue with the switch even if we can't save
+          Telemetry.event('project.switch.error', { projectId, reason: 'final-save-exception' });
+          endTimer.end({ projectId, success: false });
+          return false;
         }
       }
       
@@ -274,7 +307,41 @@ export class ProjectSwitcher {
   /**
    * Save the current state of all stores to project-specific localStorage
    */
-  private static saveCurrentProjectState(projectId: string): void {
+  private static writeProjectCacheEntries(entries: ProjectCacheEntry[]): boolean {
+    const previousValues = new Map<string, string | null>();
+    const writtenKeys: string[] = [];
+
+    entries.forEach(({ key }) => {
+      previousValues.set(key, LocalStorageManager.getItem(key));
+    });
+
+    // Write the largest entries first so quota pressure fails before smaller
+    // metadata slices overwrite otherwise usable cache data.
+    const orderedEntries = [...entries].sort((a, b) => b.value.length - a.value.length);
+
+    for (const entry of orderedEntries) {
+      const didWrite = LocalStorageManager.setItem(entry.key, entry.value);
+      if (didWrite) {
+        writtenKeys.push(entry.key);
+        continue;
+      }
+
+      console.error('Project cache write failed; rolling back written slices:', entry.key);
+      writtenKeys.forEach((key) => {
+        const previousValue = previousValues.get(key);
+        if (previousValue === null || previousValue === undefined) {
+          LocalStorageManager.removeItem(key);
+        } else {
+          LocalStorageManager.setItem(key, previousValue);
+        }
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  private static saveCurrentProjectState(projectId: string): boolean {
     try {
       const pageStore = usePageStore.getState();
       const shotStore = useShotStore.getState();
@@ -334,133 +401,206 @@ export class ProjectSwitcher {
         showDeleteConfirmation: uiStore.showDeleteConfirmation,
       };
 
+      const validation = DataValidator.validateBeforeSave(
+        {
+          pages: pageData.pages,
+          shots: shotData.shots as any,
+          shotOrder: shotData.shotOrder,
+          projectSettings: projectData,
+          uiSettings: uiData,
+        },
+        projectId,
+        projectData.projectName
+      );
+
+      if (!validation.valid) {
+        console.error('Refusing to save invalid project state:', {
+          projectId,
+          errors: validation.errors,
+          warnings: validation.warnings,
+        });
+        return false;
+      }
+
       // Save to localStorage with project-specific keys using safe methods
-      LocalStorageManager.setItem(`page-storage-project-${projectId}`, JSON.stringify(pageData));
-      LocalStorageManager.setItem(`shot-storage-project-${projectId}`, JSON.stringify(shotData));
-      LocalStorageManager.setItem(`project-storage-project-${projectId}`, JSON.stringify(projectData));
-      LocalStorageManager.setItem(`ui-store-project-${projectId}`, JSON.stringify(uiData));
+      return this.writeProjectCacheEntries([
+        { key: `page-storage-project-${projectId}`, value: JSON.stringify(pageData) },
+        { key: `shot-storage-project-${projectId}`, value: JSON.stringify(shotData) },
+        { key: `project-storage-project-${projectId}`, value: JSON.stringify(projectData) },
+        { key: `ui-store-project-${projectId}`, value: JSON.stringify(uiData) },
+      ]);
     } catch (error) {
       console.error('Error saving project state:', error);
+      return false;
     }
   }
 
   /**
    * Load project data from localStorage and apply to stores
    */
+  private static unwrapProjectCacheSlice(rawValue: string, key: string): any {
+    const parsed = JSON.parse(rawValue);
+    const actualData = parsed?.state || parsed;
+    if (!actualData || typeof actualData !== 'object') {
+      throw new Error(`Invalid project cache slice: ${key}`);
+    }
+    return actualData;
+  }
+
+  private static parseProjectCache(projectId: string): ParsedProjectCache | null {
+    const pageKey = `page-storage-project-${projectId}`;
+    const shotKey = `shot-storage-project-${projectId}`;
+    const projectKey = `project-storage-project-${projectId}`;
+    const uiKey = `ui-store-project-${projectId}`;
+
+    const pageDataStr = LocalStorageManager.getItem(pageKey);
+    const shotDataStr = LocalStorageManager.getItem(shotKey);
+    const projectDataStr = LocalStorageManager.getItem(projectKey);
+    const uiDataStr = LocalStorageManager.getItem(uiKey);
+
+    if (!pageDataStr || !shotDataStr || !projectDataStr) {
+      console.warn('Missing required project cache slices; refusing partial load:', {
+        projectId,
+        hasPageData: Boolean(pageDataStr),
+        hasShotData: Boolean(shotDataStr),
+        hasProjectData: Boolean(projectDataStr),
+        hasUIData: Boolean(uiDataStr),
+      });
+      return null;
+    }
+
+    try {
+      const actualPageData = this.unwrapProjectCacheSlice(pageDataStr, pageKey);
+      const actualShotData = this.unwrapProjectCacheSlice(shotDataStr, shotKey);
+      const actualProjectData = this.unwrapProjectCacheSlice(projectDataStr, projectKey);
+      const actualUIData = uiDataStr
+        ? this.unwrapProjectCacheSlice(uiDataStr, uiKey)
+        : {
+            isDragging: false,
+            isExporting: false,
+            showDeleteConfirmation: true,
+          };
+
+      if (!Array.isArray(actualPageData.pages) || actualPageData.pages.length === 0) {
+        throw new Error(`Invalid or empty pages in ${pageKey}`);
+      }
+
+      if (!actualShotData.shots || typeof actualShotData.shots !== 'object') {
+        throw new Error(`Invalid shots in ${shotKey}`);
+      }
+
+      const pages = actualPageData.pages.map((page: any) => ({
+        ...page,
+        createdAt: page.createdAt ? new Date(page.createdAt) : new Date(),
+        updatedAt: page.updatedAt ? new Date(page.updatedAt) : new Date(),
+      }));
+
+      const shots = Object.fromEntries(
+        Object.entries(actualShotData.shots).map(([id, shot]: [string, any]) => [
+          id,
+          {
+            ...shot,
+            createdAt: shot.createdAt ? new Date(shot.createdAt) : new Date(),
+            updatedAt: shot.updatedAt ? new Date(shot.updatedAt) : new Date(),
+            imageFile: null, // File objects are not persisted
+          }
+        ])
+      );
+
+      if (Object.keys(shots).length === 0) {
+        throw new Error(`Invalid or empty shots in ${shotKey}`);
+      }
+
+      const shotOrder = Array.isArray(actualShotData.shotOrder)
+        ? actualShotData.shotOrder
+        : Object.keys(shots);
+      const activePageId = typeof actualPageData.activePageId === 'string' &&
+        pages.some((page) => page.id === actualPageData.activePageId)
+          ? actualPageData.activePageId
+          : pages[0]?.id || null;
+      const uiData = {
+        isDragging: Boolean(actualUIData.isDragging),
+        isExporting: Boolean(actualUIData.isExporting),
+        showDeleteConfirmation:
+          actualUIData.showDeleteConfirmation !== undefined
+            ? Boolean(actualUIData.showDeleteConfirmation)
+            : true,
+      };
+
+      const validation = DataValidator.validateProjectData({
+        pages,
+        shots: shots as any,
+        shotOrder,
+        projectSettings: actualProjectData,
+        uiSettings: uiData,
+      });
+
+      if (!validation.valid) {
+        console.error('Project cache validation failed; refusing partial load:', {
+          projectId,
+          errors: validation.errors,
+          warnings: validation.warnings,
+        });
+        return null;
+      }
+
+      return {
+        pageData: {
+          pages,
+          activePageId,
+        },
+        shotData: {
+          shots,
+          shotOrder,
+        },
+        projectData: actualProjectData,
+        uiData,
+      };
+    } catch (error) {
+      console.error('Failed to parse project cache; refusing partial load:', {
+        projectId,
+        error,
+      });
+      return null;
+    }
+  }
+
   private static loadProjectData(projectId: string): boolean {
     try {
-      // Load data from project-specific keys using safe methods
-      const pageDataStr = LocalStorageManager.getItem(`page-storage-project-${projectId}`);
-      const shotDataStr = LocalStorageManager.getItem(`shot-storage-project-${projectId}`);
-      const projectDataStr = LocalStorageManager.getItem(`project-storage-project-${projectId}`);
-      const uiDataStr = LocalStorageManager.getItem(`ui-store-project-${projectId}`);
+      const parsedCache = this.parseProjectCache(projectId);
+      if (!parsedCache) return false;
 
-      // If no data exists, use defaults (stores will handle this)
-      if (!pageDataStr && !shotDataStr && !projectDataStr && !uiDataStr) {
-        return true;
-      }
+      // Apply only after the full target snapshot has been parsed and validated.
+      usePageStore.setState({
+        pages: parsedCache.pageData.pages,
+        activePageId: parsedCache.pageData.activePageId,
+      });
 
-      // Parse and apply data to stores with quota error handling
-      if (pageDataStr) {
-        try {
-          const pageData = JSON.parse(pageDataStr);
-          // Handle both wrapped (new format) and unwrapped (old format) data
-          const actualPageData = pageData.state || pageData;
-          // Validate page data before applying
-          if (actualPageData && Array.isArray(actualPageData.pages)) {
-            usePageStore.setState({
-              pages: actualPageData.pages.map((page: any) => ({
-                ...page,
-                createdAt: page.createdAt ? new Date(page.createdAt) : new Date(),
-                updatedAt: page.updatedAt ? new Date(page.updatedAt) : new Date(),
-              })),
-              activePageId: actualPageData.activePageId || null,
-            });
-          }
-        } catch (error) {
-          console.warn('Could not load page data:', error);
-          // Continue with other data
-        }
-      }
+      useShotStore.setState({
+        shots: parsedCache.shotData.shots,
+        shotOrder: parsedCache.shotData.shotOrder,
+      });
 
-      if (shotDataStr) {
-        try {
-          const shotData = JSON.parse(shotDataStr);
-          // Handle both wrapped (new format) and unwrapped (old format) data
-          const actualShotData = shotData.state || shotData;
-          // Validate shot data before applying
-          if (actualShotData && actualShotData.shots && typeof actualShotData.shots === 'object') {
-            useShotStore.setState({
-              shots: Object.fromEntries(
-                Object.entries(actualShotData.shots).map(([id, shot]: [string, any]) => [
-                  id,
-                  {
-                    ...shot,
-                    createdAt: shot.createdAt ? new Date(shot.createdAt) : new Date(),
-                    updatedAt: shot.updatedAt ? new Date(shot.updatedAt) : new Date(),
-                    imageFile: null, // File objects are not persisted
-                  }
-                ])
-              ),
-              shotOrder: Array.isArray(actualShotData.shotOrder) ? actualShotData.shotOrder : [],
-            });
-          }
-        } catch (error) {
-          console.warn('Could not load shot data:', error);
-          // Continue with other data
-        }
-      }
+      useProjectStore.setState({
+        projectName: parsedCache.projectData.projectName || '',
+        projectInfo: parsedCache.projectData.projectInfo || '',
+        projectLogoUrl: this.resolvePersistedProjectLogoUrl(
+          parsedCache.projectData.projectLogoUrl,
+          parsedCache.projectData.projectLogoDataUrl
+        ),
+        projectLogoFile: null, // File objects are not persisted
+        projectLogoDataUrl: this.resolvePersistedProjectLogoDataUrl(
+          parsedCache.projectData.projectLogoUrl,
+          parsedCache.projectData.projectLogoDataUrl
+        ),
+        clientAgency: parsedCache.projectData.clientAgency || '',
+        jobInfo: parsedCache.projectData.jobInfo || '',
+        pageSizeMode: resolvePageSizeMode(parsedCache.projectData.pageSizeMode),
+        templateSettings: parsedCache.projectData.templateSettings || {},
+      });
 
-      if (projectDataStr) {
-        try {
-          const projectData = JSON.parse(projectDataStr);
-          // Handle both wrapped (new format) and unwrapped (old format) data
-          const actualProjectData = projectData.state || projectData;
-          // Validate project data before applying
-          if (actualProjectData && typeof actualProjectData === 'object') {
-            useProjectStore.setState({
-              projectName: actualProjectData.projectName || '',
-              projectInfo: actualProjectData.projectInfo || '',
-              projectLogoUrl: this.resolvePersistedProjectLogoUrl(
-                actualProjectData.projectLogoUrl,
-                actualProjectData.projectLogoDataUrl
-              ),
-              projectLogoFile: null, // File objects are not persisted
-              projectLogoDataUrl: this.resolvePersistedProjectLogoDataUrl(
-                actualProjectData.projectLogoUrl,
-                actualProjectData.projectLogoDataUrl
-              ),
-              clientAgency: actualProjectData.clientAgency || '',
-              jobInfo: actualProjectData.jobInfo || '',
-              pageSizeMode: resolvePageSizeMode(actualProjectData.pageSizeMode),
-              templateSettings: actualProjectData.templateSettings || {},
-            });
-          }
-        } catch (error) {
-          console.warn('Could not load project data:', error);
-        }
-      }
-
-      if (uiDataStr) {
-        try {
-          const uiData = JSON.parse(uiDataStr);
-          // Handle both wrapped (new format) and unwrapped (old format) data
-          const actualUIData = uiData.state || uiData;
-          // Validate UI data before applying
-          if (actualUIData && typeof actualUIData === 'object') {
-            useUIStore.setState({
-              isDragging: Boolean(actualUIData.isDragging),
-              isExporting: Boolean(actualUIData.isExporting),
-              showDeleteConfirmation: Boolean(actualUIData.showDeleteConfirmation),
-            });
-          }
-        } catch (error) {
-          console.warn('Could not load UI data:', error);
-        }
-      }
-
+      useUIStore.setState(parsedCache.uiData);
       return true;
-
     } catch (error) {
       console.error('Error loading project data:', error);
       return false;
@@ -1006,6 +1146,9 @@ export class ProjectSwitcher {
           // If no projects exist, don't create one - let empty state show
         }
       }
+
+      // The previous startup imageData hydration fallback is intentionally disabled
+      // until project switching/cache loading remains atomic under quota pressure.
     } catch (error) {
       console.error('Error initializing project system:', error);
       // Don't throw the error - let the app continue

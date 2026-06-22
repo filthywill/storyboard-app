@@ -1398,6 +1398,12 @@ export class CloudSyncService {
     try {
       // Save project data to localStorage using the same keys as the app
       const { LocalStorageManager } = await import('@/utils/localStorageManager');
+      const writeRequiredItem = (key: string, value: string): void => {
+        const didWrite = LocalStorageManager.setItem(key, value);
+        if (!didWrite) {
+          throw new Error(`Failed to write localStorage key ${key}`);
+        }
+      };
       
       // Save pages data in the format expected by the store (wrapped in state object)
       if (data.pages) {
@@ -1407,7 +1413,7 @@ export class CloudSyncService {
             activePageId: data.pages.length > 0 ? data.pages[0].id : null
           }
         };
-        LocalStorageManager.setItem(`page-storage-project-${projectId}`, JSON.stringify(pageStoreData));
+        writeRequiredItem(`page-storage-project-${projectId}`, JSON.stringify(pageStoreData));
       }
       
       // Save shots data in the format expected by the store (wrapped in state object)
@@ -1420,7 +1426,7 @@ export class CloudSyncService {
               : this.deriveShotOrderFromPages(data.pages)
           }
         };
-        LocalStorageManager.setItem(`shot-storage-project-${projectId}`, JSON.stringify(shotStoreData));
+        writeRequiredItem(`shot-storage-project-${projectId}`, JSON.stringify(shotStoreData));
       }
       
       // Save project settings (wrapped in state object)
@@ -1439,7 +1445,7 @@ export class CloudSyncService {
         const projectStoreData = {
           state: projectSettings
         };
-        LocalStorageManager.setItem(`project-storage-project-${projectId}`, JSON.stringify(projectStoreData));
+        writeRequiredItem(`project-storage-project-${projectId}`, JSON.stringify(projectStoreData));
       }
       
       // Save UI settings (wrapped in state object)
@@ -1447,7 +1453,7 @@ export class CloudSyncService {
         const uiStoreData = {
           state: data.uiSettings
         };
-        LocalStorageManager.setItem(`ui-store-project-${projectId}`, JSON.stringify(uiStoreData));
+        writeRequiredItem(`ui-store-project-${projectId}`, JSON.stringify(uiStoreData));
       }
       
       console.log('Project data saved to localStorage successfully');

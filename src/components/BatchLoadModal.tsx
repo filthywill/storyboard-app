@@ -217,6 +217,8 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
       setBatchResult(result);
 
       if (result.successful.length > 0) {
+        const diagnosticUploads: Array<{ file: File; compressedResult: any; shotId: string }> = [];
+
         // Update shot number format if a pattern was detected
         if (result.numberingPattern && result.numberingPattern !== templateSettings.shotNumberFormat) {
           setTemplateSetting('shotNumberFormat', result.numberingPattern);
@@ -259,6 +261,11 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
                 cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,
                 cloudSyncRetries: 0
               });
+              diagnosticUploads.push({
+                file: parsedFile.file,
+                compressedResult,
+                shotId: existingShot.id,
+              });
               
               // BACKGROUND: Queue cloud upload
               if (isCloudEnabled && isAuthenticated) {
@@ -281,6 +288,11 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
                 imageStorageType: storageType,
                 cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,
                 cloudSyncRetries: 0
+              });
+              diagnosticUploads.push({
+                file: parsedFile.file,
+                compressedResult,
+                shotId,
               });
               
               // BACKGROUND: Queue cloud upload
@@ -314,6 +326,11 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
               cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,
               cloudSyncRetries: 0
             });
+            diagnosticUploads.push({
+              file: parsedFile.file,
+              compressedResult,
+              shotId,
+            });
             
             // BACKGROUND: Queue cloud upload
             if (isCloudEnabled && isAuthenticated) {
@@ -324,6 +341,10 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
           }
         }
 
+        if (import.meta.env.DEV) {
+          const { logBatchImageUploadDiagnostics } = await import('@/utils/storyboardDiagnostics');
+          logBatchImageUploadDiagnostics(diagnosticUploads);
+        }
         toast.success(`Successfully loaded ${createdCount} images`);
         
         if (result.failed.length > 0) {
