@@ -13,6 +13,7 @@ import { useWriterLeaseStore } from '@/store/writerLeaseStore'
 import { setSavePaused } from '@/utils/autoSave'
 import { WriterLeaseService } from '@/services/writerLeaseService'
 import { resolvePageSizeMode } from '@/utils/pageSize';
+import { normalizeProjectSettings } from '@/utils/projectSettings';
 
 export type CloudSaveFailureReason =
   | 'no_project_id'
@@ -378,13 +379,15 @@ export class CloudSyncService {
       shotOrder: data.shotOrder || this.deriveShotOrderFromPages(data.pages)
     })
     
+    const projectSettings = normalizeProjectSettings(data.projectSettings);
+
     useProjectStore.setState({
-      ...data.projectSettings,
-      pageSizeMode: resolvePageSizeMode(data.projectSettings?.pageSizeMode),
-      projectLogoUrl: data.projectSettings?.projectLogoUrl ?? null,
+      ...projectSettings,
+      pageSizeMode: resolvePageSizeMode(projectSettings.pageSizeMode),
+      projectLogoUrl: projectSettings.projectLogoUrl ?? null,
       projectLogoFile: null,
-      projectLogoDataUrl: data.projectSettings?.projectLogoUrl?.startsWith('data:')
-        ? data.projectSettings.projectLogoUrl
+      projectLogoDataUrl: projectSettings.projectLogoUrl?.startsWith('data:')
+        ? projectSettings.projectLogoUrl
         : null,
     })
     useUIStore.setState(data.uiSettings)
@@ -1431,16 +1434,10 @@ export class CloudSyncService {
       
       // Save project settings (wrapped in state object)
       if (data.projectSettings) {
-        // Ensure project has a name - use project ID as fallback if empty
-        // Migration: Add default theme if missing
-        const { getDefaultTheme, migrateTheme } = await import('@/styles/storyboardTheme');
-        const projectSettings = {
+        const projectSettings = normalizeProjectSettings({
           ...data.projectSettings,
           projectName: data.projectSettings.projectName || `Project ${projectId.slice(0, 8)}`,
-          storyboardTheme: data.projectSettings.storyboardTheme 
-            ? migrateTheme(data.projectSettings.storyboardTheme)
-            : getDefaultTheme()
-        };
+        });
         
         const projectStoreData = {
           state: projectSettings
@@ -1545,6 +1542,7 @@ export class CloudSyncService {
             showPageNumber: true,
             shotNumberFormat: '01',
           },
+          storyboardTheme: normalizeProjectSettings(undefined).storyboardTheme,
         },
         ui_settings: {
           isDragging: false,

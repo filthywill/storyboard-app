@@ -4,6 +4,7 @@ import { DataValidator } from '@/utils/dataValidator';
 import { StoryboardTheme } from '@/styles/storyboardTheme';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
 import type { PageSizeMode } from '@/utils/pageSize';
+import { normalizeProjectSettings } from '@/utils/projectSettings';
 
 export class UpgradeRequiredError extends Error {
   code = "UPGRADE_REQUIRED";
@@ -147,6 +148,7 @@ export class ProjectService {
             showPageNumber: true,
             shotNumberFormat: '01',
           },
+          storyboardTheme: normalizeProjectSettings(undefined).storyboardTheme,
         },
         ui_settings: {
           isDragging: false,
@@ -173,29 +175,7 @@ export class ProjectService {
       throw error;
     }
 
-    // Migration: Add default theme if missing, or migrate old themes
-    const projectSettings = data.project_settings || {};
-    const { getDefaultTheme, migrateTheme } = await import('@/styles/storyboardTheme');
-    
-    const originalThemeJson = JSON.stringify(projectSettings.storyboardTheme ?? null);
-    
-    if (!projectSettings.storyboardTheme) {
-      projectSettings.storyboardTheme = getDefaultTheme();
-    } else {
-      // Migrate existing theme to include new properties if missing
-      projectSettings.storyboardTheme = migrateTheme(projectSettings.storyboardTheme);
-    }
-    
-    // Only write back to Supabase if migration actually changed the theme.
-    // Avoids unnecessary DB writes that could change updated_at via triggers
-    // and cause stale baseCloudUpdatedAt → false autosave conflicts.
-    const migratedThemeJson = JSON.stringify(projectSettings.storyboardTheme);
-    if (originalThemeJson !== migratedThemeJson) {
-      await supabase
-        .from('project_data')
-        .update({ project_settings: projectSettings })
-        .eq('project_id', projectId);
-    }
+    const projectSettings = normalizeProjectSettings(data.project_settings);
 
     return {
       pages: data.pages || [],

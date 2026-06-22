@@ -133,7 +133,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   // Theme toolbar collapse state with localStorage persistence
   const [isThemeToolbarOpen, setIsThemeToolbarOpen] = useState(() => {
     const saved = localStorage.getItem('themeToolbarOpen');
-    return saved !== null ? saved === 'true' : true; // Default to open
+    return saved !== null ? saved === 'true' : false; // Default to collapsed
   });
   
   const handleThemeToolbarToggle = (open: boolean) => {

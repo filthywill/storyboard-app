@@ -24,6 +24,7 @@ import { setSavePaused } from '@/utils/autoSave';
 import { CloudProjectSyncService } from '@/services/cloudProjectSyncService';
 import { resolvePageSizeMode } from '@/utils/pageSize';
 import { DataValidator } from '@/utils/dataValidator';
+import { normalizeProjectSettings } from '@/utils/projectSettings';
 
 type ProjectCacheEntry = {
   key: string;
@@ -393,6 +394,7 @@ export class ProjectSwitcher {
         jobInfo: projectStore.jobInfo,
         pageSizeMode: projectStore.pageSizeMode,
         templateSettings: projectStore.templateSettings,
+        storyboardTheme: projectStore.storyboardTheme,
       };
 
       const uiData = {
@@ -527,11 +529,13 @@ export class ProjectSwitcher {
             : true,
       };
 
+      const projectData = normalizeProjectSettings(actualProjectData);
+
       const validation = DataValidator.validateProjectData({
         pages,
         shots: shots as any,
         shotOrder,
-        projectSettings: actualProjectData,
+        projectSettings: projectData,
         uiSettings: uiData,
       });
 
@@ -553,7 +557,7 @@ export class ProjectSwitcher {
           shots,
           shotOrder,
         },
-        projectData: actualProjectData,
+        projectData,
         uiData,
       };
     } catch (error) {
@@ -597,6 +601,7 @@ export class ProjectSwitcher {
         jobInfo: parsedCache.projectData.jobInfo || '',
         pageSizeMode: resolvePageSizeMode(parsedCache.projectData.pageSizeMode),
         templateSettings: parsedCache.projectData.templateSettings || {},
+        storyboardTheme: parsedCache.projectData.storyboardTheme,
       });
 
       useUIStore.setState(parsedCache.uiData);
@@ -939,6 +944,7 @@ export class ProjectSwitcher {
           showPageNumber: true,
           shotNumberFormat: '01',
         },
+        storyboardTheme: normalizeProjectSettings(undefined).storyboardTheme,
       });
 
       useUIStore.setState({
@@ -1014,6 +1020,7 @@ export class ProjectSwitcher {
           showPageNumber: true,
           shotNumberFormat: '01',
         },
+        storyboardTheme: normalizeProjectSettings(undefined).storyboardTheme,
       });
 
       useUIStore.setState({
@@ -1078,6 +1085,7 @@ export class ProjectSwitcher {
           showPageNumber: true,
           shotNumberFormat: '01',
         },
+        storyboardTheme: normalizeProjectSettings(undefined).storyboardTheme,
       };
 
       // Create default UI data

@@ -5,6 +5,8 @@
  * data migration and cleanup functionality.
  */
 
+import { normalizeProjectSettings } from '@/utils/projectSettings';
+
 export class LocalStorageManager {
   /**
    * Safely get an item from localStorage with error handling
@@ -185,7 +187,7 @@ export class LocalStorageManager {
         shotOrder: parsed.shotOrder || []
       }));
       
-      this.setItem(`project-storage-project-${migrationProjectId}`, JSON.stringify({
+      this.setItem(`project-storage-project-${migrationProjectId}`, JSON.stringify(normalizeProjectSettings({
         projectName: parsed.projectName || 'Migrated Project',
         projectInfo: parsed.projectInfo || 'Migrated from legacy data',
         projectLogoUrl: parsed.projectLogoUrl || null,
@@ -203,7 +205,7 @@ export class LocalStorageManager {
           showPageNumber: true,
           shotNumberFormat: '01',
         }
-      }));
+      })));
       
       this.setItem(`ui-store-project-${migrationProjectId}`, JSON.stringify({
         isDragging: parsed.isDragging || false,
@@ -262,12 +264,17 @@ export class LocalStorageManager {
       const parsedProjectSettings = projectSettingsData ? JSON.parse(projectSettingsData) : { state: {} };
       const parsedUiSettings = uiSettingsData ? JSON.parse(uiSettingsData) : { state: {} };
 
+      const pageState = parsedPageData.state || parsedPageData;
+      const shotState = parsedShotData.state || parsedShotData;
+      const projectSettings = normalizeProjectSettings(parsedProjectSettings.state || parsedProjectSettings);
+      const uiSettings = parsedUiSettings.state || parsedUiSettings;
+
       return {
-        pages: parsedPageData.state?.pages || [],
-        shots: parsedShotData.state?.shots || {},
-        shotOrder: parsedShotData.state?.shotOrder || [],
-        projectSettings: parsedProjectSettings.state || {},
-        uiSettings: parsedUiSettings.state || {}
+        pages: pageState.pages || [],
+        shots: shotState.shots || {},
+        shotOrder: shotState.shotOrder || [],
+        projectSettings,
+        uiSettings
       };
     } catch (error) {
       console.error(`Error getting project data for ${projectId}:`, error);
