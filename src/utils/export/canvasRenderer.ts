@@ -7,6 +7,7 @@ import {
 } from '@/utils/types/exportTypes';
 import { LayoutCalculator } from './layoutCalculator';
 import { getShotTextSpacing, normalizeShotTextFontSize } from '@/styles/storyboardTheme';
+import { getStoryboardHeaderAlignmentInset } from '@/utils/storyboardLayout';
 
 export class CanvasRenderer {
   private canvas: HTMLCanvasElement;
@@ -173,9 +174,8 @@ export class CanvasRenderer {
     this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(headerBounds.x, headerBounds.y, headerBounds.width, headerBounds.height);
     
-    // Use the EXACT same padding calculation as MasterHeader and ShotGrid
-    // Updated to align with shot card image frame edges: 33px total for alignment
-    const alignmentPadding = 33 * scale; // Align with shot card image frame edges
+    // Align header content with the first shot card outer edge.
+    const alignmentPadding = getStoryboardHeaderAlignmentInset(exportPage.grid.config.cols) * scale;
     const gap = 24 * scale; // Preview mode gap
     
     // Calculate layout sections to match MasterHeader
@@ -991,7 +991,7 @@ export class CanvasRenderer {
    * Render footer section with page numbers
    */
   private async renderFooter(exportPage: ExportStoryboardPage, pageNumber: number): Promise<void> {
-    const { layout, header } = exportPage;
+    const { layout, header, grid } = exportPage;
     const { footer } = layout;
     
     if (!footer || !header.templateSettings.showPageNumber) {
@@ -1004,8 +1004,8 @@ export class CanvasRenderer {
     this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(footer.x, footer.y, footer.width, footer.height);
     
-    // Use the EXACT same padding calculation as ShotGrid footer
-    const alignmentPadding = 33 * scale; // Align with header and shot card image frame edges
+    // Align footer content with the header and first shot card outer edge.
+    const alignmentPadding = getStoryboardHeaderAlignmentInset(grid.config.cols) * scale;
     const rightPadding = 24 * scale; // px-6 from ShotGrid footer
     const topPadding = 12 * scale; // py-3 from ShotGrid footer
     

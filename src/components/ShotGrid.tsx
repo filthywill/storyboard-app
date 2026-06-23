@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { getColor } from '@/styles/glassmorphism-styles';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
 import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+import { getStoryboardHeaderAlignmentInsetCss } from '@/utils/storyboardLayout';
 
 interface ShotGridProps {
   pageId: string;
@@ -143,6 +144,7 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
   const emptySlotsCount = hideEmptySlots ? 0 : Math.max(0, totalSlots - pageShots.length);
   const resolvedPageNumber = pageNumberOverride ?? (activePageIndex !== -1 ? activePageIndex + 1 : null);
   const isFixedPageMode = pageSizeMode !== 'dynamic';
+  const footerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(gridCols);
 
   return (
     <div
@@ -240,8 +242,8 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
           <div 
             className="px-6 py-3"
             style={{
-              paddingLeft: '33px',
-              paddingRight: '33px',
+              paddingLeft: footerAlignmentInset,
+              paddingRight: footerAlignmentInset,
               paddingTop: '12px',
               paddingBottom: '12px'
             }}
@@ -288,6 +290,7 @@ const ExportShotGrid: React.FC<ShotGridProps> = ({
   const totalSlots = gridRows * gridCols;
   const emptySlotsCount = hideEmptySlots ? 0 : Math.max(0, totalSlots - pageShotsOverride.length);
   const resolvedPageNumber = pageNumberOverride ?? exportPayload.page.pageNumber;
+  const footerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(gridCols);
 
   return (
     <div className={cn('w-full shot-grid', className)}>
@@ -375,8 +378,8 @@ const ExportShotGrid: React.FC<ShotGridProps> = ({
           <div
             className="px-6 py-3"
             style={{
-              paddingLeft: '33px',
-              paddingRight: '33px',
+              paddingLeft: footerAlignmentInset,
+              paddingRight: footerAlignmentInset,
               paddingTop: '12px',
               paddingBottom: '12px'
             }}

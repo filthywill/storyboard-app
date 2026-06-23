@@ -6,6 +6,7 @@
  */
 
 import { normalizeProjectSettings } from '@/utils/projectSettings';
+import { serializeShotsForStorage } from '@/utils/shotSerialization';
 
 export class LocalStorageManager {
   /**
@@ -183,7 +184,7 @@ export class LocalStorageManager {
       }));
       
       this.setItem(`shot-storage-project-${migrationProjectId}`, JSON.stringify({
-        shots: parsed.shots || {},
+        shots: serializeShotsForStorage(parsed.shots || {}),
         shotOrder: parsed.shotOrder || []
       }));
       

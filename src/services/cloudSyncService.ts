@@ -14,6 +14,7 @@ import { setSavePaused } from '@/utils/autoSave'
 import { WriterLeaseService } from '@/services/writerLeaseService'
 import { resolvePageSizeMode } from '@/utils/pageSize';
 import { normalizeProjectSettings } from '@/utils/projectSettings';
+import { serializeShotsForStorage } from '@/utils/shotSerialization';
 
 export type CloudSaveFailureReason =
   | 'no_project_id'
@@ -1423,7 +1424,7 @@ export class CloudSyncService {
       if (data.shots) {
         const shotStoreData = {
           state: {
-            shots: data.shots,
+            shots: serializeShotsForStorage(data.shots),
             shotOrder: Array.isArray(data.shotOrder)
               ? data.shotOrder
               : this.deriveShotOrderFromPages(data.pages)

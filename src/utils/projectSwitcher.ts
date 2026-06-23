@@ -25,6 +25,7 @@ import { CloudProjectSyncService } from '@/services/cloudProjectSyncService';
 import { resolvePageSizeMode } from '@/utils/pageSize';
 import { DataValidator } from '@/utils/dataValidator';
 import { normalizeProjectSettings } from '@/utils/projectSettings';
+import { serializeShotsForStorage } from '@/utils/shotSerialization';
 
 type ProjectCacheEntry = {
   key: string;
@@ -74,7 +75,11 @@ export class ProjectSwitcher {
     projectLogoDataUrl: string | null | undefined
   ): string | null {
     if (projectLogoUrl?.startsWith('blob:')) {
-      return projectLogoDataUrl || null;
+      return null;
+    }
+
+    if (projectLogoUrl?.startsWith('data:') && projectLogoDataUrl) {
+      return null;
     }
 
     return projectLogoUrl || projectLogoDataUrl || null;
@@ -84,6 +89,10 @@ export class ProjectSwitcher {
     projectLogoUrl: string | null | undefined,
     projectLogoDataUrl: string | null | undefined
   ): string | null {
+    if (projectLogoUrl && !projectLogoUrl.startsWith('blob:') && !projectLogoUrl.startsWith('data:')) {
+      return null;
+    }
+
     if (projectLogoDataUrl) {
       return projectLogoDataUrl;
     }
@@ -356,26 +365,7 @@ export class ProjectSwitcher {
       };
 
       const shotData = {
-        shots: Object.fromEntries(
-          Object.entries(shotStore.shots).map(([id, shot]) => [
-            id,
-            {
-              ...shot,
-              imageFile: null, // Don't persist File objects
-              // Ensure all image-related fields are preserved
-              imageData: shot.imageData,
-              imageUrl: shot.imageUrl,
-              imageSize: shot.imageSize,
-              imageStorageType: shot.imageStorageType,
-              imageScale: shot.imageScale,
-              imageOffsetX: shot.imageOffsetX,
-              imageOffsetY: shot.imageOffsetY,
-              cloudSyncStatus: shot.cloudSyncStatus,
-              cloudSyncRetries: shot.cloudSyncRetries,
-              lastSyncAttempt: shot.lastSyncAttempt
-            }
-          ])
-        ),
+        shots: serializeShotsForStorage(shotStore.shots),
         shotOrder: shotStore.shotOrder,
       };
 

@@ -143,6 +143,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
       onUpdate({ 
         imageFile: file,           // For current session
         imageData: compressedResult.dataUrl, // For persistence
+        imageUrl: undefined,       // Replacing an image invalidates any previous cloud URL
         imageSize: file.size,
         imageStorageType: 'base64'
       });

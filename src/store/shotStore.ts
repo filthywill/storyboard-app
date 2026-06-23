@@ -4,6 +4,7 @@ import { immer } from 'zustand/middleware/immer';
 import { renumberingOptimizer } from '@/utils/renumberingOptimizer';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { BackgroundSyncService } from '@/services/backgroundSyncService';
+import { serializeShotForStorage } from '@/utils/shotSerialization';
 
 export interface Shot {
   id: string;
@@ -116,19 +117,6 @@ const renumberShots = (
   }
   
   console.log('Shot renumbering completed');
-};
-
-const serializeShotForActiveStorage = (shot: Shot): Shot => {
-  const serializedShot: Shot = {
-    ...shot,
-    imageFile: null,
-  };
-
-  if (serializedShot.imageUrl) {
-    delete serializedShot.imageData;
-  }
-
-  return serializedShot;
 };
 
 export const useShotStore = create<ShotStore>()(
@@ -485,7 +473,7 @@ export const useShotStore = create<ShotStore>()(
         shots: Object.fromEntries(
           Object.entries(state.shots).map(([id, shot]) => [
             id,
-            serializeShotForActiveStorage(shot)
+            serializeShotForStorage(shot)
           ])
         ),
         shotOrder: state.shotOrder,

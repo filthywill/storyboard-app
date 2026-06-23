@@ -708,7 +708,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
                   ['--inline-border-radius' as any]: '6px', // rounded-md = 6px
                 }}
               >
-          <MasterHeader />
+          <MasterHeader gridCols={page.gridCols} />
           <div className={cn('p-1', isFixedPageMode && 'flex-1 min-h-0')}>
           <SortableContext items={pageShots.map(s => s.id)} strategy={rectSortingStrategy}>
             <ShotGrid 

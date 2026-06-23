@@ -64,7 +64,7 @@ export const ExportStoryboardPageContent: React.FC<ExportStoryboardPageContentPr
       className="shadow-lg overflow-visible relative z-20 storyboard-themeable"
       style={pageStyle}
     >
-      <MasterHeader readOnly exportPayload={exportPayload} />
+      <MasterHeader readOnly exportPayload={exportPayload} gridCols={page.gridCols} />
       <div className={isFixedPageMode ? 'p-1 flex-1 min-h-0' : 'p-1'}>
         <SortableContext items={pageShots.map(s => s.id)} strategy={rectSortingStrategy}>
           <ShotGrid

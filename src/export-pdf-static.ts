@@ -13,6 +13,7 @@ import {
   type PageSizeMode,
 } from './utils/pageSize';
 import { getShotTextSpacing, normalizeShotTextFontSize } from './styles/storyboardTheme';
+import { getStoryboardHeaderAlignmentInsetCss } from './utils/storyboardLayout';
 
 const EXPORT_ROUTE_PATH = '/export/pdf/render-static';
 const READY_EVENT_NAME = 'server-pdf-export-ready';
@@ -468,6 +469,7 @@ function buildMasterHeader(payload: ServerPDFExportPayload): HTMLElement {
   const { template, project, theme } = payload;
   const logoSource = getImageSource(project.projectLogo);
   const showLowerMetadataRow = template.showProjectInfo || template.showJobInfo;
+  const headerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(payload.page.gridCols);
 
   const root = createElement('div', {
     className: 'flex items-end justify-between w-full max-w-5xl mx-auto pt-8 pb-2 gap-6 flex-shrink-0 master-header',
@@ -475,8 +477,8 @@ function buildMasterHeader(payload: ServerPDFExportPayload): HTMLElement {
       minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
       maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
       width: `${RENDERED_PAGE_WIDTH_PX}px`,
-      paddingLeft: '33px',
-      paddingRight: '33px',
+      paddingLeft: headerAlignmentInset,
+      paddingRight: headerAlignmentInset,
       color: theme.header.text,
     },
   });
@@ -795,6 +797,7 @@ function buildShotGrid(payload: ServerPDFExportPayload): HTMLElement {
   const resolvedPageSizeMode = resolveExportPageSizeMode(payload);
   const isFixedPageMode = resolvedPageSizeMode !== 'dynamic';
   const previewDimensions = calculatePreviewDimensions(payload.page);
+  const footerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(payload.page.gridCols);
   const root = createElement('div', {
     className: `w-full shot-grid${isFixedPageMode ? ' h-full flex flex-col' : ''}`,
   });
@@ -840,8 +843,8 @@ function buildShotGrid(payload: ServerPDFExportPayload): HTMLElement {
     const footerPadding = createElement('div', {
       className: 'px-6 py-3',
       style: {
-        paddingLeft: '33px',
-        paddingRight: '33px',
+        paddingLeft: footerAlignmentInset,
+        paddingRight: footerAlignmentInset,
         paddingTop: '12px',
         paddingBottom: '12px',
       },

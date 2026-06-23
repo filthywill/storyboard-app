@@ -4,6 +4,7 @@ import { immer } from 'zustand/middleware/immer';
 import ObjectURLManager from '@/utils/objectURLManager';
 import { StoryboardTheme, getDefaultTheme, migrateTheme } from '@/styles/storyboardTheme';
 import { type PageSizeMode, resolvePageSizeMode } from '@/utils/pageSize';
+import { optimizeLogoImage } from '@/utils/imageCompression';
 
 function isBlobUrl(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.startsWith('blob:');
@@ -11,15 +12,6 @@ function isBlobUrl(value: string | null | undefined): boolean {
 
 function isDataUrl(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.startsWith('data:');
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Failed to read project logo file as data URL.'));
-    reader.readAsDataURL(file);
-  });
 }
 
 export interface TemplateSettings {
@@ -124,14 +116,14 @@ export const useProjectStore = create<ProjectStore>()(
           return;
         }
 
-        void fileToDataUrl(file)
-          .then((dataUrl) => {
+        void optimizeLogoImage(file)
+          .then((result) => {
             set((state) => {
               if (state.projectLogoFile !== file) {
                 return;
               }
 
-              state.projectLogoDataUrl = dataUrl;
+              state.projectLogoDataUrl = result.dataUrl;
             });
           })
           .catch((error) => {
@@ -203,8 +195,12 @@ export const useProjectStore = create<ProjectStore>()(
       partialize: (state) => ({
         projectName: state.projectName,
         projectInfo: state.projectInfo,
-        projectLogoUrl: state.projectLogoUrl,
-        projectLogoDataUrl: state.projectLogoDataUrl,
+        projectLogoUrl: isDataUrl(state.projectLogoUrl) || isBlobUrl(state.projectLogoUrl)
+          ? null
+          : state.projectLogoUrl,
+        projectLogoDataUrl: state.projectLogoUrl && !isDataUrl(state.projectLogoUrl) && !isBlobUrl(state.projectLogoUrl)
+          ? null
+          : state.projectLogoDataUrl,
         clientAgency: state.clientAgency,
         jobInfo: state.jobInfo,
         pageSizeMode: state.pageSizeMode,

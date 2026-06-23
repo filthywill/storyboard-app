@@ -4,16 +4,86 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from './ui/button';
 import { Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getColor } from '@/styles/glassmorphism-styles';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
 import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+import { getStoryboardHeaderAlignmentInsetCss } from '@/utils/storyboardLayout';
 
 interface MasterHeaderProps {
   readOnly?: boolean;
   exportPayload?: ServerPDFExportPayload;
+  gridCols: number;
 }
 
-const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = false }) => {
+const parseRgbColor = (color: string | undefined): { r: number; g: number; b: number } | null => {
+  if (!color) return null;
+  const trimmed = color.trim().toLowerCase();
+
+  if (trimmed === 'white') return { r: 255, g: 255, b: 255 };
+  if (trimmed === 'black') return { r: 0, g: 0, b: 0 };
+
+  const hexMatch = trimmed.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    const expanded = hex.length === 3
+      ? hex.split('').map((char) => `${char}${char}`).join('')
+      : hex;
+
+    return {
+      r: parseInt(expanded.slice(0, 2), 16),
+      g: parseInt(expanded.slice(2, 4), 16),
+      b: parseInt(expanded.slice(4, 6), 16),
+    };
+  }
+
+  const rgbMatch = trimmed.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/);
+  if (rgbMatch) {
+    return {
+      r: Number(rgbMatch[1]),
+      g: Number(rgbMatch[2]),
+      b: Number(rgbMatch[3]),
+    };
+  }
+
+  return null;
+};
+
+const getRelativeLuminance = ({ r, g, b }: { r: number; g: number; b: number }): number => {
+  const normalize = (value: number) => {
+    const channel = value / 255;
+    return channel <= 0.03928
+      ? channel / 12.92
+      : Math.pow((channel + 0.055) / 1.055, 2.4);
+  };
+
+  return (0.2126 * normalize(r)) + (0.7152 * normalize(g)) + (0.0722 * normalize(b));
+};
+
+const getLogoPlaceholderStyles = (contentBackground: string | undefined) => {
+  const rgb = parseRgbColor(contentBackground);
+  const isLightBackground = rgb ? getRelativeLuminance(rgb) > 0.45 : true;
+
+  if (isLightBackground) {
+    return {
+      borderColor: 'rgba(0, 0, 0, 0.32)',
+      backgroundColor: 'rgba(0, 0, 0, 0.035)',
+      color: 'rgba(0, 0, 0, 0.68)',
+      hoverBorderColor: 'rgba(0, 0, 0, 0.48)',
+      hoverBackgroundColor: 'rgba(0, 0, 0, 0.065)',
+      hoverColor: 'rgba(0, 0, 0, 0.82)',
+    };
+  }
+
+  return {
+    borderColor: 'rgba(255, 255, 255, 0.42)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: 'rgba(255, 255, 255, 0.78)',
+    hoverBorderColor: 'rgba(255, 255, 255, 0.62)',
+    hoverBackgroundColor: 'rgba(255, 255, 255, 0.12)',
+    hoverColor: 'rgba(255, 255, 255, 0.92)',
+  };
+};
+
+const ConnectedMasterHeader: React.FC<{ readOnly?: boolean; gridCols: number }> = ({ readOnly = false, gridCols }) => {
   const { 
     projectName, 
     projectInfo, 
@@ -134,6 +204,9 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = fa
     setLastProcessedLogoUrl(null); // Reset processed URL
   };
 
+  const logoPlaceholderStyles = getLogoPlaceholderStyles(storyboardTheme.contentBackground);
+  const headerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(gridCols);
+
   return (
     <div 
       className={cn(
@@ -143,8 +216,8 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = fa
         minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
         maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
         width: `${RENDERED_PAGE_WIDTH_PX}px`,
-        paddingLeft: '33px',
-        paddingRight: '33px',
+        paddingLeft: headerAlignmentInset,
+        paddingRight: headerAlignmentInset,
         color: storyboardTheme.header.text,
       }}
     >
@@ -184,25 +257,31 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = fa
               </>
             ) : (
               <div 
-                className="w-full h-full border-2 border-dashed rounded-md flex items-center justify-center cursor-pointer transition-colors"
+                className="w-full h-full border-2 border-dashed rounded-md flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors"
                 style={{
-                  borderColor: getColor('border', 'dashed') as string,
-                  backgroundColor: 'transparent'
+                  borderColor: logoPlaceholderStyles.borderColor,
+                  backgroundColor: logoPlaceholderStyles.backgroundColor,
+                  color: logoPlaceholderStyles.color
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = getColor('input', 'border') as string;
-                  e.currentTarget.style.backgroundColor = getColor('background', 'lighter') as string;
+                  e.currentTarget.style.borderColor = logoPlaceholderStyles.hoverBorderColor;
+                  e.currentTarget.style.backgroundColor = logoPlaceholderStyles.hoverBackgroundColor;
+                  e.currentTarget.style.color = logoPlaceholderStyles.hoverColor;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = getColor('border', 'dashed') as string;
-                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.borderColor = logoPlaceholderStyles.borderColor;
+                  e.currentTarget.style.backgroundColor = logoPlaceholderStyles.backgroundColor;
+                  e.currentTarget.style.color = logoPlaceholderStyles.color;
                 }}
                 onClick={handleLogoUploadClick}
               >
                 <Upload 
-                  size={24} 
-                  style={{ color: getColor('text', 'muted') as string }}
+                  size={18} 
+                  style={{ color: 'inherit' }}
                 />
+                <span className="text-[10px] font-medium leading-none" style={{ color: 'inherit' }}>
+                  Upload Logo
+                </span>
               </div>
             )}
             <input 
@@ -440,7 +519,7 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean }> = ({ readOnly = fa
   );
 };
 
-const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload }> = ({ exportPayload }) => {
+const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload; gridCols: number }> = ({ exportPayload, gridCols }) => {
   const { template, project, theme } = exportPayload;
   const logoSource = project.projectLogo
     ? project.projectLogo.kind === 'dataUrl'
@@ -448,6 +527,7 @@ const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload }> = 
       : project.projectLogo.url
     : null;
   const showLowerMetadataRow = template.showProjectInfo || template.showJobInfo;
+  const headerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(gridCols);
 
   return (
     <div
@@ -458,8 +538,8 @@ const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload }> = 
         minWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
         maxWidth: `${RENDERED_PAGE_WIDTH_PX}px`,
         width: `${RENDERED_PAGE_WIDTH_PX}px`,
-        paddingLeft: '33px',
-        paddingRight: '33px',
+        paddingLeft: headerAlignmentInset,
+        paddingRight: headerAlignmentInset,
         color: theme.header.text,
       }}
     >
@@ -606,10 +686,10 @@ const ExportMasterHeader: React.FC<{ exportPayload: ServerPDFExportPayload }> = 
   );
 };
 
-export const MasterHeader: React.FC<MasterHeaderProps> = ({ readOnly = false, exportPayload }) => {
+export const MasterHeader: React.FC<MasterHeaderProps> = ({ readOnly = false, exportPayload, gridCols }) => {
   if (exportPayload) {
-    return <ExportMasterHeader exportPayload={exportPayload} />;
+    return <ExportMasterHeader exportPayload={exportPayload} gridCols={gridCols} />;
   }
 
-  return <ConnectedMasterHeader readOnly={readOnly} />;
+  return <ConnectedMasterHeader readOnly={readOnly} gridCols={gridCols} />;
 };

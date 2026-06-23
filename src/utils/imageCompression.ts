@@ -2,6 +2,9 @@
 export const MAX_BASE64_SIZE = 1024 * 1024; // 1MB
 export const MAX_IMAGE_UPLOAD_SIZE = 5 * 1024 * 1024; // 5MB original upload limit
 export const AUTO_COMPRESS_THRESHOLD = 750 * 1024; // 750KB - images over this get auto-compressed
+export const LOGO_MAX_WIDTH = 600;
+export const LOGO_MAX_HEIGHT = 240;
+export const LOGO_JPEG_QUALITY = 0.8;
 
 export interface CompressedImageResult {
   dataUrl: string;
@@ -92,6 +95,99 @@ export const compressImage = async (file: File, maxSize: number = MAX_BASE64_SIZ
     img.onerror = () => reject(new Error('Failed to load image'));
     img.src = URL.createObjectURL(file);
   });
+};
+
+const loadImageFromObjectUrl = (url: string): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = url;
+  });
+};
+
+const hasTransparentPixels = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number
+): boolean => {
+  try {
+    const { data } = ctx.getImageData(0, 0, width, height);
+    for (let index = 3; index < data.length; index += 4) {
+      if (data[index] < 255) {
+        return true;
+      }
+    }
+  } catch (error) {
+    // If alpha inspection fails, prefer preserving transparency for formats that may need it.
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Optimize project logos for local persistence/export while preserving display size.
+ * SVGs stay vector/raw; raster logos are resized to header-appropriate dimensions.
+ */
+export const optimizeLogoImage = async (file: File): Promise<CompressedImageResult> => {
+  const originalDataUrl = await fileToBase64(file);
+
+  if (file.type === 'image/svg+xml') {
+    return {
+      dataUrl: originalDataUrl,
+      size: originalDataUrl.length,
+      originalSize: file.size,
+      compressionRatio: file.size / originalDataUrl.length,
+      wasCompressed: false,
+      width: 0,
+      height: 0,
+    };
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const img = await loadImageFromObjectUrl(objectUrl);
+    const scale = Math.min(
+      1,
+      LOGO_MAX_WIDTH / img.naturalWidth,
+      LOGO_MAX_HEIGHT / img.naturalHeight
+    );
+    const width = Math.max(1, Math.round(img.naturalWidth * scale));
+    const height = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Failed to get canvas context');
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const shouldPreserveTransparency = hasTransparentPixels(ctx, width, height);
+    const optimizedDataUrl = shouldPreserveTransparency
+      ? canvas.toDataURL('image/png')
+      : canvas.toDataURL('image/jpeg', LOGO_JPEG_QUALITY);
+
+    const dataUrl = optimizedDataUrl.length < originalDataUrl.length
+      ? optimizedDataUrl
+      : originalDataUrl;
+
+    return {
+      dataUrl,
+      size: dataUrl.length,
+      originalSize: file.size,
+      compressionRatio: file.size / dataUrl.length,
+      wasCompressed: dataUrl !== originalDataUrl,
+      width,
+      height,
+    };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 };
 
 /**

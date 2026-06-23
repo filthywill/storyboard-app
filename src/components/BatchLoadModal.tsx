@@ -256,6 +256,7 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
               updateShot(existingShot.id, {
                 imageFile: parsedFile.file,
                 imageData: compressedResult.dataUrl,
+                imageUrl: undefined,
                 imageSize: parsedFile.file.size,
                 imageStorageType: storageType,
                 cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,
@@ -284,6 +285,7 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
               updateShot(shotId, {
                 imageFile: parsedFile.file,
                 imageData: compressedResult.dataUrl,
+                imageUrl: undefined,
                 imageSize: parsedFile.file.size,
                 imageStorageType: storageType,
                 cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,
@@ -321,6 +323,7 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
             updateShot(shotId, {
               imageFile: parsedFile.file,
               imageData: compressedResult.dataUrl,
+              imageUrl: undefined,
               imageSize: parsedFile.file.size,
               imageStorageType: storageType,
               cloudSyncStatus: (isCloudEnabled && isAuthenticated) ? 'pending' : undefined,

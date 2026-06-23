@@ -5,6 +5,7 @@ import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { createDefaultPage } from '@/store/pageStore';
 import { toast } from 'sonner';
 import { resolvePageSizeMode } from '@/utils/pageSize';
+import { serializeShotsForStorage } from '@/utils/shotSerialization';
 
 export class CloudProjectSyncService {
   private static isSyncing = false;
@@ -341,18 +342,10 @@ export class CloudProjectSyncService {
   }
 
   private static omitPreloadedImageDataForUrlBackedShots(projectData: ProjectData): ProjectData {
-    let omittedCount = 0;
-    const shots = Object.fromEntries(
-      Object.entries(projectData.shots || {}).map(([shotId, shot]) => {
-        if (!shot?.imageUrl || !shot.imageData) {
-          return [shotId, shot];
-        }
-
-        const { imageData: _preloadedImageData, ...urlBackedShot } = shot;
-        omittedCount += 1;
-        return [shotId, urlBackedShot];
-      })
-    );
+    const shots = serializeShotsForStorage(projectData.shots || {});
+    const omittedCount = Object.values(projectData.shots || {}).filter(
+      (shot) => Boolean(shot?.imageUrl && shot.imageData)
+    ).length;
 
     if (omittedCount > 0) {
       console.log(`Omitted preloaded imageData for ${omittedCount} URL-backed shot(s) before local cache save`);
@@ -440,19 +433,9 @@ export class CloudProjectSyncService {
       return;
     }
 
-    try {
-      console.log('Pre-loading project logo...');
-      const { StorageService } = await import('./storageService');
-      const imageBlob = await StorageService.downloadImage(projectSettings.projectLogoUrl);
-      const base64Data = await this.blobToBase64(imageBlob);
-      
-      // Update the project settings with the base64 data
-      projectSettings.projectLogoUrl = base64Data;
-      console.log('Successfully pre-loaded project logo');
-    } catch (error) {
-      console.error('Failed to pre-load project logo:', error);
-      // Don't fail the entire project load if logo fails
-    }
+    // Keep cloud logos URL-backed. Editor and export paths can load the URL,
+    // and persisting a base64 copy consumes localStorage without adding fidelity.
+    console.log('Project logo is cloud-backed; keeping storage URL in local cache');
   }
 
   /**

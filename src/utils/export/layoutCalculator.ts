@@ -11,6 +11,7 @@ import {
   TextStyle 
 } from '@/utils/types/exportTypes';
 import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+import { getStoryboardImageFrameAlignmentInset } from '@/utils/storyboardLayout';
 
 if (import.meta && import.meta.env && import.meta.env.DEV) {
   console.warn('⚠️ DEPRECATED: LayoutCalculator uses legacy programmatic calculations. PDF export now uses DOM capture for reliability.');
@@ -32,9 +33,8 @@ export class LayoutCalculator {
     // Use EXACT same calculation as ShotGrid previewDimensions
     
     const fixedWidth = RENDERED_PAGE_WIDTH_PX; // Same as ShotGrid
-    // Use the EXACT same padding calculation as MasterHeader and ShotGrid
-    // Updated to align with shot card image frame edges: 33px total for alignment
-    const alignmentPadding = 33; // Total padding for content alignment (updated to match header)
+    // Keep legacy sizing pinned to the historical image-frame inset.
+    const alignmentPadding = getStoryboardImageFrameAlignmentInset();
     const totalPadding = alignmentPadding * 2; // Both sides
     
     const availableWidth = fixedWidth - totalPadding;
@@ -186,9 +186,8 @@ export class LayoutCalculator {
     // The grid is already centered, so we work within its bounds
     const scale = gridBounds.width / RENDERED_PAGE_WIDTH_PX; // Calculate scale from grid bounds
     
-    // Calculate shot dimensions using the same logic as ShotGrid
-    // Use the EXACT same padding calculation as MasterHeader and ShotGrid
-    const alignmentPadding = 33; // Total padding for content alignment (updated to match header)
+    // Calculate shot dimensions using the same historical legacy sizing inset.
+    const alignmentPadding = getStoryboardImageFrameAlignmentInset();
     const totalPadding = alignmentPadding * 2; // Both sides
     
     const availableWidth = RENDERED_PAGE_WIDTH_PX - totalPadding; // Base width
