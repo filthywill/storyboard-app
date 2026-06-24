@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { StoryboardTheme, PRESET_THEMES } from '@/styles/storyboardTheme';
+import { StoryboardTheme } from '@/styles/storyboardTheme';
 import { ThemeService } from '@/services/themeService';
 import { toast } from 'sonner';
 import { Trash2, Save, Pipette } from 'lucide-react';
@@ -140,10 +140,7 @@ export const ThemeEditorModal: React.FC<ThemeEditorModalProps> = ({ open, onClos
     try {
       await ThemeService.deleteTheme(editingTheme.id);
       toast.success(`Theme "${editingTheme.name}" deleted`);
-      
-      // Switch to Default theme
-      setStoryboardTheme(PRESET_THEMES.light);
-      setEditingTheme(PRESET_THEMES.light);
+      setEditingTheme(storyboardTheme);
     } catch (error: any) {
       toast.error(`Failed to delete theme: ${error.message}`);
     }

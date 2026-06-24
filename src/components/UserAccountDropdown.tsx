@@ -35,7 +35,8 @@ export const UserAccountDropdown: React.FC = () => {
             fontFamily: '"Gabarito", sans-serif',
             fontWeight: 400,
             fontSize: '0.9rem',
-            ...getGlassmorphismStyles('button')
+            ...getGlassmorphismStyles('button'),
+            backgroundColor: getColor('brand', 'dark') as string,
           }}
         >
           {user.email}

@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getToolbarContainerStyles, getToolbarContainerStylesWithOverrides, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getLayoutToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 import {
   Dialog,
@@ -23,7 +23,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Download, FileImage, FileText, FolderOpen, ChevronDown, Palette, ChevronUp, GalleryHorizontalEnd, LayoutList } from 'lucide-react';
+import { Download, FileImage, FileText, ChevronDown, Palette, ChevronUp } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -430,94 +430,50 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     }
   };
 
-  const handleInsertBatch = (shotId: string) => {
-    // Find the position of the shot in the current page
-    const shotIndex = pageShots.findIndex(shot => shot.id === shotId);
-    if (shotIndex !== -1) {
-      // Create a hidden file input for direct batch insertion
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.multiple = true;
-      fileInput.accept = 'image/*';
-      fileInput.style.display = 'none';
-      
-      fileInput.onchange = async (e) => {
-        const files = (e.target as HTMLInputElement).files;
-        if (!files || files.length === 0) return;
-        
-        try {
-          const { parseAndSortImageFiles, processBatchImages } = await import('@/utils/batchImageLoader');
-          
-          // Parse and sort the files
-          const parsedFiles = parseAndSortImageFiles(Array.from(files));
-          
-          if (parsedFiles.length === 0) {
-            toast.error('No valid image files found');
-            return;
-          }
-          
-          // Process the images
-          const result = await processBatchImages(parsedFiles);
-          
-          if (result.successful.length > 0) {
-            // Insert shots at the specific position
-            let createdCount = 0;
-            const diagnosticUploads: Array<{ file: File; compressedResult: any; shotId: string }> = [];
-            
-            for (const parsedFile of result.successful) {
-              const compressedResult = (parsedFile as any).compressedResult;
-              
-              // Create shot at the target position
-              const shotId = addShot(pageId, shotIndex + createdCount);
-              
-              // Update shot with image data
-              updateShot(shotId, {
-                imageFile: parsedFile.file,
-                imageData: compressedResult.dataUrl,
-                imageSize: parsedFile.file.size,
-                imageStorageType: 'base64'
-              });
-              diagnosticUploads.push({
-                file: parsedFile.file,
-                compressedResult,
-                shotId,
-              });
-              
-              createdCount++;
-            }
-            
-            if (import.meta.env.DEV) {
-              const { logBatchImageUploadDiagnostics } = await import('@/utils/storyboardDiagnostics');
-              logBatchImageUploadDiagnostics(diagnosticUploads);
-            }
-            toast.success(`Successfully inserted ${createdCount} images at position ${shotIndex + 1}`);
-            
-            if (result.failed.length > 0) {
-              toast.warning(`${result.failed.length} images failed to load`);
-            }
-          } else {
-            toast.error('No images were successfully processed');
-          }
-        } catch (error) {
-          console.error('Batch insert failed:', error);
-          toast.error('Failed to insert images. Please try again.');
-        }
-        
-        // Clean up the file input
-        document.body.removeChild(fileInput);
-      };
-      
-      // Add to DOM and trigger click
-      document.body.appendChild(fileInput);
-      fileInput.click();
-    }
-  };
-
   return (
     <div className={cn("flex flex-col flex-grow", className)}>
-      <div className="mb-4 flex flex-row flex-wrap-reverse items-end justify-between gap-x-3 gap-y-3">
-        <div className="min-w-0">
-          <div className="flex flex-nowrap items-end gap-1.5 overflow-x-auto">
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex flex-nowrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <Label className={toolbarSectionLabelClasses}>Projects</Label>
+            <ProjectDropdown 
+              compact 
+              onRequestCreate={() => void handleRequestCreateProject()}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className={toolbarSectionLabelClasses}>File</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="compact"
+                  disabled={isExporting}
+                  className="px-2"
+                  style={getLayoutToolbarContainerStyles()}
+                >
+                  <Download size={16} className={`mr-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
+                  Export
+                  <ChevronDown size={14} className={`ml-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportPNG} disabled={isExporting}>
+                  <FileImage size={16} className="mr-2" />
+                  Export as PNG
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF} disabled={isExporting}>
+                  <FileText size={16} className="mr-2" />
+                  Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        <div className="flex flex-row flex-wrap items-end justify-between gap-x-3 gap-y-3">
+          <div className="min-w-0">
+            <div className="flex flex-nowrap items-end gap-1.5 overflow-x-auto">
             <div className="flex flex-col gap-1">
               <Label className={toolbarSectionLabelClasses}>Page Size</Label>
               <PageSizeModeSelector />
@@ -538,62 +494,58 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
               <Label className={toolbarSectionLabelClasses}>Template</Label>
               <TemplateSettings />
             </div>
-            <Collapsible open={isThemeToolbarOpen} onOpenChange={handleThemeToolbarToggle}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <CollapsibleTrigger asChild>
-                    <button 
-                      type="button"
-                      className={cn(
-                        TOOLBAR_STYLES.containerClasses,
-                        "h-[30px] min-w-[88px] transition-all duration-200",
-                        "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent",
-                        "active:outline-none active:ring-0 active:border-transparent",
-                        "hover:border-transparent",
-                        "border-transparent"
-                      )}
-                      style={{
-                        ...getToolbarContainerStyles(),
-                        border: 'none',
-                        outline: 'none',
-                        ...(isThemeToolbarOpen && { 
-                          backgroundColor: getColor('button', 'active')
-                        })
-                      }}
-                      onMouseDown={(e) => {
-                        // Blur immediately after mousedown to prevent focus border
-                        const el = e.currentTarget as HTMLElement | null;
-                        setTimeout(() => el?.blur?.(), 0);
-                                              }}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Palette size={16} className={TOOLBAR_STYLES.iconClasses} />
-                        <span className={cn("text-xs font-medium", TOOLBAR_STYLES.textClasses)}>Design</span>
-                      </span>
-                      {isThemeToolbarOpen ? (
-                        <ChevronUp size={12} className={TOOLBAR_STYLES.iconClasses} />
-                      ) : (
-                        <ChevronDown size={12} className={TOOLBAR_STYLES.iconClasses} />
-                      )}
-                    </button>
-                  </CollapsibleTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Customize Theme</p>
-                </TooltipContent>
-              </Tooltip>
-            </Collapsible>
+            <div className="flex flex-col gap-1">
+              <Label className={toolbarSectionLabelClasses}>Styles</Label>
+              <Collapsible open={isThemeToolbarOpen} onOpenChange={handleThemeToolbarToggle}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <CollapsibleTrigger asChild>
+                      <button 
+                        type="button"
+                        className={cn(
+                          TOOLBAR_STYLES.containerClasses,
+                          "h-[30px] min-w-[88px] transition-all duration-200",
+                          "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent",
+                          "active:outline-none active:ring-0 active:border-transparent",
+                          "hover:border-transparent",
+                          "border-transparent"
+                        )}
+                        style={{
+                          ...getLayoutToolbarContainerStyles(),
+                          border: 'none',
+                          outline: 'none',
+                          ...(isThemeToolbarOpen && { 
+                            backgroundColor: getColor('button', 'active')
+                          })
+                        }}
+                        onMouseDown={(e) => {
+                          // Blur immediately after mousedown to prevent focus border
+                          const el = e.currentTarget as HTMLElement | null;
+                          setTimeout(() => el?.blur?.(), 0);
+                        }}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Palette size={16} className={TOOLBAR_STYLES.iconClasses} />
+                          <span className={cn("text-xs font-medium", TOOLBAR_STYLES.textClasses)}>Design</span>
+                        </span>
+                        {isThemeToolbarOpen ? (
+                          <ChevronUp size={12} className={TOOLBAR_STYLES.iconClasses} />
+                        ) : (
+                          <ChevronDown size={12} className={TOOLBAR_STYLES.iconClasses} />
+                        )}
+                      </button>
+                    </CollapsibleTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Customize Theme</p>
+                  </TooltipContent>
+                </Tooltip>
+              </Collapsible>
+            </div>
           </div>
         </div>
         
         <div className="flex flex-nowrap items-end gap-2 overflow-x-auto">
-          <div className="flex flex-col gap-1">
-            <Label className={toolbarSectionLabelClasses}>Projects</Label>
-            <ProjectDropdown 
-              compact 
-              onRequestCreate={() => void handleRequestCreateProject()}
-            />
-          </div>
           <div className="flex flex-col gap-1">
             <Label className={toolbarSectionLabelClasses}>Images</Label>
             <Button
@@ -602,10 +554,9 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
               onClick={handleBatchLoad}
               disabled={isExporting}
               className="px-2"
-              style={getToolbarContainerStyles()}
+              style={getLayoutToolbarContainerStyles()}
             >
-              <GalleryHorizontalEnd size={16} className={`mr-1 ${TOOLBAR_STYLES.iconClasses}`} />
-              Batch Load
+              Load Batch
             </Button>
           </div>
           <div className="flex flex-col gap-1">
@@ -616,37 +567,12 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
               onClick={handleShotListLoad}
               disabled={isExporting}
               className="px-2"
-              style={getToolbarContainerStyles()}
+              style={getLayoutToolbarContainerStyles()}
             >
-              <LayoutList size={16} className={`mr-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
               Load Shot List
             </Button>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="compact"
-                disabled={isExporting}
-                className="px-2"
-                style={getToolbarContainerStyles()}
-              >
-                <Download size={16} className={`mr-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
-                Export
-                <ChevronDown size={14} className={`ml-0.25 ${TOOLBAR_STYLES.iconClasses}`} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportPNG} disabled={isExporting}>
-                <FileImage size={16} className="mr-2" />
-                Export as PNG
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPDF} disabled={isExporting}>
-                <FileText size={16} className="mr-2" />
-                Export as PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        </div>
         </div>
       </div>
 
@@ -718,7 +644,6 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
               onShotDelete={deleteShot}
               onAddShot={addShot}
               onAddSubShot={addSubShot}
-              onInsertBatch={handleInsertBatch}
               onEditImage={handleEditImage}
             />
           </SortableContext>

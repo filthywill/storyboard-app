@@ -204,6 +204,13 @@ function injectCssVars(): void {
   root.style.setProperty('--radio-border', getColor('radio', 'border') as string);
   root.style.setProperty('--radio-border-checked', getColor('radio', 'borderChecked') as string);
   root.style.setProperty('--radio-indicator', getColor('radio', 'indicator') as string);
+
+  // Brand colors for toolbar editable control hover states
+  root.style.setProperty('--brand-editable-hover', getColor('brand', 'darkHover') as string);
+  root.style.setProperty('--brand-editable-hover-text', getColor('text', 'primary') as string);
+  root.style.setProperty('--brand-dark', getColor('brand', 'dark') as string);
+  root.style.setProperty('--brand-primary', getColor('brand', 'primary') as string);
+  root.style.setProperty('--brand-layout-editable-hover', getColor('brand', 'layoutEditableHover') as string);
 }
 
 // Inject app background CSS variables from centralized color system

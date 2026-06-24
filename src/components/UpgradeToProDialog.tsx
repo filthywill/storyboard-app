@@ -15,12 +15,16 @@ interface UpgradeToProDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onUpgrade: () => void;
+  title?: string;
+  description?: string;
 }
 
 export const UpgradeToProDialog: React.FC<UpgradeToProDialogProps> = ({
   isOpen,
   onClose,
   onUpgrade,
+  title = 'Upgrade to Pro',
+  description = "You've reached the free project limit. Upgrade to Pro to create unlimited projects.",
 }) => {
   const handleUpgrade = () => {
     onClose();
@@ -40,11 +44,10 @@ export const UpgradeToProDialog: React.FC<UpgradeToProDialogProps> = ({
             </div>
           </div>
           <DialogTitle className="text-center text-2xl text-white">
-            Upgrade to Pro
+            {title}
           </DialogTitle>
           <DialogDescription className="text-center text-base text-white/80 mt-2">
-            You've reached the free project limit. Upgrade to Pro to create
-            unlimited projects.
+            {description}
           </DialogDescription>
         </DialogHeader>
 

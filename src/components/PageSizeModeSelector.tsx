@@ -3,7 +3,7 @@ import { useAppStore } from '@/store';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
-import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getLayoutToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 import {
   PAGE_SIZE_MODE_OPTIONS,
   getMaxValidRowsForPageSize,
@@ -121,12 +121,12 @@ Switch to ${pageSizeLabel} and reduce the grid to ${activePage.gridCols}×${pend
         <TooltipTrigger asChild>
           <div
             className={cn(TOOLBAR_STYLES.containerClasses)}
-            style={getToolbarContainerStyles()}
+            style={getLayoutToolbarContainerStyles()}
           >
             <Select value={pageSizeMode} onValueChange={handleModeChange}>
               <SelectTrigger
                 className={cn(
-                  "h-5 w-[90px] pl-2 pr-0 border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/20 hover:text-white text-white rounded-sm transition-colors"
+                  "h-5 w-[90px] pl-2 pr-0 border-none shadow-none bg-transparent focus:ring-0 focus:outline-none toolbar-editable-hover hover:text-white text-white rounded-sm transition-colors"
                 )}
               >
                 <SelectValue />

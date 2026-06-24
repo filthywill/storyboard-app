@@ -4,7 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Shot, useAppStore } from '@/store';
-import { Move, Plus, X, Upload, FolderOpen, Pen } from 'lucide-react';
+import { Move, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { compressImage, getImageSource, revokeImageObjectURL, shouldAllowImageUpload, getImageUploadLimitMessage, AUTO_COMPRESS_THRESHOLD } from '@/utils/imageCompression';
@@ -20,7 +20,6 @@ interface ShotCardProps {
   onDelete: () => void;
   onAddSubShot: () => void;
   onInsertShot: () => void;
-  onInsertBatch?: () => void;
   onEditImage?: () => void;
   isOverlay?: boolean;
   isEditing?: boolean;
@@ -39,7 +38,6 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
   onDelete,
   onAddSubShot,
   onInsertShot,
-  onInsertBatch,
   onEditImage,
   isOverlay = false,
   isEditing = false,
@@ -186,17 +184,6 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
     setImageError(true);
   };
 
-  const handleRemoveImage = () => {
-    onUpdate({ 
-      imageFile: null,
-      imageData: undefined,
-      imageUrl: undefined,
-      imageSize: undefined,
-      imageStorageType: undefined
-    });
-    setImageError(false);
-  };
-
   const handleActionTextChange = (value: string) => {
     onUpdate({ actionText: value });
   };
@@ -306,72 +293,6 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
           </TooltipTrigger>
           <TooltipContent>
             <p>Delete Shot</p>
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      {/* Insert Batch Button - Hide in Image Editor */}
-      {!isImageEditor && !readOnly && onInsertBatch && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="default"
-              size="icon"
-              className="absolute top-1/2 -translate-y-1/2 -left-5 z-10 h-8 w-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ 
-                top: 'calc(50% - 2rem)',
-                backgroundColor: getColor('overlayButton', 'purple') as string,
-                color: getColor('text', 'inverse') as string
-              }}
-              onClick={onInsertBatch}
-            >
-              <FolderOpen size={14} strokeWidth={3} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='right'>
-            <p>Insert Batch</p>
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      {/* Insert Shot Button - Hide in Image Editor */}
-      {!isImageEditor && !readOnly && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="default"
-              size="icon"
-              className="absolute top-1/2 -translate-y-1/2 -left-5 z-10 h-8 w-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={onInsertShot}
-            >
-              <Plus size={14} strokeWidth={3} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='right'>
-            <p>Insert Shot</p>
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      {/* Add Sub-Shot Button - Hide in Image Editor */}
-      {!isImageEditor && !readOnly && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="absolute top-1/2 -translate-y-1/2 right-2 z-10 h-6 w-6 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{
-                backgroundColor: getColor('overlayButton', 'gray') as string,
-                color: getColor('text', 'inverse') as string
-              }}
-              onClick={onAddSubShot}
-            >
-              <Plus size={14} strokeWidth={3} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='left'>
-            <p>Add Sub-Shot</p>
           </TooltipContent>
         </Tooltip>
       )}
@@ -516,51 +437,33 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                     className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"
                     style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
                   >
-                    {/* Edit button in center */}
-                    {onEditImage && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Button
-                          variant="default"
-                          size="icon"
-                          onClick={onEditImage}
-                          className="h-12 w-12 rounded-full shadow-lg"
-                          style={{
-                            backgroundColor: getColor('overlayButton', 'blue') as string,
-                            color: getColor('text', 'inverse') as string
-                          }}
-                          title="Click to edit image"
-                        >
-                          <Pen size={20} />
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {/* Bottom buttons */}
-                    <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-                      <div className="flex gap-2">
+                    {/* Center action buttons */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="flex flex-col items-center gap-2">
+                        {onEditImage && (
+                          <Button
+                            variant="secondary"
+                            onClick={onEditImage}
+                            className="h-7 px-2 text-xs"
+                            style={{
+                              backgroundColor: getColor('brand', 'fourth') as string,
+                              color: getColor('text', 'inverse') as string
+                            }}
+                            title="Click to edit image"
+                          >
+                            Edit Image
+                          </Button>
+                        )}
                         <Button
                           variant="secondary"
                           onClick={() => fileInputRef.current?.click()}
                           className="h-7 px-2 text-xs"
                           style={{
-                            backgroundColor: getColor('overlayButton', 'white') as string,
-                            color: getColor('text', 'dark') as string
-                          }}
-                        >
-                          <Upload size={12} className="mr-1" />
-                          New
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={handleRemoveImage}
-                          className="h-7 px-2 text-xs"
-                          style={{
-                            backgroundColor: getColor('overlayButton', 'red') as string,
+                            backgroundColor: getColor('brand', 'secondary') as string,
                             color: getColor('text', 'inverse') as string
                           }}
                         >
-                          <X size={12} className="mr-1" />
-                          Clear
+                          Replace Image
                         </Button>
                       </div>
                     </div>
@@ -606,6 +509,52 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                 : 'none'
             }}
           />
+
+          {/* Insert Shot Button - Hide in Image Editor */}
+          {!isImageEditor && !readOnly && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="default"
+                  size="icon"
+                  className="absolute top-1/2 -translate-y-1/2 -left-5 z-10 h-8 w-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{
+                    backgroundColor: getColor('brand', 'primary') as string,
+                    color: getColor('text', 'inverse') as string
+                  }}
+                  onClick={onInsertShot}
+                >
+                  <Plus size={14} strokeWidth={3} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side='right'>
+                <p>Insert Shot</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Add Sub-Shot Button - Hide in Image Editor */}
+          {!isImageEditor && !readOnly && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="absolute top-1/2 -translate-y-1/2 -right-2 z-10 h-6 w-6 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{
+                    backgroundColor: getColor('overlayButton', 'blue') as string,
+                    color: getColor('text', 'inverse') as string
+                  }}
+                  onClick={onAddSubShot}
+                >
+                  <Plus size={14} strokeWidth={3} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side='left'>
+                <p>Add Sub-Shot</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         {/* Text Fields Container - Hide in Image Editor */}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +19,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, X, Trash2, ChevronUp, ChevronDown, FileText, Type, Save, Spline, Square, PaintBucket } from 'lucide-react';
+import { X, Trash2, ChevronUp, ChevronDown, Save, Pencil } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
+import { useAuthModalStore } from '@/store/authModalStore';
+import { CloudAccessService, type CloudAccessState } from '@/services/cloudAccessService';
+import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
+import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
 import { HexColorPicker } from 'react-colorful';
 import { getToolbarContainerStyles, getThemeSectionStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
@@ -31,17 +37,36 @@ import {
   SHOT_TEXT_FONT_SIZE_STEP,
   normalizeShotTextFontSize,
 } from '@/styles/storyboardTheme';
-import { ThemeService } from '@/services/themeService';
+import { ThemeService, getThemeServiceErrorMessage } from '@/services/themeService';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+const cloneTheme = (theme: StoryboardTheme): StoryboardTheme =>
+  JSON.parse(JSON.stringify(theme));
+
+const FREE_SAVED_THEME_LIMIT = 3;
+
 export const ThemeToolbar: React.FC = () => {
+  const navigate = useNavigate();
+  const openAuthModal = useAuthModalStore((state) => state.openAuthModal);
   const { storyboardTheme, setStoryboardTheme } = useAppStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
   const [userThemes, setUserThemes] = useState(ThemeService.getCachedUserThemes());
+  const [accessState, setAccessState] = useState<CloudAccessState | null>(
+    CloudAccessService.getCachedAccessState()
+  );
+  const [showGuestLimitDialog, setShowGuestLimitDialog] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [themeToDelete, setThemeToDelete] = useState<string | null>(null);
+  const [themeToRename, setThemeToRename] = useState<{ id: string; name: string } | null>(null);
   const [themeName, setThemeName] = useState('');
+  const [renameThemeName, setRenameThemeName] = useState('');
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [isRenamingTheme, setIsRenamingTheme] = useState(false);
 
   // Color picker state
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
@@ -49,50 +74,140 @@ export const ThemeToolbar: React.FC = () => {
   const [editingColorValue, setEditingColorValue] = useState('#ffffff');
   const [colorPickerPosition, setColorPickerPosition] = useState<{ x: number; y: number } | null>(null);
 
-  // Reload user themes
+  const reloadUserThemes = async () => {
+    await ThemeService.loadUserThemesIntoMemory();
+    setUserThemes(ThemeService.getCachedUserThemes());
+  };
+
+  // Reload user themes when auth state or theme dialogs change
   useEffect(() => {
-    const loadThemes = async () => {
-      await ThemeService.loadUserThemesIntoMemory();
-      setUserThemes(ThemeService.getCachedUserThemes());
+    if (!isAuthenticated) {
+      ThemeService.clearCache();
+      setUserThemes([]);
+      setAccessState(null);
+      return;
+    }
+
+    void reloadUserThemes();
+  }, [isAuthenticated, showSaveDialog, showRenameDialog, showDeleteDialog]);
+
+  useEffect(() => {
+    let active = true;
+    if (!isAuthenticated) {
+      return;
+    }
+
+    CloudAccessService.getAccessState()
+      .then((state) => {
+        if (active) setAccessState(state);
+      })
+      .catch(() => {
+        if (active) setAccessState(null);
+      });
+
+    return () => {
+      active = false;
     };
-    loadThemes();
-  }, [showSaveDialog]); // Reload when save dialog closes
+  }, [isAuthenticated, user?.id, userThemes.length]);
+
+  const matchingSavedTheme = userThemes.find((theme) => theme.id === storyboardTheme.id);
+  const isPresetTheme = Boolean(getThemeById(storyboardTheme.id));
+  const isProjectLocalTheme = !isPresetTheme && !matchingSavedTheme;
+
+  const buildThemeFromCurrentSettings = (name: string, id: string): StoryboardTheme => ({
+    ...cloneTheme(storyboardTheme),
+    id,
+    name: name.trim(),
+    isPreset: false,
+  });
 
   const handleThemeChange = (themeId: string) => {
     const presetTheme = getThemeById(themeId);
     if (presetTheme) {
-      setStoryboardTheme(presetTheme);
+      setStoryboardTheme(cloneTheme(presetTheme));
       return;
     }
 
-    const userTheme = userThemes.find(t => t.id === themeId);
+    const userTheme = userThemes.find((theme) => theme.id === themeId);
     if (userTheme) {
-      setStoryboardTheme(userTheme);
+      setStoryboardTheme(cloneTheme(userTheme));
     }
   };
 
-  const handleSaveTheme = async () => {
+  const canSaveNewSavedTheme =
+    accessState?.plan === 'pro' || userThemes.length < FREE_SAVED_THEME_LIMIT;
+
+  const isAtFreeSavedThemeLimit =
+    accessState?.plan !== 'pro' && userThemes.length >= FREE_SAVED_THEME_LIMIT;
+
+  const openSaveDialog = () => {
+    if (!isAuthenticated) {
+      setShowGuestLimitDialog(true);
+      return;
+    }
+
+    if (isAtFreeSavedThemeLimit && !matchingSavedTheme) {
+      setShowUpgradeDialog(true);
+      return;
+    }
+
+    setThemeName(matchingSavedTheme?.name ?? '');
+    setShowSaveDialog(true);
+  };
+
+  const handleSaveNewTheme = async () => {
+    if (!canSaveNewSavedTheme) {
+      setShowUpgradeDialog(true);
+      return;
+    }
+
     if (!themeName.trim()) {
       toast.error('Please enter a theme name');
       return;
     }
 
+    setIsSavingTheme(true);
     try {
-      const themeToSave: StoryboardTheme = {
-        ...storyboardTheme,
-        id: crypto.randomUUID(),
-        name: themeName.trim(),
-        isPreset: false,
-      };
-
-      await ThemeService.saveTheme(themeToSave);
-      setStoryboardTheme(themeToSave);
-      toast.success(`Theme "${themeName}" saved!`);
+      const themeToSave = buildThemeFromCurrentSettings(themeName, crypto.randomUUID());
+      const savedTheme = await ThemeService.saveTheme(themeToSave);
+      setStoryboardTheme(cloneTheme(savedTheme));
+      toast.success(`Theme "${savedTheme.name}" saved`);
       setThemeName('');
       setShowSaveDialog(false);
+      await reloadUserThemes();
     } catch (error) {
-      toast.error('Failed to save theme');
+      toast.error(getThemeServiceErrorMessage(error, 'Failed to save theme'));
       console.error('Error saving theme:', error);
+    } finally {
+      setIsSavingTheme(false);
+    }
+  };
+
+  const handleUpdateExistingTheme = async () => {
+    if (!matchingSavedTheme) {
+      toast.error('This project is not using a saved theme. Use Save as New instead.');
+      return;
+    }
+
+    if (!themeName.trim()) {
+      toast.error('Please enter a theme name');
+      return;
+    }
+
+    setIsSavingTheme(true);
+    try {
+      const themeToUpdate = buildThemeFromCurrentSettings(themeName, matchingSavedTheme.id);
+      const updatedTheme = await ThemeService.updateTheme(matchingSavedTheme.id, themeToUpdate);
+      setStoryboardTheme(cloneTheme(updatedTheme));
+      toast.success(`Theme "${updatedTheme.name}" updated`);
+      setThemeName('');
+      setShowSaveDialog(false);
+      await reloadUserThemes();
+    } catch (error) {
+      toast.error(getThemeServiceErrorMessage(error, 'Failed to update theme'));
+      console.error('Error updating theme:', error);
+    } finally {
+      setIsSavingTheme(false);
     }
   };
 
@@ -101,28 +216,60 @@ export const ThemeToolbar: React.FC = () => {
 
     try {
       await ThemeService.deleteTheme(themeToDelete);
-      
-      // If deleting current theme, switch to Default
-      if (storyboardTheme.id === themeToDelete) {
-        setStoryboardTheme(PRESET_THEMES.light);
-      }
-      
+
       toast.success('Theme deleted');
       setShowDeleteDialog(false);
       setThemeToDelete(null);
-      
-      // Reload themes
-      await ThemeService.loadUserThemesIntoMemory();
-      setUserThemes(ThemeService.getCachedUserThemes());
+      await reloadUserThemes();
     } catch (error) {
-      toast.error('Failed to delete theme');
+      toast.error(getThemeServiceErrorMessage(error, 'Failed to delete theme'));
       console.error('Error deleting theme:', error);
     }
   };
 
   const confirmDeleteTheme = (themeId: string) => {
+    if (!isAuthenticated) {
+      toast.error('Sign in to manage saved themes');
+      return;
+    }
+
     setThemeToDelete(themeId);
     setShowDeleteDialog(true);
+  };
+
+  const openRenameDialog = (theme: StoryboardTheme) => {
+    if (!isAuthenticated) {
+      toast.error('Sign in to manage saved themes');
+      return;
+    }
+
+    setThemeToRename({ id: theme.id, name: theme.name });
+    setRenameThemeName(theme.name);
+    setShowRenameDialog(true);
+  };
+
+  const handleRenameTheme = async () => {
+    if (!themeToRename) return;
+
+    if (!renameThemeName.trim()) {
+      toast.error('Please enter a theme name');
+      return;
+    }
+
+    setIsRenamingTheme(true);
+    try {
+      const renamedTheme = await ThemeService.renameTheme(themeToRename.id, renameThemeName);
+      toast.success(`Theme renamed to "${renamedTheme.name}"`);
+      setShowRenameDialog(false);
+      setThemeToRename(null);
+      setRenameThemeName('');
+      await reloadUserThemes();
+    } catch (error) {
+      toast.error(getThemeServiceErrorMessage(error, 'Failed to rename theme'));
+      console.error('Error renaming theme:', error);
+    } finally {
+      setIsRenamingTheme(false);
+    }
   };
 
   // Color change handler
@@ -211,110 +358,26 @@ export const ThemeToolbar: React.FC = () => {
     />
   );
 
-  // Radial on/off button (radio button style toggle)
-  const RadialToggle = ({ checked, onChange, disabled = false }: { checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) => (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(!checked)}
-      disabled={disabled}
-      className={cn(
-        "h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all",
-        disabled 
-          ? "opacity-40 cursor-not-allowed" 
-          : checked
-            ? "cursor-pointer"
-            : "bg-transparent cursor-pointer"
-      )}
-      style={{
-        borderColor: disabled 
-          ? getColor('text', 'muted') as string
-          : checked
-            ? getColor('text', 'primary') as string
-            : 'rgba(255, 255, 255, 0.6)',
-        backgroundColor: checked ? getColor('text', 'primary') as string : 'transparent'
-      }}
-      title={checked ? "Enabled" : "Disabled"}
-      onMouseEnter={(e) => {
-        if (!disabled && !checked) {
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled && !checked) {
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.6)';
-        }
-      }}
-    >
-      {checked && (
-        <div 
-          className="h-2 w-2 rounded-full"
-          style={{ backgroundColor: getColor('background', 'secondary') as string }}
-        />
-      )}
-    </button>
-  );
-
-  // Icon button toggle (icon serves as the on/off button)
-  const IconToggle = ({ 
-    checked, 
-    onChange, 
-    disabled = false, 
-    icon: Icon,
-    label 
-  }: { 
-    checked: boolean; 
-    onChange: (value: boolean) => void; 
-    disabled?: boolean; 
-    icon: React.ElementType;
+  // Checkbox on/off toggle (matches Template dropdown checkbox styling)
+  const CheckboxToggle = ({
+    checked,
+    onChange,
+    disabled = false,
+    label,
+  }: {
+    checked: boolean;
+    onChange: (value: boolean) => void;
+    disabled?: boolean;
     label: string;
-  }) => {
-    const getBackgroundColor = () => {
-      if (disabled) return undefined;
-      if (checked) return getColor('button', 'toggleActive');
-      return getColor('button', 'toggleInactive');
-    };
-
-    const getHoverClass = () => {
-      if (disabled) return '';
-      if (checked) return `hover:bg-[${getColor('button', 'toggleActiveHover')}]`;
-      return `hover:bg-[${getColor('button', 'toggleInactiveHover')}]`;
-    };
-
-    return (
-      <button
-        type="button"
-        onClick={() => !disabled && onChange(!checked)}
-        disabled={disabled}
-        className={cn(
-          "h-6 w-6 rounded flex items-center justify-center transition-all shadow-sm",
-          disabled && "opacity-40 cursor-not-allowed",
-          !disabled && "cursor-pointer"
-        )}
-        style={!disabled ? { backgroundColor: getBackgroundColor() } : undefined}
-        onMouseEnter={(e) => {
-          if (!disabled) {
-            e.currentTarget.style.backgroundColor = checked 
-              ? getColor('button', 'toggleActiveHover')
-              : getColor('button', 'toggleInactiveHover');
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!disabled) {
-            e.currentTarget.style.backgroundColor = getBackgroundColor() || '';
-          }
-        }}
-        title={`${label}: ${checked ? "Enabled" : "Disabled"}`}
-      >
-        <Icon 
-          size={14} 
-          className={cn(
-            TOOLBAR_STYLES.textClasses,
-            checked ? "opacity-100" : "opacity-60"
-          )} 
-        />
-      </button>
-    );
-  };
+  }) => (
+    <Checkbox
+      checked={checked}
+      onCheckedChange={(value) => onChange(value === true)}
+      disabled={disabled}
+      title={`${label}: ${checked ? 'Enabled' : 'Disabled'}`}
+      className="h-4 w-4 rounded-sm"
+    />
+  );
 
   // Sub-container styling for grouping related controls
   // Centralized style - adjust in COLOR_PALETTE.background.themeSubContainer
@@ -399,7 +462,7 @@ export const ThemeToolbar: React.FC = () => {
               "h-3 w-3.5 flex items-center justify-center border-b transition-colors",
               disabled || value >= max
                 ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer hover:bg-white/10"
+                : `cursor-pointer ${TOOLBAR_STYLES.editableHoverClasses}`
             )}
             style={disabled || value >= max 
               ? { color: getColor('text', 'muted') as string } 
@@ -416,7 +479,7 @@ export const ThemeToolbar: React.FC = () => {
               "h-3 w-3.5 flex items-center justify-center transition-colors",
               disabled || value <= min
                 ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer hover:bg-white/10"
+                : `cursor-pointer ${TOOLBAR_STYLES.editableHoverClasses}`
             )}
             style={{
               color: (disabled || value <= min) 
@@ -483,7 +546,7 @@ export const ThemeToolbar: React.FC = () => {
               "h-3 w-3.5 flex items-center justify-center border-b transition-colors",
               disabled || value >= max
                 ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer hover:bg-white/10"
+                : `cursor-pointer ${TOOLBAR_STYLES.editableHoverClasses}`
             )}
             style={disabled || value >= max 
               ? { color: getColor('text', 'muted') as string } 
@@ -500,7 +563,7 @@ export const ThemeToolbar: React.FC = () => {
               "h-3 w-3.5 flex items-center justify-center transition-colors",
               disabled || value <= min
                 ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer hover:bg-white/10"
+                : `cursor-pointer ${TOOLBAR_STYLES.editableHoverClasses}`
             )}
             style={{
               color: (disabled || value <= min) 
@@ -549,6 +612,12 @@ export const ThemeToolbar: React.FC = () => {
             <SelectContent>
               <SelectItem value="preset-light">Default</SelectItem>
               <SelectItem value="preset-dark">Dark</SelectItem>
+
+              {isProjectLocalTheme && (
+                <SelectItem value={storyboardTheme.id}>
+                  {storyboardTheme.name}
+                </SelectItem>
+              )}
               
               {userThemes.length > 0 && (
                 <>
@@ -556,25 +625,53 @@ export const ThemeToolbar: React.FC = () => {
                     Custom Themes
                   </div>
                   {userThemes.map(theme => (
-                    <div key={theme.id} className="flex items-center justify-between group px-2 hover:bg-accent">
-                      <SelectItem value={theme.id} className="flex-1">
+                    <div key={theme.id} className="relative group">
+                      <SelectItem value={theme.id} className="pr-14">
                         {theme.name}
                       </SelectItem>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          confirmDeleteTheme(theme.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                        style={{
-                          color: getColor('text', 'primary') as string,
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(220, 38, 38, 1)'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = getColor('text', 'primary') as string}
-                        title="Delete theme"
+                      <div
+                        className="absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5"
+                        onPointerDown={(e) => e.preventDefault()}
                       >
-                        <X size={14} />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRenameDialog(theme);
+                          }}
+                          className={cn(
+                            "rounded-sm p-1 transition-colors",
+                            "opacity-70 group-hover:opacity-100",
+                            "hover:bg-white/10"
+                          )}
+                          style={{
+                            color: getColor('text', 'primary') as string,
+                          }}
+                          title="Rename theme"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            confirmDeleteTheme(theme.id);
+                          }}
+                          className={cn(
+                            "rounded-sm p-1 transition-colors",
+                            "opacity-70 group-hover:opacity-100",
+                            "hover:bg-white/10"
+                          )}
+                          style={{
+                            color: getColor('text', 'primary') as string,
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(220, 38, 38, 1)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = getColor('text', 'primary') as string}
+                          title="Delete theme"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </>
@@ -587,7 +684,7 @@ export const ThemeToolbar: React.FC = () => {
               size="sm"
               className="h-8 w-8 p-0"
               style={getGlassmorphismStyles('buttonAccent')}
-              onClick={() => setShowSaveDialog(true)}
+              onClick={openSaveDialog}
               title="Save current settings as theme"
             >
               <Save size={16} className={TOOLBAR_STYLES.iconClasses} />
@@ -602,15 +699,9 @@ export const ThemeToolbar: React.FC = () => {
             <Label className={themeSectionHeadClasses}>Page Colors</Label>
             <div className="flex flex-wrap items-end gap-2">
               <LabeledControlGroup label="BG">
-                <span title="Background">
-                  <PaintBucket size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
-                </span>
                 <ColorSwatchButton path="contentBackground" value={storyboardTheme.contentBackground} />
               </LabeledControlGroup>
               <LabeledControlGroup label="Text">
-                <span title="Header">
-                  <Type size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
-                </span>
                 <ColorSwatchButton path="header.text" value={storyboardTheme.header.text} />
               </LabeledControlGroup>
             </div>
@@ -622,10 +713,9 @@ export const ThemeToolbar: React.FC = () => {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-end justify-between gap-2">
                 <LabeledControlGroup label="BG">
-                  <IconToggle 
+                  <CheckboxToggle 
                     checked={storyboardTheme.shotCard.backgroundEnabled} 
                     onChange={(val) => handleBooleanChange('shotCard.backgroundEnabled', val)}
-                    icon={PaintBucket}
                     label="Background"
                   />
                   <ColorSwatchButton 
@@ -635,9 +725,6 @@ export const ThemeToolbar: React.FC = () => {
                   />
                 </LabeledControlGroup>
                 <LabeledControlGroup label="Corners">
-                  <span title="Radius">
-                    <Spline size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
-                  </span>
                   <NumberInputWithArrows 
                     value={storyboardTheme.shotCard.borderRadius}
                     onChange={(val) => handleNumberChange('shotCard.borderRadius', val)}
@@ -647,10 +734,9 @@ export const ThemeToolbar: React.FC = () => {
                 </LabeledControlGroup>
               </div>
               <LabeledControlGroup label="Border">
-                <IconToggle 
+                <CheckboxToggle 
                   checked={storyboardTheme.shotCard.borderEnabled} 
                   onChange={(val) => handleBooleanChange('shotCard.borderEnabled', val)}
-                  icon={Square}
                   label="Border"
                 />
                 <ColorSwatchButton 
@@ -674,10 +760,9 @@ export const ThemeToolbar: React.FC = () => {
             <Label className={themeSectionHeadClasses}>Shot Border</Label>
             <div className="flex items-end gap-2">
               <LabeledControlGroup label="Color">
-                <IconToggle 
+                <CheckboxToggle 
                   checked={storyboardTheme.imageFrame.borderEnabled} 
                   onChange={(val) => handleBooleanChange('imageFrame.borderEnabled', val)}
-                  icon={Square}
                   label="Border"
                 />
                 <ColorSwatchButton 
@@ -704,15 +789,9 @@ export const ThemeToolbar: React.FC = () => {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-end gap-2">
                 <LabeledControlGroup label="Text">
-                  <div className="w-6 h-6 flex items-center justify-center" title="Text">
-                    <Type size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
-                  </div>
                   <ColorSwatchButton path="shotNumber.text" value={storyboardTheme.shotNumber.text} />
                 </LabeledControlGroup>
                 <LabeledControlGroup label="Corners">
-                  <div className="w-6 h-6 flex items-center justify-center" title="Radius">
-                    <Spline size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
-                  </div>
                   <NumberInputWithArrows 
                     value={storyboardTheme.shotNumber.borderRadius}
                     onChange={(val) => handleNumberChange('shotNumber.borderRadius', val)}
@@ -723,16 +802,12 @@ export const ThemeToolbar: React.FC = () => {
               </div>
               <div className="flex items-end justify-between gap-2">
                 <LabeledControlGroup label="BG">
-                  <div className="w-6 h-6 flex items-center justify-center" title="Background">
-                    <PaintBucket size={14} className={cn(TOOLBAR_STYLES.textClasses)} style={{ opacity: TOOLBAR_STYLES.iconOpacity }} />
-                  </div>
                   <ColorSwatchButton path="shotNumber.background" value={storyboardTheme.shotNumber.background} />
                 </LabeledControlGroup>
                 <LabeledControlGroup label="Borders">
-                  <IconToggle 
+                  <CheckboxToggle 
                     checked={storyboardTheme.shotNumber.borderEnabled} 
                     onChange={(val) => handleBooleanChange('shotNumber.borderEnabled', val)}
-                    icon={Square}
                     label="Border"
                   />
                   <ColorSwatchButton 
@@ -841,27 +916,129 @@ export const ThemeToolbar: React.FC = () => {
       {/* Save Theme Dialog */}
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
         <DialogContent 
-          className="max-w-sm"
+          className="max-w-sm gap-4 p-6"
           style={getGlassmorphismStyles('dark')}
         >
-          <DialogHeader>
+          <DialogHeader className="pr-8">
             <DialogTitle style={{ color: getColor('text', 'primary') as string }}>
               Save Theme
             </DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <Label 
+          <div className="space-y-3 pr-2">
+            <div>
+              <Label 
+                className="text-sm mb-2 block"
+                style={{ color: getColor('text', 'primary') as string }}
+              >
+                Theme Name
+              </Label>
+              <Input
+                placeholder="My Custom Theme"
+                value={themeName}
+                onChange={(e) => setThemeName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    void handleSaveNewTheme();
+                  }
+                }}
+                style={{
+                  backgroundColor: getColor('input', 'background') as string,
+                  border: `1px solid ${getColor('input', 'border') as string}`,
+                  color: getColor('text', 'primary') as string
+                }}
+              />
+            </div>
+            {matchingSavedTheme && (
+              <p
+                className="text-xs text-center"
+                style={{ color: getColor('text', 'secondary') as string }}
+              >
+                Update will save the current project styling to "{matchingSavedTheme.name}".
+              </p>
+            )}
+          </div>
+          <DialogFooter className="flex flex-wrap gap-2 justify-center sm:justify-center w-full pr-2">
+            <Button 
+              onClick={() => setShowSaveDialog(false)}
+              disabled={isSavingTheme}
+              style={getGlassmorphismStyles('button')}
+            >
+              Cancel
+            </Button>
+            {matchingSavedTheme && (
+              <Button 
+                onClick={() => void handleUpdateExistingTheme()}
+                disabled={isSavingTheme}
+                style={getGlassmorphismStyles('button')}
+              >
+                Update
+              </Button>
+            )}
+            <Button 
+              onClick={() => void handleSaveNewTheme()}
+              disabled={isSavingTheme}
+              style={getGlassmorphismStyles('buttonAccent')}
+              title={
+                canSaveNewSavedTheme
+                  ? undefined
+                  : `Free accounts can save up to ${FREE_SAVED_THEME_LIMIT} themes`
+              }
+            >
+              Save as New
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ProjectLimitDialog
+        isOpen={showGuestLimitDialog}
+        onClose={() => setShowGuestLimitDialog(false)}
+        onSignIn={() => {
+          setShowGuestLimitDialog(false);
+          openAuthModal();
+        }}
+        title="Save Custom Themes"
+        description="Create a free account to save reusable themes and use them across projects and devices."
+        featureBullets={[
+          { emoji: '🎨', text: 'Save custom color and layout presets' },
+          { emoji: '🔄', text: 'Reuse themes across any project' },
+          { emoji: '📱', text: 'Access your themes from any device' },
+        ]}
+      />
+
+      <UpgradeToProDialog
+        isOpen={showUpgradeDialog}
+        onClose={() => setShowUpgradeDialog(false)}
+        onUpgrade={() => navigate('/billing')}
+        description={`Free accounts can save up to ${FREE_SAVED_THEME_LIMIT} themes. Upgrade to Pro for unlimited saved themes.`}
+      />
+
+      {/* Rename Theme Dialog */}
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent
+          className="max-w-sm gap-4 p-6"
+          style={getGlassmorphismStyles('dark')}
+        >
+          <DialogHeader className="pr-8">
+            <DialogTitle style={{ color: getColor('text', 'primary') as string }}>
+              Rename Theme
+            </DialogTitle>
+          </DialogHeader>
+          <div className="pr-2">
+            <Label
               className="text-sm mb-2 block"
               style={{ color: getColor('text', 'primary') as string }}
             >
               Theme Name
             </Label>
             <Input
-              placeholder="My Custom Theme"
-              value={themeName}
-              onChange={(e) => setThemeName(e.target.value)}
+              placeholder="Theme name"
+              value={renameThemeName}
+              onChange={(e) => setRenameThemeName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveTheme();
+                if (e.key === 'Enter') {
+                  void handleRenameTheme();
+                }
               }}
               style={{
                 backgroundColor: getColor('input', 'background') as string,
@@ -870,18 +1047,20 @@ export const ThemeToolbar: React.FC = () => {
               }}
             />
           </div>
-          <DialogFooter>
-            <Button 
-              onClick={() => setShowSaveDialog(false)}
+          <DialogFooter className="pr-2">
+            <Button
+              onClick={() => setShowRenameDialog(false)}
+              disabled={isRenamingTheme}
               style={getGlassmorphismStyles('button')}
             >
               Cancel
             </Button>
-            <Button 
-              onClick={handleSaveTheme}
+            <Button
+              onClick={() => void handleRenameTheme()}
+              disabled={isRenamingTheme}
               style={getGlassmorphismStyles('buttonAccent')}
             >
-              Save
+              Rename
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -903,7 +1082,7 @@ export const ThemeToolbar: React.FC = () => {
               Are you sure you want to delete this theme? This action cannot be undone.
             </p>
           </div>
-          <DialogFooter>
+          <DialogFooter className="pr-2">
             <Button 
               onClick={() => setShowDeleteDialog(false)}
               style={getGlassmorphismStyles('button')}

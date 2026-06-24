@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useAuthModalStore } from '@/store/authModalStore';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { UserAccountDropdown } from '@/components/UserAccountDropdown';
-import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
+import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 
 /** Fixed header row height (px) — matches main page rendered height to keep alignment consistent on all routes */
 const HEADER_ROW_HEIGHT_PX = 36;
@@ -104,7 +104,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                         height: AUTH_BUTTON_HEIGHT_PX,
                         fontFamily: '"Gabarito", sans-serif',
                         fontWeight: 600,
-                        ...getGlassmorphismStyles('button')
+                        ...getGlassmorphismStyles('button'),
+                        backgroundColor: getColor('brand', 'dark') as string,
                       }}
                     >
                       <LogIn className="h-3.5 w-3.5" />

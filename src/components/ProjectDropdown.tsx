@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getToolbarContainerStyles, getLayoutToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
@@ -348,7 +348,7 @@ export const ProjectDropdown = ({
             variant="outline" 
             size={compact ? "compact" : "default"}
             className={compact ? "px-2" : "flex items-center gap-2"}
-            style={getToolbarContainerStyles()}
+            style={compact ? getLayoutToolbarContainerStyles() : getToolbarContainerStyles()}
           >
             <FolderOpen size={16} className={`${TOOLBAR_STYLES.iconClasses} ${compact ? "mr-1" : "mr-2"}`} />
             <span className={compact ? "max-w-32 truncate" : "max-w-40 truncate"}>

@@ -30,6 +30,23 @@ export const COLOR_PALETTE = {
   // Base colors
   black: 'rgba(0, 0, 0, 1)',
   white: 'rgba(255, 255, 255, 1)',
+
+  // Brand colors (primary app identity — #21d4fc cyan)
+  brand: {
+    primary: '#21d4fc',
+    primaryMuted: 'rgba(33, 212, 252, 0.7)',
+    secondary: '#0090b0',
+    tertiary: '#21fcd8',
+    fourth: '#00b093',
+    dark: '#0f1e31',
+    darkHover: 'rgba(15, 30, 49, 0.3)', // Semi-opaque dark brand — editable toolbar hover/focus
+    layoutEditableHover: 'rgba(33, 212, 252, 0.2)', // Dark brand hover on layout toolbar fields (dark bg)
+    // Layout toolbar sections (Page Size, Layout, Aspect Ratio, Numbers, Template, Styles)
+    layoutToolbar: 'rgba(33, 212, 252, 0.8)',
+    layoutToolbarActive: 'rgba(33, 212, 252, 0.5)',
+    // Load toolbar sections (Load Batch, Load Shot List)
+    loadToolbar: 'rgba(0, 144, 176, 0.8)',
+  },
   
   // Border colors (unified system)
   border: {

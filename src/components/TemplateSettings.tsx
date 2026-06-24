@@ -5,12 +5,12 @@ import {
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PanelTopDashed } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { getToolbarContainerStyles, getToolbarContainerStylesWithOverrides, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getLayoutToolbarContainerStylesWithOverrides, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getColor } from '@/styles/glassmorphism-styles';
 import { cn } from '@/lib/utils';
 
 export const TemplateSettings: React.FC = () => {
@@ -40,6 +40,10 @@ export const TemplateSettings: React.FC = () => {
     { key: 'showPageNumber', label: 'Page Number' },
   ] as const;
 
+  const templateSectionLabelStyle = {
+    color: getColor('brand', 'primary') as string,
+  };
+
   return (
     <DropdownMenu>
       <Tooltip>
@@ -56,7 +60,7 @@ export const TemplateSettings: React.FC = () => {
                 "border-transparent"
               )}
               style={{
-                ...getToolbarContainerStylesWithOverrides({ border: 'none' }),
+                ...getLayoutToolbarContainerStylesWithOverrides({ border: 'none' }),
                 outline: 'none'
               }}
               onMouseDown={(e) => {
@@ -74,8 +78,7 @@ export const TemplateSettings: React.FC = () => {
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Header Text</DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        <DropdownMenuLabel style={templateSectionLabelStyle}>Header Text</DropdownMenuLabel>
         {headerSettingsItems.map((item) => (
           <DropdownMenuCheckboxItem
             key={item.key}
@@ -86,9 +89,7 @@ export const TemplateSettings: React.FC = () => {
             {item.label}
           </DropdownMenuCheckboxItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Shot Text</DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        <DropdownMenuLabel style={templateSectionLabelStyle}>Shot Text</DropdownMenuLabel>
         {shotSettingsItems.map((item) => (
           <DropdownMenuCheckboxItem
             key={item.key}
@@ -99,9 +100,7 @@ export const TemplateSettings: React.FC = () => {
             {item.label}
           </DropdownMenuCheckboxItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Footer</DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        <DropdownMenuLabel style={templateSectionLabelStyle}>Footer</DropdownMenuLabel>
         {footerSettingsItems.map((item) => (
           <DropdownMenuCheckboxItem
             key={item.key}

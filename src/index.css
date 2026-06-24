@@ -467,6 +467,31 @@ div[style*="WebkitBackdropFilter"],
   --radio-border: rgba(255, 255, 255, 0.3);
   --radio-border-checked: rgba(33, 212, 252, 1);
   --radio-indicator: rgba(33, 212, 252, 1);
+  --brand-editable-hover: rgba(15, 30, 49, 0.7);
+  --brand-dark: #0f1e31;
+  --brand-primary: #21d4fc;
+  --brand-layout-editable-hover: rgba(15, 30, 49, 0.7);
+}
+
+/* Editable toolbar control hover/focus — colors injected at runtime from glassmorphism-styles.ts */
+.toolbar-editable-hover:hover,
+.toolbar-editable-hover:focus-visible {
+  background-color: var(--brand-editable-hover) !important;
+  color: var(--brand-editable-hover-text, white) !important;
+}
+
+/* Layout toolbar editable fields (Layout grid, Numbers, Aspect Ratio) — dark-brand hover on dark bg */
+.toolbar-layout-editable-hover:hover,
+.toolbar-layout-editable-hover:focus-visible {
+  background-color: var(--brand-layout-editable-hover) !important;
+  color: var(--brand-editable-hover-text, white) !important;
+}
+
+/* Selected toggle items (e.g. Aspect Ratio) — brand primary background, dark text */
+.toolbar-editable-hover[data-state="on"],
+.toolbar-layout-editable-hover[data-state="on"] {
+  background-color: var(--brand-primary) !important;
+  color: var(--brand-dark) !important;
 }
 
 [data-radix-checkbox-root][data-state="checked"] {

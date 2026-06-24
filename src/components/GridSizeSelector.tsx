@@ -4,7 +4,7 @@ import { LayoutGrid } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { buttonVariants } from './ui/button';
 import { cn } from '@/lib/utils';
-import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getLayoutToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 import { isGridLayoutValidForPageSize } from '@/utils/pageSize';
 
 interface GridSizeSelectorProps {
@@ -50,12 +50,12 @@ export const GridSizeSelector: React.FC<GridSizeSelectorProps> = ({ pageId }) =>
       <TooltipTrigger asChild>
         <div
           className={cn(TOOLBAR_STYLES.containerClasses)}
-          style={getToolbarContainerStyles()}
+          style={getLayoutToolbarContainerStyles()}
         >
           <LayoutGrid size={16} className={TOOLBAR_STYLES.iconClasses} />
           <div className="flex items-center gap-1">
             <Select value={gridCols.toString()} onValueChange={handleColsChange}>
-              <SelectTrigger className={TOOLBAR_STYLES.selectTriggerClasses}>
+              <SelectTrigger className={TOOLBAR_STYLES.layoutSelectTriggerClasses}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className={TOOLBAR_STYLES.selectContentClasses}>
@@ -72,7 +72,7 @@ export const GridSizeSelector: React.FC<GridSizeSelectorProps> = ({ pageId }) =>
               </Select>
             <span className={`text-sm ${TOOLBAR_STYLES.mutedTextClasses}`}>×</span>
             <Select value={gridRows.toString()} onValueChange={handleRowsChange}>
-              <SelectTrigger className={TOOLBAR_STYLES.selectTriggerClasses}>
+              <SelectTrigger className={TOOLBAR_STYLES.layoutSelectTriggerClasses}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className={TOOLBAR_STYLES.selectContentClasses}>

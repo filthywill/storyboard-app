@@ -580,22 +580,20 @@ const Index = () => {
           }
         }, 300);
         
-        // Load user themes for authenticated users
-        if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
-          setTimeout(async () => {
-            const authState = useAuthStore.getState();
-            if (authState.isAuthenticated && !authState.isLoading) {
-              console.log('Authenticated user - loading user themes...');
-              try {
-                const { ThemeService } = await import('@/services/themeService');
-                await ThemeService.loadUserThemesIntoMemory();
-              } catch (error) {
-                console.error('Failed to load user themes:', error);
-                // Don't block the app if theme loading fails
-              }
+        // Load user themes for authenticated users (independent of project cloud sync)
+        setTimeout(async () => {
+          const authState = useAuthStore.getState();
+          if (authState.isAuthenticated && !authState.isLoading) {
+            console.log('Authenticated user - loading user themes...');
+            try {
+              const { ThemeService } = await import('@/services/themeService');
+              await ThemeService.loadUserThemesIntoMemory();
+            } catch (error) {
+              console.error('Failed to load user themes:', error);
+              // Don't block the app if theme loading fails
             }
-          }, 350); // After auth check completes
-        }
+          }
+        }, 350); // After auth check completes
         
         console.log('App initialization completed');
       } catch (error) {

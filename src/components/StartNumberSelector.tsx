@@ -5,7 +5,7 @@ import { ListOrdered } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { buttonVariants } from './ui/button';
 import { cn } from '@/lib/utils';
-import { getToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
+import { getLayoutToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
 
 export const StartNumberSelector: React.FC = () => {
   const { templateSettings, setTemplateSetting, renumberAllShotsImmediate } = useAppStore();
@@ -46,7 +46,7 @@ export const StartNumberSelector: React.FC = () => {
       <TooltipTrigger asChild>
         <div
           className={cn(TOOLBAR_STYLES.containerClasses)}
-          style={getToolbarContainerStyles()}
+          style={getLayoutToolbarContainerStyles()}
         >
           <ListOrdered size={16} className={TOOLBAR_STYLES.iconClasses} />
           <Input
@@ -55,7 +55,7 @@ export const StartNumberSelector: React.FC = () => {
             onChange={handleInputChange}
             onBlur={handleInputBlur}
             onKeyDown={handleKeyDown}
-            className={`h-5 w-[45px] px-1 border-none shadow-none bg-transparent focus:ring-0 focus:outline-none hover:bg-white/10 ${TOOLBAR_STYLES.textClasses} rounded-sm transition-colors`}
+            className={`h-5 w-[45px] px-1 border-none shadow-none bg-transparent focus:ring-0 focus:outline-none ${TOOLBAR_STYLES.layoutEditableHoverClasses} ${TOOLBAR_STYLES.textClasses} rounded-sm transition-colors`}
             maxLength={10}
           />
         </div>

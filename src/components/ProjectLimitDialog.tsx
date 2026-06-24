@@ -11,16 +11,34 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, LogIn } from 'lucide-react';
 import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 
+interface FeatureBullet {
+  emoji: string;
+  text: string;
+}
+
+const DEFAULT_FEATURE_BULLETS: FeatureBullet[] = [
+  { emoji: '✨', text: 'Create unlimited projects' },
+  { emoji: '☁️', text: 'Automatic cloud backup & sync' },
+  { emoji: '📱', text: 'Access your work from any device' },
+  { emoji: '🎨', text: 'Advanced features and tools' },
+];
+
 interface ProjectLimitDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSignIn: () => void;
+  title?: string;
+  description?: string;
+  featureBullets?: FeatureBullet[];
 }
 
 export const ProjectLimitDialog: React.FC<ProjectLimitDialogProps> = ({
   isOpen,
   onClose,
   onSignIn,
+  title = 'Ready for More?',
+  description = "You've reached the test project limit. Create an account to unlock unlimited projects, cloud sync, and more!",
+  featureBullets = DEFAULT_FEATURE_BULLETS,
 }) => {
   const handleSignIn = () => {
     onClose();
@@ -40,31 +58,21 @@ export const ProjectLimitDialog: React.FC<ProjectLimitDialogProps> = ({
             </div>
           </div>
           <DialogTitle className="text-center text-2xl text-white">
-            Ready for More?
+            {title}
           </DialogTitle>
           <DialogDescription className="text-center text-base text-white/80 mt-2">
-            You've reached the test project limit. Create an account to unlock unlimited projects, cloud sync, and more!
+            {description}
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
           <div className="space-y-3 text-sm text-white/70">
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5">✨</div>
-              <div>Create unlimited projects</div>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5">☁️</div>
-              <div>Automatic cloud backup & sync</div>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5">📱</div>
-              <div>Access your work from any device</div>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5">🎨</div>
-              <div>Advanced features and tools</div>
-            </div>
+            {featureBullets.map((bullet) => (
+              <div key={bullet.text} className="flex items-start gap-2">
+                <div className="mt-0.5">{bullet.emoji}</div>
+                <div>{bullet.text}</div>
+              </div>
+            ))}
           </div>
         </div>
 
