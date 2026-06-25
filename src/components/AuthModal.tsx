@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Chrome } from 'lucide-react'
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles'
 import { AuthService } from '@/services/authService'
+import { useAuthModalStore } from '@/store/authModalStore'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -56,6 +57,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const resetEmailId = `${idBase}-reset-email`
   
   const { signIn, signUp, signInWithGoogle, setLogoutReason } = useAuthStore()
+  const authModalMode = useAuthModalStore((state) => state.authModalMode)
+
+  useEffect(() => {
+    if (!isOpen) return
+    setIsSignUp(authModalMode === 'sign-up')
+  }, [isOpen, authModalMode])
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -411,16 +418,42 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 {isSignUp ? 'Create Account' : 'Sign In'}
               </DialogTitle>
               <DialogDescription 
-                className="text-sm"
+                className="text-base leading-relaxed pt-1"
                 style={{ 
                   color: getColor('text', 'secondary') as string,
                   textAlign: 'center'
                 }}
               >
                 {isSignUp ? (
-                  <>Already have an account? <button type="button" onClick={() => setIsSignUp(false)} style={{ color: getColor('button', 'primary') as string, textDecoration: 'underline' }}>Sign in</button></>
+                  <>
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setIsSignUp(false)}
+                      className="font-semibold underline underline-offset-4 decoration-1 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm"
+                      style={{
+                        color: getColor('brand', 'primary') as string,
+                        outlineColor: getColor('brand', 'primary') as string,
+                      }}
+                    >
+                      Sign in
+                    </button>
+                  </>
                 ) : (
-                  <>New user? <button type="button" onClick={() => setIsSignUp(true)} style={{ color: getColor('button', 'primary') as string, textDecoration: 'underline' }}>Create an account</button></>
+                  <>
+                    New user?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setIsSignUp(true)}
+                      className="font-semibold underline underline-offset-4 decoration-1 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm"
+                      style={{
+                        color: getColor('brand', 'primary') as string,
+                        outlineColor: getColor('brand', 'primary') as string,
+                      }}
+                    >
+                      Create an account
+                    </button>
+                  </>
                 )}
               </DialogDescription>
             </DialogHeader>
@@ -490,7 +523,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 onClick={handleForgotPassword}
                 disabled={loading}
                 className="text-sm underline disabled:opacity-50"
-                style={{ color: getColor('button', 'primary') as string }}
+                style={{ color: getColor('brand', 'primary') as string }}
               >
                 Forgot password?
               </button>

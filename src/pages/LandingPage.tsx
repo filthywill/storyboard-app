@@ -165,9 +165,15 @@ export default function LandingPage() {
         </section>
 
         <div className="text-center space-y-20">
-        <section className="space-y-6">
+        <section
+          className="rounded-xl p-6 sm:p-8 space-y-6 border-no"
+          style={{
+            backgroundColor: 'rgba(176, 176, 176, 0.15)',
+            borderColor: 'rgba(33, 212, 252, 0.25)',
+          }}
+        >
           <h2
-            className="text-xl font-semibold"
+            className="text-3xl font-semibold"
             style={{ color: getColor('text', 'primary') as string }}
           >
             How it works

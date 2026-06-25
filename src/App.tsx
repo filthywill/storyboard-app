@@ -54,6 +54,7 @@ const AppContent = () => {
   const location = useLocation();
   const { isAuthModalOpen, closeAuthModal } = useAuthModalStore();
   const isExportRenderRoute = location.pathname === EXPORT_PDF_RENDER;
+  const isLandingPage = location.pathname === MARKETING_HOME;
 
   if (isExportRenderRoute) {
     return (
@@ -107,7 +108,7 @@ const AppContent = () => {
         {/* Catch-all MUST be last */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      <AppFooterLinks />
+      {!isLandingPage && <AppFooterLinks />}
     </>
   );
 };

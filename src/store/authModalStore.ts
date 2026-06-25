@@ -1,8 +1,11 @@
 import { create } from 'zustand';
 
+export type AuthModalMode = 'sign-in' | 'sign-up';
+
 interface AuthModalState {
   isAuthModalOpen: boolean;
-  openAuthModal: () => void;
+  authModalMode: AuthModalMode;
+  openAuthModal: (mode?: AuthModalMode) => void;
   closeAuthModal: () => void;
 }
 
@@ -12,6 +15,7 @@ interface AuthModalState {
  */
 export const useAuthModalStore = create<AuthModalState>((set) => ({
   isAuthModalOpen: false,
-  openAuthModal: () => set({ isAuthModalOpen: true }),
-  closeAuthModal: () => set({ isAuthModalOpen: false }),
+  authModalMode: 'sign-in',
+  openAuthModal: (mode = 'sign-in') => set({ isAuthModalOpen: true, authModalMode: mode }),
+  closeAuthModal: () => set({ isAuthModalOpen: false, authModalMode: 'sign-in' }),
 }));

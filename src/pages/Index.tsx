@@ -14,6 +14,7 @@ import { DataValidator } from '@/utils/dataValidator';
 import { toast } from 'sonner';
 import { EmptyProjectState } from '@/components/EmptyProjectState';
 import { ConfirmEmailScreen } from '@/components/ConfirmEmailScreen';
+import { GuestLocalProjectBanner } from '@/components/GuestLocalProjectBanner';
 import { CloudSaveConflictDialog } from '@/components/CloudSaveConflictDialog';
 import { ProjectPickerModal } from '@/components/ProjectPickerModal';
 import { LoggedOutElsewhereScreen } from '@/components/LoggedOutElsewhereScreen';
@@ -103,6 +104,8 @@ const Index = () => {
     currentProject?.id && (isReadOnlyLease || isTakeoverPending)
   );
   const isUnconfirmedEmail = isAuthenticated && authStatus === 'authenticated_unconfirmed';
+  const showGuestLocalBanner =
+    !isAuthenticated && Boolean(currentProject) && !isUnconfirmedEmail;
   const refreshEmailConfirmationStatusRef = useRef<(options?: { silent?: boolean; showSuccess?: boolean }) => Promise<boolean>>(async () => false);
   const runVerificationRefreshWithRetryRef = useRef<(showSuccess: boolean) => void>(() => {});
   const [isRefreshingVerification, setIsRefreshingVerification] = useState(false);
@@ -155,6 +158,15 @@ const Index = () => {
   }, [user?.id]);
   
   // Handler to gate modal opening based on project limits
+  const handleGoogleSignIn = async () => {
+    try {
+      await authStore.signInWithGoogle();
+      authStore.setLogoutReason('none');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Google authentication failed');
+    }
+  };
+
   const handleRequestCreateProject = async () => {
     if (!isAuthenticated) {
       if (!canCreateProject()) {
@@ -1110,6 +1122,13 @@ const Index = () => {
       <div>
         {/* Header Section (unified AppHeader) */}
         <AppHeader />
+
+        {showGuestLocalBanner && (
+          <GuestLocalProjectBanner
+            onSignIn={() => openAuthModal('sign-in')}
+            onSignUp={() => openAuthModal('sign-up')}
+          />
+        )}
         
         {/* Project management dialogs (handled by ProjectSelector without rendering auth UI) */}
         <ProjectSelector 
@@ -1227,6 +1246,7 @@ const Index = () => {
             isAuthenticated={false}
             onCreateProject={() => void handleRequestCreateProject()}
             onSignIn={openAuthModal}
+            onGoogleSignIn={() => void handleGoogleSignIn()}
           />
         )}
 

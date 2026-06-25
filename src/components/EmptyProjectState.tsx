@@ -1,19 +1,22 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FolderPlus, LogIn } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Chrome, FolderPlus, Mail } from 'lucide-react';
 import { getGlassmorphismStyles, getColor, MODAL_OVERLAY_STYLES } from '@/styles/glassmorphism-styles';
 
 interface EmptyProjectStateProps {
   isAuthenticated: boolean;
   onCreateProject: () => void;
   onSignIn: () => void;
+  onGoogleSignIn: () => void;
 }
 
 export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({ 
   isAuthenticated,
   onCreateProject,
-  onSignIn
+  onSignIn,
+  onGoogleSignIn,
 }) => {
   if (isAuthenticated) {
     // Authenticated users: Simple create button (no full-screen overlay)
@@ -55,31 +58,49 @@ export const EmptyProjectState: React.FC<EmptyProjectStateProps> = ({
           <CardDescription className="text-base mt-2" style={{ color: getColor('text', 'secondary') as string }}>
             Layout storyboards fast and easy
           </CardDescription>
+         
         </CardHeader>
-        <CardContent className="space-y-3 pb-6">
-          <Button 
+        <CardContent className="space-y-3 pb-6 pt-2">
+          <Button
+            onClick={onGoogleSignIn}
+            size="lg"
+            className="w-full text-white"
+            style={getGlassmorphismStyles('buttonAccent')}
+          >
+            <Chrome className="h-5 w-5 mr-2" aria-hidden="true" />
+            Continue with Google
+          </Button>
+          <Button
             onClick={onSignIn}
             size="lg"
             className="w-full text-white"
             style={getGlassmorphismStyles('buttonSecondary')}
           >
-            <LogIn className="h-5 w-5 mr-2" />
-            Sign In / Sign Up
+            <Mail className="h-5 w-5 mr-2" aria-hidden="true" />
+            Continue with Email
           </Button>
-          <Button 
+
+          <div className="py-2" role="presentation">
+            <Separator
+              style={{ backgroundColor: getColor('input', 'border') as string }}
+            />
+          </div>
+
+          <Button
             onClick={onCreateProject}
             size="lg"
             className="w-full text-white"
             style={getGlassmorphismStyles('button')}
+            aria-describedby="guest-workflow-helper"
           >
-            <FolderPlus className="h-5 w-5 mr-2" />
-            Create a Test Project
+            Try Without an Account
           </Button>
           <p
-            className="text-xs text-center pt-2"
+            id="guest-workflow-helper"
+            className="text-xs text-center pt-1"
             style={{ color: getColor('text', 'muted') as string }}
           >
-            Test projects are saved locally. Sign in to sync to the cloud.
+            Create a free account to save your project.
           </p>
         </CardContent>
       </Card>
