@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { supabase } from '@/lib/supabase'
 import { AuthService } from '@/services/authService'
+import { APP_HOME } from '@/config/routes'
 
 export default function AuthCallback() {
   const navigate = useNavigate()
@@ -16,7 +17,7 @@ export default function AuthCallback() {
         
         if (error) {
           console.error('Auth callback error:', error)
-          navigate('/?error=auth_failed')
+          navigate(`${APP_HOME}?error=auth_failed`)
           return
         }
 
@@ -34,14 +35,14 @@ export default function AuthCallback() {
             // Don't block the login if session management fails
           }
           
-          navigate('/')
+          navigate(APP_HOME)
         } else {
           // No session found
-          navigate('/?error=no_session')
+          navigate(`${APP_HOME}?error=no_session`)
         }
       } catch (error) {
         console.error('Auth callback error:', error)
-        navigate('/?error=auth_failed')
+        navigate(`${APP_HOME}?error=auth_failed`)
       }
     }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageTabs } from '@/components/PageTabs';
 import { StoryboardPage } from '@/components/StoryboardPage';
 import ProjectSelector from '@/components/ProjectSelector';
@@ -42,6 +42,7 @@ import {
   setWorkspaceMode,
   type WorkspaceMode,
 } from '@/services/workspaceModeService';
+import { APP_HOME } from '@/config/routes';
 
 const AUTH_BROADCAST_CHANNEL = 'sbflow_auth';
 const AUTH_CONFIRMED_STALE_MS = 60_000;
@@ -66,6 +67,7 @@ const Index = () => {
   } = useAppStore();
   
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     isAuthenticated,
     authStatus,
@@ -128,6 +130,19 @@ const Index = () => {
       clearVerificationRetry();
     };
   }, []);
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error !== 'auth_failed' && error !== 'no_session') return;
+
+    if (error === 'auth_failed') {
+      toast.error('Sign in failed. Please try again.');
+    } else {
+      toast.error('No session found. Please sign in again.');
+    }
+
+    navigate(APP_HOME, { replace: true });
+  }, [searchParams, navigate]);
 
   useEffect(() => {
     setWorkspaceModeState(getWorkspaceMode(user?.id));
@@ -230,6 +245,11 @@ const Index = () => {
     options: { silent?: boolean; showSuccess?: boolean } = {}
   ): Promise<boolean> => {
     try {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        console.warn('Session refresh during confirmation check failed:', refreshError);
+      }
+
       const { AuthService } = await import('@/services/authService');
       const refreshedUser = await AuthService.getCurrentUser();
 
@@ -369,9 +389,16 @@ const Index = () => {
       void refreshIfVisible(false);
     }, 60_000);
 
+    const handleStorage = (event: StorageEvent) => {
+      if (!event.key?.includes('auth-token')) return;
+      void refreshIfVisible(true);
+    };
+    window.addEventListener('storage', handleStorage);
+
     return () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('storage', handleStorage);
       clearInterval(verificationInterval);
     };
   }, [isUnconfirmedEmail]);

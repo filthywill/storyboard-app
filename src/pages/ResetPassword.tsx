@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AuthService } from '@/services/authService'
+import { APP_HOME } from '@/config/routes'
 import { supabase } from '@/lib/supabase'
 import { useAuthModalStore } from '@/store/authModalStore'
 import { useAuthStore } from '@/store/authStore'
@@ -95,7 +96,7 @@ export default function ResetPassword() {
   }, [setUser])
 
   const handleBackToSignIn = () => {
-    navigate('/')
+    navigate(APP_HOME)
     openAuthModal()
   }
 
@@ -169,7 +170,7 @@ export default function ResetPassword() {
               type="button"
               className="w-full"
               style={getGlassmorphismStyles('buttonAccent')}
-              onClick={() => navigate('/')}
+              onClick={() => navigate(APP_HOME)}
             >
               Continue to App
             </Button>

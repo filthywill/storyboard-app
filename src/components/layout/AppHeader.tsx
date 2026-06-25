@@ -6,6 +6,7 @@ import { useAuthModalStore } from '@/store/authModalStore';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { UserAccountDropdown } from '@/components/UserAccountDropdown';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
+import { APP_HOME } from '@/config/routes';
 
 /** Fixed header row height (px) — matches main page rendered height to keep alignment consistent on all routes */
 const HEADER_ROW_HEIGHT_PX = 36;
@@ -24,7 +25,7 @@ interface AppHeaderProps {
   showOfflineBanner?: boolean;
   
   /**
-   * Whether the logo should be clickable (navigates to /)
+   * Whether the logo should be clickable (navigates to the app workspace)
    * @default false
    */
   logoClickable?: boolean;
@@ -79,7 +80,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               {logoClickable ? (
                 <button
                   type="button"
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate(APP_HOME)}
                   className="h-full inline-flex items-end p-0 border-0 bg-transparent focus:outline-none focus-visible:outline-none"
                 >
                   {logoImg}

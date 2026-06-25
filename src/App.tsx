@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 
 import { AuthModal } from "@/components/AuthModal";
 import Index from "./pages/Index";
+import LandingPage from "./pages/LandingPage";
 import TestIndex from "./pages/TestIndex";
 import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
@@ -20,6 +21,18 @@ import BillingCanceledPage from "./pages/billing/BillingCanceledPage";
 import { useAuthStore } from "@/store/authStore";
 import { useAuthModalStore } from "@/store/authModalStore";
 import { AppFooterLinks } from "@/components/system/AppFooterLinks";
+import {
+  APP_HOME,
+  AUTH_CALLBACK,
+  BILLING,
+  BILLING_CANCELED,
+  BILLING_SUCCESS,
+  EXPORT_PDF_RENDER,
+  MARKETING_HOME,
+  PRIVACY,
+  RESET_PASSWORD,
+  TERMS,
+} from "@/config/routes";
 
 const queryClient = new QueryClient();
 
@@ -31,7 +44,7 @@ const RequireAuth = ({ children }: RequireAuthProps) => {
   const { isAuthenticated } = useAuthStore();
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={APP_HOME} replace />;
   }
 
   return children;
@@ -40,12 +53,12 @@ const RequireAuth = ({ children }: RequireAuthProps) => {
 const AppContent = () => {
   const location = useLocation();
   const { isAuthModalOpen, closeAuthModal } = useAuthModalStore();
-  const isExportRenderRoute = location.pathname === "/export/pdf/render";
+  const isExportRenderRoute = location.pathname === EXPORT_PDF_RENDER;
 
   if (isExportRenderRoute) {
     return (
       <Routes>
-        <Route path="/export/pdf/render" element={<ExportPdfRender />} />
+        <Route path={EXPORT_PDF_RENDER} element={<ExportPdfRender />} />
       </Routes>
     );
   }
@@ -56,17 +69,18 @@ const AppContent = () => {
       <Sonner />
       <AuthModal isOpen={isAuthModalOpen} onClose={closeAuthModal} />
       <Routes>
-        <Route path="/" element={<Index />} />
+        <Route path={MARKETING_HOME} element={<LandingPage />} />
+        <Route path={APP_HOME} element={<Index />} />
         <Route path="/test" element={<TestIndex />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/terms" element={<TermsOfService />} />
-        <Route path="/export/pdf/render" element={<ExportPdfRender />} />
+        <Route path={AUTH_CALLBACK} element={<AuthCallback />} />
+        <Route path={RESET_PASSWORD} element={<ResetPassword />} />
+        <Route path={PRIVACY} element={<PrivacyPolicy />} />
+        <Route path={TERMS} element={<TermsOfService />} />
+        <Route path={EXPORT_PDF_RENDER} element={<ExportPdfRender />} />
 
         {/* Billing routes */}
         <Route
-          path="/billing"
+          path={BILLING}
           element={
             <RequireAuth>
               <BillingPage />
@@ -74,7 +88,7 @@ const AppContent = () => {
           }
         />
         <Route
-          path="/billing/success"
+          path={BILLING_SUCCESS}
           element={
             <RequireAuth>
               <BillingSuccessPage />
@@ -82,7 +96,7 @@ const AppContent = () => {
           }
         />
         <Route
-          path="/billing/canceled"
+          path={BILLING_CANCELED}
           element={
             <RequireAuth>
               <BillingCanceledPage />

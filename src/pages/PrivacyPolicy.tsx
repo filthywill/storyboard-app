@@ -1,8 +1,12 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles'
+import { APP_HOME, MARKETING_HOME } from '@/config/routes'
 
 export default function PrivacyPolicy() {
+  const navigate = useNavigate()
+
   useEffect(() => {
     document.title = 'Privacy Policy - Storyboard Flow'
   }, [])
@@ -29,7 +33,7 @@ export default function PrivacyPolicy() {
             </div>
             <div className="flex items-center gap-4">
               <button
-                onClick={() => window.location.href = '/'}
+                onClick={() => navigate(APP_HOME)}
                 className="text-white hover:bg-white/20 hover:text-white px-3 py-1.5 rounded transition-colors text-sm font-medium flex items-center"
                 style={{ fontFamily: '"BBH Sans Hegarty", sans-serif' }}
               >
@@ -148,7 +152,7 @@ export default function PrivacyPolicy() {
             <div className="bg-white/10 p-4 rounded-lg">
               <p className="text-white/80">
                 <strong>Email:</strong> privacy@storyboardflow.com<br />
-                <strong>Website:</strong> <a href="/" className="text-blue-400 hover:underline">storyboardflow.com</a>
+                <strong>Website:</strong> <a href={MARKETING_HOME} className="text-blue-400 hover:underline">storyboardflow.com</a>
               </p>
             </div>
           </section>

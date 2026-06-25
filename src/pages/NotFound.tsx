@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
+import { APP_HOME } from "@/config/routes";
 
 const NotFound = () => {
   const location = useLocation();
@@ -15,7 +16,7 @@ const NotFound = () => {
     
     // Auto-redirect after 2 seconds
     const timer = setTimeout(() => {
-      navigate('/');
+      navigate(APP_HOME);
     }, 2000);
     
     return () => clearTimeout(timer);
@@ -30,7 +31,7 @@ const NotFound = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
         <p className="text-sm text-gray-500 mt-6">
-          If you're not redirected, <a href="/" className="text-blue-500 hover:text-blue-700 underline">click here</a>
+          If you're not redirected, <a href={APP_HOME} className="text-blue-500 hover:text-blue-700 underline">click here</a>
         </p>
       </div>
     </div>

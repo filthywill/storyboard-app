@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { getGlassmorphismStyles, getColor } from "@/styles/glassmorphism-styles";
+import { APP_HOME } from "@/config/routes";
 
 function hasStripeReturnParams(searchParams: URLSearchParams): boolean {
   return (
@@ -36,7 +37,7 @@ export default function BillingSuccessPage() {
       <div className="flex-1 max-w-xl mx-auto px-6 py-8 w-full">
         <button
           type="button"
-          onClick={() => navigate("/")}
+          onClick={() => navigate(APP_HOME)}
           className="flex items-center gap-2 mb-6 text-sm font-medium transition-colors hover:opacity-90"
           style={{ color: getColor("text", "secondary") }}
         >
@@ -72,7 +73,7 @@ export default function BillingSuccessPage() {
               Continue
             </Button>
             <Button
-              onClick={() => navigate("/")}
+              onClick={() => navigate(APP_HOME)}
               style={getGlassmorphismStyles("button")}
             >
               Back to App

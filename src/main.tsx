@@ -20,26 +20,18 @@ type AuthSubscriptionResult = {
   };
 };
 
-function isSupabaseAuthArtifactPresent(): boolean {
+function isEmailConfirmationArtifactPresent(): boolean {
   if (typeof window === 'undefined') return false;
 
-  // Never hijack OAuth callback route
+  // OAuth and password recovery have dedicated routes; never hijack them.
   if (window.location.pathname.startsWith('/auth/callback')) return false;
-  // Password recovery links need to reach the reset form with Supabase artifacts intact.
   if (window.location.pathname.startsWith('/reset-password')) return false;
 
   const hash = window.location.hash || '';
-  const search = window.location.search || '';
 
-  const hashLooksLikeSupabase =
-    hash.includes('access_token=') ||
-    hash.includes('refresh_token=') ||
-    hash.includes('type=signup') ||
-    hash.includes('type=recovery');
-
-  const searchLooksLikeOAuthOrMagic = search.includes('code=');
-
-  return hashLooksLikeSupabase || searchLooksLikeOAuthOrMagic;
+  // Email signup/verification links include type=signup (or type=email) in the hash fragment.
+  // OAuth and other auth flows must not enter the confirmation-only bootstrap.
+  return hash.includes('type=signup') || hash.includes('type=email');
 }
 
 function isConfirmCompleteMode(): boolean {
@@ -58,7 +50,7 @@ function broadcastAuthConfirmed(): void {
   try {
     const channel = new BroadcastChannel(AUTH_BROADCAST_CHANNEL);
     channel.postMessage({ type: 'AUTH_CONFIRMED', at: Date.now() });
-    channel.close();
+    window.setTimeout(() => channel.close(), 100);
   } catch {
     // Best-effort only
   }
@@ -338,7 +330,7 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
-  const hasArtifacts = isSupabaseAuthArtifactPresent();
+  const hasArtifacts = isEmailConfirmationArtifactPresent();
   if (!hasArtifacts) {
     renderApp();
     return;
