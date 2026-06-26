@@ -21,6 +21,7 @@ import BillingCanceledPage from "./pages/billing/BillingCanceledPage";
 import { useAuthStore } from "@/store/authStore";
 import { useAuthModalStore } from "@/store/authModalStore";
 import { AppFooterLinks } from "@/components/system/AppFooterLinks";
+import { AnalyticsRouteListener } from "@/components/AnalyticsRouteListener";
 import {
   APP_HOME,
   AUTH_CALLBACK,
@@ -118,6 +119,7 @@ const App = () => {
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <BrowserRouter>
+        <AnalyticsRouteListener />
         <AppContent />
       </BrowserRouter>
     </TooltipProvider>

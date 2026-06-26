@@ -3,6 +3,7 @@ import App from './App.tsx'
 import './index.css'
 import { getAppBackgroundCSSVars, getColor } from './styles/glassmorphism-styles'
 import { supabase } from '@/lib/supabase'
+import { AnalyticsService } from '@/services/analytics/AnalyticsService'
 
 if (import.meta.env.DEV) {
   void import('@/utils/storyboardDiagnostics');
@@ -219,6 +220,8 @@ if (typeof window !== 'undefined') {
 const root = createRoot(document.getElementById("root")!);
 
 function renderApp(): void {
+  AnalyticsService.init();
+
   // Writer lease + tab writer id must NOT run in confirmation-only mode.
   // Lazy import keeps this branch side-effect-free until we choose to boot the app.
   import('@/utils/writerTabId')

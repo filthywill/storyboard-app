@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { useAuthStore } from '@/store/authStore';
+import { AnalyticsService } from '@/services/analytics/AnalyticsService';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { DataValidator } from '@/utils/dataValidator';
 import { toast } from 'sonner';
@@ -960,6 +961,7 @@ const Index = () => {
                 
                 // Update auth store state
                 useAuthStore.setState({ user: null, isAuthenticated: false, logoutReason: 'other_session' });
+                AnalyticsService.reset();
                 
                 // Clear all current project data from stores
                 try {
@@ -996,6 +998,7 @@ const Index = () => {
                 
                 // Update auth store state
                 useAuthStore.setState({ user: null, isAuthenticated: false, logoutReason: 'other_session' });
+                AnalyticsService.reset();
                 
                 // Clear all current project data from stores
                 try {

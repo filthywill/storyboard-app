@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AuthService } from '@/services/authService';
+import { AnalyticsService } from '@/services/analytics/AnalyticsService';
 
 interface User {
   id: string;
@@ -40,6 +41,17 @@ const deriveAuthStatus = (user: User | null): AuthStatus => {
   return isConfirmed ? 'authenticated_confirmed' : 'authenticated_unconfirmed';
 };
 
+const syncAuthAnalyticsIdentity = (user: User | null): void => {
+  if (user?.id) {
+    AnalyticsService.identify(user.id, {
+      auth_status: deriveAuthStatus(user),
+    });
+    return;
+  }
+
+  AnalyticsService.reset();
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -50,12 +62,15 @@ export const useAuthStore = create<AuthState>()(
       error: null,
       logoutReason: 'none',
       
-      setUser: (user) => set({ 
-        user, 
-        isAuthenticated: !!user,
-        authStatus: deriveAuthStatus(user),
-        error: null 
-      }),
+      setUser: (user) => {
+        syncAuthAnalyticsIdentity(user);
+        set({
+          user,
+          isAuthenticated: !!user,
+          authStatus: deriveAuthStatus(user),
+          error: null,
+        });
+      },
       
       setLoading: (isLoading) => set({ isLoading }),
       
@@ -76,6 +91,7 @@ export const useAuthStore = create<AuthState>()(
             authStatus: deriveAuthStatus(user),
             isLoading: false
           });
+          syncAuthAnalyticsIdentity(user);
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
           throw error;
@@ -93,6 +109,7 @@ export const useAuthStore = create<AuthState>()(
             authStatus: deriveAuthStatus(user),
             isLoading: false
           });
+          syncAuthAnalyticsIdentity(user);
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
           throw error;
@@ -110,6 +127,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
             logoutReason: 'none'
           });
+          syncAuthAnalyticsIdentity(null);
           
           // Clear all current project data on manual sign-out
           try {
@@ -146,9 +164,11 @@ export const useAuthStore = create<AuthState>()(
             authStatus: deriveAuthStatus(user as User | null),
             isLoading: false
           });
+          syncAuthAnalyticsIdentity(user as User | null);
           
           // Listen for auth changes
           AuthService.onAuthStateChange((user) => {
+            syncAuthAnalyticsIdentity(user as User | null);
             set({
               user,
               isAuthenticated: !!user,
