@@ -1,0 +1,8 @@
+Metric,Key,Category,Definition,PostHog Event,PostHog Formula,Target (Alpha),Current Value,Last Updated,Dashboard Link
+App sessions (unique users),app_sessions_unique,Activation,Distinct users with app_started per week,app_started,Unique users count event app_started,≥ 10 testers/week,—,2026-06-23,
+Project creation rate,project_creation_rate,Activation,project_created / app_started,project_created,Funnel step 2: app_started → project_created,≥ 70%,—,2026-06-23,
+First shot activation rate,activation_first_shot_rate,Activation,first_shot_added / project_created,first_shot_added,Funnel: project_created → first_shot_added,≥ 60%,—,2026-06-23,
+Export completion rate,export_completion_rate,Activation,export_completed / first_shot_added,export_completed,Funnel: first_shot_added → export_completed,≥ 40%,—,2026-06-23,
+Signup completion rate,signup_completion_rate,Activation,signup_completed / auth_modal_opened,signup_completed,Funnel: auth_modal_opened → signup_completed,≥ 50% (of modal opens),—,2026-06-23,
+Export failure rate,export_failure_rate,Quality,export_failed / export_started,export_failed,Ratio of failed to started exports,< 5%,—,2026-06-23,
+Sync conflict rate,sync_conflict_rate,Quality,sync_conflict_shown per active user per week,sync_conflict_shown,Count per user,< 10% of sync users,—,2026-06-23,

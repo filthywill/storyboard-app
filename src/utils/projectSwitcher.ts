@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 import { LocalStorageManager } from './localStorageManager';
 import { withOperation } from '@/utils/operations';
 import { Telemetry } from '@/utils/telemetry';
+import { captureProjectCreated } from '@/services/analytics/activationTracking';
 import { toast } from 'sonner';
 import { getProjectOpenState } from '@/services/projectOpenGate';
 import { getWorkspaceMode, setWorkspaceMode } from '@/services/workspaceModeService';
@@ -653,6 +654,7 @@ export class ProjectSwitcher {
       }
   
       let projectId: string;
+      let isCloud = false;
   
       this.applyDefaultStateToStores(name);
   
@@ -661,6 +663,7 @@ export class ProjectSwitcher {
           const { CloudSyncService } = await import('@/services/cloudSyncService');
           projectId = await CloudSyncService.createProject(name, description);
           projectManager.createProjectWithId(projectId, name, description, true);
+          isCloud = true;
         } catch (error: any) {
           const isUpgradeRequired =
             error?.code === "UPGRADE_REQUIRED" ||
@@ -681,6 +684,18 @@ export class ProjectSwitcher {
   
       projectManager.setCurrentProject(projectId);
       this.updateProjectMetadata(projectId);
+
+      const source =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('source') ?? undefined
+          : undefined;
+
+      captureProjectCreated({
+        isGuest: !isAuthenticated,
+        isCloud,
+        projectCount: projectManager.getAllProjects().length,
+        source,
+      });
   
       return projectId;
     } catch (error: any) {

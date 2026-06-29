@@ -4,6 +4,19 @@ import { useAuthStore } from '@/store/authStore'
 import { supabase } from '@/lib/supabase'
 import { AuthService } from '@/services/authService'
 import { APP_HOME } from '@/config/routes'
+import {
+  captureSignupCompleted,
+  isLikelyNewAuthUser,
+} from '@/services/analytics/activationTracking'
+import type { AuthStatus } from '@/store/authStore'
+
+const deriveAuthStatus = (user: {
+  email_confirmed_at?: string | null
+  confirmed_at?: string | null
+}): AuthStatus => {
+  const isConfirmed = Boolean(user.email_confirmed_at || user.confirmed_at)
+  return isConfirmed ? 'authenticated_confirmed' : 'authenticated_unconfirmed'
+}
 
 export default function AuthCallback() {
   const navigate = useNavigate()
@@ -22,9 +35,14 @@ export default function AuthCallback() {
         }
 
         if (data.session?.user) {
+          const user = data.session.user
           // User successfully authenticated
-          setUser(data.session.user)
+          setUser(user)
           setLogoutReason('none')
+
+          if (isLikelyNewAuthUser(user.created_at)) {
+            captureSignupCompleted('google', deriveAuthStatus(user))
+          }
           
           // Handle session management for social logins
           try {

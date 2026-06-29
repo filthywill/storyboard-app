@@ -1,0 +1,5 @@
+Initiative,Description,Quarter,Horizon,Theme,Status,Priority,Target Date,Notes
+Improve time-to-first-shot,Reduce steps from welcome to first shot added,Q2 2026,Now,Activation,In Progress,P0,2026-06-30,Linked to activation funnel metrics
+Export discoverability,Make PDF/PNG export obvious from editor chrome,Q2 2026,Now,Activation,Not Started,P1,2026-07-15,From feedback theme Export
+Alpha interview round 2,Schedule 5 follow-up interviews with activated users,Q2 2026,Next,Alpha Ops,Not Started,P2,2026-07-31,Cohort A completers only
+Collaboration (deferred),Real-time multi-user editing,Q4 2026,Later,Platform,Paused,P3,,Out of scope for alpha

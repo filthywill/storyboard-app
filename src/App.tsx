@@ -22,6 +22,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useAuthModalStore } from "@/store/authModalStore";
 import { AppFooterLinks } from "@/components/system/AppFooterLinks";
 import { AnalyticsRouteListener } from "@/components/AnalyticsRouteListener";
+import { AnalyticsAppStartedListener } from "@/components/AnalyticsAppStartedListener";
 import {
   APP_HOME,
   AUTH_CALLBACK,
@@ -120,6 +121,7 @@ const App = () => {
     <TooltipProvider>
       <BrowserRouter>
         <AnalyticsRouteListener />
+        <AnalyticsAppStartedListener />
         <AppContent />
       </BrowserRouter>
     </TooltipProvider>

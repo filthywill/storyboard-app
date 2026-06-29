@@ -19,6 +19,7 @@ import { useProjectManagerStore } from './projectManagerStore';
 import { useShallow } from 'zustand/react/shallow';
 import ProjectSwitcher from '@/utils/projectSwitcher';
 import { registerAutoSave, beginIntent, endIntent } from '@/utils/autoSave';
+import { trackFirstShotAddedAfterIntent } from '@/services/analytics/activationTracking';
 import type { PageSizeMode } from '@/utils/pageSize';
 
 // Extend window interface for auto-save timeout
@@ -43,11 +44,16 @@ export const useAppStore = () => {
   const uiStore = useUIStore();
   const projectManagerStore = useProjectManagerStore();
   const runIntent = <T>(reason: string, fn: () => T): T => {
+    const trackFirstShot = reason === 'add_shot' || reason === 'create_shot';
+    const beforeShotCount = trackFirstShot ? getShotStore().shotOrder.length : 0;
     beginIntent(reason);
     try {
       return fn();
     } finally {
       endIntent(reason);
+      if (trackFirstShot) {
+        trackFirstShotAddedAfterIntent(reason, beforeShotCount);
+      }
     }
   };
   

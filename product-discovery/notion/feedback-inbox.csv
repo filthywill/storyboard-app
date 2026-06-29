@@ -1,0 +1,5 @@
+Summary,Tester,Date,Source,Sentiment,Theme,Verbatim Quote,Full Response,Actionable,Status
+Export button hard to find,Tester A,2026-06-04,Google Form,Negative,Export,I couldn't find where to download the PDF.,Tester completed storyboard but spent several minutes looking for export. Expected a top-menu Download item.,Yes,New
+Drag-and-drop felt natural,Tester C,2026-06-07,Interview,Positive,Editing,Reordering shots was intuitive.,Praised shot reordering and page layout. Suggested optional keyboard shortcuts for power users.,No,Reviewed
+Welcome screen unclear about cloud save,Tester D,2026-06-13,Google Form,Mixed,Onboarding,Do I need an account to save?,Guest user unsure whether work persists. Signed up after creating first project.,Yes,Triaged
+Sample offline feedback note,Tester B,2026-06-11,Email,Neutral,Sync,Worked offline but wasn't sure if sync happened.,Placeholder row demonstrating email-sourced feedback template.,Yes,New

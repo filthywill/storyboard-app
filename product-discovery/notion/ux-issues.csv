@@ -1,0 +1,5 @@
+Issue,Severity,Status,Area,Steps to Reproduce,Expected Behavior,Actual Behavior,PostHog Event,Priority,GitHub Issue
+Sample Issue: Export menu not visible on first visit,Major,Open,Export,1. Create project 2. Add shots 3. Look for export without opening settings,Export action visible from main editor toolbar,Export only found inside nested menu,export_started,P1,
+Example: Auth modal blocks project picker after refresh,Minor,Investigating,Auth,1. Sign in 2. Refresh browser 3. Observe project picker,Project picker appears for authenticated user with projects,Brief flash of welcome screen before picker,project_picker_shown,P2,
+Example: Shot count mismatch after sync,Major,Open,Sync,1. Edit offline 2. Reconnect 3. Compare shot totals,Local and cloud shot counts match,sync_conflict_shown or manual report,sync_conflict_shown,P1,
+Cosmetic: Focus ring on dark theme,Minor,Open,Storyboard Editor,Tab through shot cards,Visible focus indicator,Low contrast focus ring on dark theme,,P3,

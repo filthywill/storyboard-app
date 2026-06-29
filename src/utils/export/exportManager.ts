@@ -16,6 +16,10 @@ import { buildServerPdfPayload, type ExportablePage } from './serverPdfPayload';
 import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 import { OffscreenExportSurface, getOffscreenExportPageElementId } from './offscreenExportSurface';
 import { getDefaultTheme } from '@/styles/storyboardTheme';
+import {
+  captureExportCompleted,
+  countStoryboardShots,
+} from '@/services/analytics/activationTracking';
 
 type SaveFilePickerHandle = {
   createWritable: () => Promise<{
@@ -187,6 +191,7 @@ export class ExportManager {
     onProgress?: (current: number, total: number, pageName: string) => void,
     saveTarget?: PDFSaveTarget
   ): Promise<void> {
+    const startedAt = performance.now();
     try {
       await this.exportPageAsPDF(
         pages,
@@ -196,6 +201,12 @@ export class ExportManager {
         onProgress,
         saveTarget
       );
+      captureExportCompleted({
+        format: 'pdf',
+        pageCount: pages.length,
+        shotCount: countStoryboardShots(storyboardState.pages),
+        durationMs: Math.round(performance.now() - startedAt),
+      });
     } catch (error) {
       throw new ExportError(
         `Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -218,7 +229,16 @@ export class ExportManager {
       throw new ExportError('No pages to export', 'NO_PAGES');
     }
 
+    const startedAt = performance.now();
     const baseFilename = this.sanitizeFilenameBase(filename);
+    const reportExportCompleted = () => {
+      captureExportCompleted({
+        format: 'png',
+        pageCount: pages.length,
+        shotCount: countStoryboardShots(storyboardState.pages),
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+    };
 
     if (pages.length === 1) {
       const [{ page, blob }] = await this.exportPNGsViaOffscreenSurface(
@@ -228,6 +248,7 @@ export class ExportManager {
         onProgress
       );
       this.downloadBlob(blob, this.buildPNGPageFilename(baseFilename, page, 0, storyboardState.pages));
+      reportExportCompleted();
       return 'file';
     }
 
@@ -252,6 +273,7 @@ export class ExportManager {
           );
         }
 
+        reportExportCompleted();
         return 'folder';
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
@@ -269,6 +291,7 @@ export class ExportManager {
       onProgress
     );
     await this.exportPNGsToZip(exportedPages, baseFilename, storyboardState.pages);
+    reportExportCompleted();
     return 'zip';
   }
 

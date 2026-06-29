@@ -1,0 +1,4 @@
+Experiment,Hypothesis,Status,Start Date,End Date,Variant A,Variant B,Result,Learnings,Decision
+Example: Export CTA placement,If we add a persistent Export button in the toolbar then export_completed rate increases because users no longer hunt in menus,Draft,2026-07-01,2026-07-14,Current nested export menu,Toolbar Export button primary,Pending,,Pending
+Sample: Guest onboarding copy,If welcome copy explains cloud save then signup_completed rate increases among guest users,Running,2026-06-15,2026-06-29,Original welcome text,Welcome text with save explanation,Pending,Early sessions show mixed comprehension,Pending
+Example: First-shot tooltip,If we show a one-time add-shot hint then first_shot_added rate increases for new projects,Completed,2026-06-01,2026-06-14,No tooltip,Tooltip on empty page,Inconclusive,Small sample size; no significant lift,Iterate

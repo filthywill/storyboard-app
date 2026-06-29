@@ -1,0 +1,5 @@
+Name,Email,Cohort,Status,Role,Invited Date,First Session Date,Sessions Count,Activated,Exported,Interview Done,Form Submitted,Notes
+Tester A,,Cohort A,Active,Filmmaker,2026-06-01,2026-06-03,2,Yes,No,No,Yes,Completed onboarding; stalled before export
+Tester B,,Cohort A,Invited,Animator,2026-06-10,,0,No,No,No,No,Invite sent; awaiting first session
+Tester C,,Cohort B,Completed,Storyboard Artist,2026-06-05,2026-06-06,4,Yes,Yes,Yes,Yes,Strong activation; completed full alpha script
+Tester D,,Friends & Family,Active,Student,2026-06-12,2026-06-12,1,Yes,No,No,No,Used guest mode first; signed up mid-session

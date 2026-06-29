@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AuthService } from '@/services/authService';
 import { AnalyticsService } from '@/services/analytics/AnalyticsService';
+import { captureSignupCompleted } from '@/services/analytics/activationTracking';
 
 interface User {
   id: string;
@@ -92,6 +93,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false
           });
           syncAuthAnalyticsIdentity(user);
+          captureSignupCompleted('email', deriveAuthStatus(user));
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
           throw error;

@@ -1,0 +1,5 @@
+Feature,Description,Category,Impact,Effort,Status,Priority,Votes,GitHub Issue
+Example Feature: Keyboard shortcuts for shot navigation,Add j/k or arrow keys to move between shots in editor,Core Editing,Medium,Small,New,P2,3,
+Example Feature: Batch image import,Import multiple reference images into shots at once,Core Editing,High,Medium,Under Review,P1,5,
+Sample Feature: Export preset templates,Save PDF layout presets (margins grid density),Export,Medium,Medium,New,P2,2,
+Example Feature: Project duplicate,Duplicate entire project including pages and shots,Core Editing,Low,Small,Planned,P3,1,
