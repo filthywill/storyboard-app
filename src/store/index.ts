@@ -12,7 +12,7 @@ export { createBatch, batchUtils, type BatchShotOperations } from '@/utils/batch
 
 // Unified app store that combines all modular stores
 import { usePageStore } from './pageStore';
-import { useShotStore } from './shotStore';
+import { useShotStore, type Shot } from './shotStore';
 import { useProjectStore } from './projectStore';
 import { useUIStore } from './uiStore';
 import { useProjectManagerStore } from './projectManagerStore';
@@ -20,6 +20,22 @@ import { useShallow } from 'zustand/react/shallow';
 import ProjectSwitcher from '@/utils/projectSwitcher';
 import { registerAutoSave, beginIntent, endIntent } from '@/utils/autoSave';
 import { trackFirstShotAddedAfterIntent } from '@/services/analytics/activationTracking';
+import {
+  trackEditorIntentCompleted,
+  trackShotUpdate,
+  isShotAddAnalyticsSuppressed,
+} from '@/services/analytics/editorTracking';
+import { trackWorkspaceIntentCompleted } from '@/services/analytics/workspaceTracking';
+import {
+  formatGridLayout,
+  getTemplateSignature,
+  trackAspectRatioChanged,
+  trackLayoutChanged,
+  trackPageSizeChanged,
+  trackShotNumberFormatChanged,
+  trackTemplateChanged,
+  trackThemeApplied,
+} from '@/services/analytics/configTracking';
 import type { PageSizeMode } from '@/utils/pageSize';
 
 // Extend window interface for auto-save timeout
@@ -54,6 +70,8 @@ export const useAppStore = () => {
       if (trackFirstShot) {
         trackFirstShotAddedAfterIntent(reason, beforeShotCount);
       }
+      trackEditorIntentCompleted(reason);
+      trackWorkspaceIntentCompleted(reason);
     }
   };
   
@@ -216,23 +234,33 @@ export const useAppStore = () => {
     setActivePage: pageStore.setActivePage,
     updateGridSize: (pageId: string, rows: number, cols: number) => {
       return runIntent('update_grid', () => {
-        // Apply grid size to ALL pages (global setting)
         const { pages } = getPageStore();
+        const referencePage = pages.find((page) => page.id === pageId) ?? pages[0];
+        const oldLayout = referencePage
+          ? formatGridLayout(referencePage.gridCols, referencePage.gridRows)
+          : null;
+
         pages.forEach(page => {
           pageStore.updateGridSize(page.id, rows, cols);
         });
-        // Trigger redistribution after grid size change to handle backflow
         setTimeout(() => redistributeShotsAcrossPages(), 0);
+
+        trackLayoutChanged(oldLayout, formatGridLayout(cols, rows));
       });
     },
     updatePageAspectRatio: (pageId: string, aspectRatio: string) => {
-      return runIntent('update_aspect_ratio', () => {
-        // Apply aspect ratio to ALL pages (global setting)
-        const { pages } = getPageStore();
+      const { pages } = getPageStore();
+      const referencePage = pages.find((page) => page.id === pageId) ?? pages[0];
+      const oldAspectRatio = referencePage?.aspectRatio ?? '16/9';
+
+      const result = runIntent('update_aspect_ratio', () => {
         pages.forEach(page => {
           pageStore.updatePageAspectRatio(page.id, aspectRatio);
         });
       });
+
+      trackAspectRatioChanged(oldAspectRatio, aspectRatio);
+      return result;
     },
     getActivePage: pageStore.getActivePage,
     getPageById: pageStore.getPageById,
@@ -274,9 +302,25 @@ export const useAppStore = () => {
       });
     },
     updateShot: (shotId: string, updates: any) => {
-      return runIntent('update_shot', () => {
+      const beforeShot = getShotStore().shots[shotId];
+      const beforeSnapshot = beforeShot ? { ...beforeShot } : undefined;
+      const result = runIntent('update_shot', () => {
         shotStore.updateShot(shotId, updates);
       });
+      trackShotUpdate(shotId, updates, 'update_shot', beforeSnapshot);
+      return result;
+    },
+    applyImageEdit: (
+      shotId: string,
+      updates: Pick<Shot, 'imageScale' | 'imageOffsetX' | 'imageOffsetY'>,
+    ) => {
+      const beforeShot = getShotStore().shots[shotId];
+      const beforeSnapshot = beforeShot ? { ...beforeShot } : undefined;
+      const result = runIntent('edit_image', () => {
+        shotStore.updateShot(shotId, updates);
+      });
+      trackShotUpdate(shotId, updates, 'edit_image', beforeSnapshot);
+      return result;
     },
     duplicateShot: (shotId: string) => {
       return runIntent('duplicate_shot', () => {
@@ -375,29 +419,54 @@ export const useAppStore = () => {
       });
     },
     setPageSizeMode: (mode: PageSizeMode) => {
-      return runIntent('set_page_size_mode', () => {
+      const oldMode = getProjectStore().pageSizeMode;
+      const result = runIntent('set_page_size_mode', () => {
         projectStore.setPageSizeMode(mode);
       });
+      trackPageSizeChanged(oldMode, mode);
+      return result;
     },
     setTemplateSetting: (setting: keyof typeof projectStore.templateSettings, value: boolean | string) => {
-      return runIntent('set_template_setting', () => {
+      const oldSignature = getTemplateSignature(getProjectStore().templateSettings);
+      const oldShotNumberFormat =
+        setting === 'shotNumberFormat' ? getProjectStore().templateSettings.shotNumberFormat : undefined;
+      const result = runIntent('set_template_setting', () => {
         projectStore.setTemplateSetting(setting, value);
       });
+      trackTemplateChanged(oldSignature, getTemplateSignature(getProjectStore().templateSettings));
+      if (
+        setting === 'shotNumberFormat' &&
+        typeof value === 'string' &&
+        oldShotNumberFormat !== undefined &&
+        !isShotAddAnalyticsSuppressed()
+      ) {
+        trackShotNumberFormatChanged(oldShotNumberFormat, value);
+      }
+      return result;
     },
     setTemplateSettings: (settings: Partial<typeof projectStore.templateSettings>) => {
-      return runIntent('set_template_settings', () => {
+      const oldSignature = getTemplateSignature(getProjectStore().templateSettings);
+      const result = runIntent('set_template_settings', () => {
         projectStore.setTemplateSettings(settings);
       });
+      trackTemplateChanged(oldSignature, getTemplateSignature(getProjectStore().templateSettings));
+      return result;
     },
     resetTemplateSettings: () => {
-      return runIntent('reset_template_settings', () => {
+      const oldSignature = getTemplateSignature(getProjectStore().templateSettings);
+      const result = runIntent('reset_template_settings', () => {
         projectStore.resetTemplateSettings();
       });
+      trackTemplateChanged(oldSignature, getTemplateSignature(getProjectStore().templateSettings));
+      return result;
     },
     setStoryboardTheme: (theme: any) => {
-      return runIntent('set_storyboard_theme', () => {
+      const previousThemeId = getProjectStore().storyboardTheme?.id;
+      const result = runIntent('set_storyboard_theme', () => {
         projectStore.setStoryboardTheme(theme);
       });
+      trackThemeApplied(previousThemeId, theme);
+      return result;
     },
 
     // UI state
@@ -687,8 +756,20 @@ export const useAppStore = () => {
       return await ProjectSwitcher.createAndSwitchToProject(name, description);
     },
     
-    switchToProject: async (projectId: string) => {
-      return await ProjectSwitcher.switchToProject(projectId);
+    switchToProject: async (
+      projectId: string,
+      options?: {
+        userInitiated?: boolean;
+        skipSaveCurrent?: boolean;
+        forceReload?: boolean;
+      },
+    ) => {
+      return await ProjectSwitcher.switchToProject(
+        projectId,
+        options?.skipSaveCurrent ?? false,
+        options?.forceReload ?? false,
+        { userInitiated: options?.userInitiated ?? false },
+      );
     },
     
     deleteProject: async (projectId: string) => {

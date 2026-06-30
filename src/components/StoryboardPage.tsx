@@ -93,6 +93,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
     projectLogoFile,
     clientAgency,
     updateShot,
+    applyImageEdit,
     deleteShot,
     addShot,
     addSubShot,
@@ -426,7 +427,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
 
   const handleApplyImageEdit = (updates: { imageScale?: number; imageOffsetX?: number; imageOffsetY?: number }) => {
     if (editingShot) {
-      updateShot(editingShot.id, updates);
+      applyImageEdit(editingShot.id, updates);
     }
   };
 

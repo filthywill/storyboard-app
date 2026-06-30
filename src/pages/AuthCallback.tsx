@@ -8,6 +8,7 @@ import {
   captureSignupCompleted,
   isLikelyNewAuthUser,
 } from '@/services/analytics/activationTracking'
+import { captureLoginCompleted } from '@/services/analytics/workspaceTracking'
 import type { AuthStatus } from '@/store/authStore'
 
 const deriveAuthStatus = (user: {
@@ -43,6 +44,7 @@ export default function AuthCallback() {
           if (isLikelyNewAuthUser(user.created_at)) {
             captureSignupCompleted('google', deriveAuthStatus(user))
           }
+          captureLoginCompleted('google')
           
           // Handle session management for social logins
           try {

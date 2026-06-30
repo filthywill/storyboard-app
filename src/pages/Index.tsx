@@ -427,7 +427,7 @@ const Index = () => {
     const { CloudProjectSyncService } = await import('@/services/cloudProjectSyncService');
     await CloudProjectSyncService.loadFullProject(projectId, { force: true });
     const { ProjectSwitcher } = await import('@/utils/projectSwitcher');
-    await ProjectSwitcher.switchToProject(projectId, true, true);
+    await ProjectSwitcher.switchToProject(projectId, true, true, { userInitiated: true });
   };
 
   const handleReloadFromCloud = async () => {
@@ -792,7 +792,7 @@ const Index = () => {
         await CloudProjectSyncService.loadFullProject(projectId);
       }
 
-      const success = await switchToProject(projectId);
+      const success = await switchToProject(projectId, { userInitiated: true });
       if (!success && !shouldSuppressSwitchError()) {
         toast.error('Failed to load project');
       }

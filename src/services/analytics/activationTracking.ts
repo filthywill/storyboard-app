@@ -1,5 +1,6 @@
 import { AnalyticsService } from '@/services/analytics/AnalyticsService';
 import { AnalyticsEvent } from '@/services/analytics/events';
+import { isShotAddAnalyticsSuppressed } from '@/services/analytics/editorTracking';
 import { useAuthStore, type AuthStatus } from '@/store/authStore';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { useShotStore } from '@/store/shotStore';
@@ -37,16 +38,20 @@ export function captureProjectCreated(options: {
   projectCount: number;
   source?: string;
 }): void {
+  const { user } = useAuthStore.getState();
+  const workspaceMode = user?.id ? getWorkspaceMode(user.id) : 'local';
+
   AnalyticsService.capture(AnalyticsEvent.ProjectCreated, {
     is_guest: options.isGuest,
     is_cloud: options.isCloud,
     project_count: options.projectCount,
+    workspace_mode: workspaceMode,
     ...(options.source ? { source: options.source } : {}),
   });
 }
 
 export function trackFirstShotAddedAfterIntent(reason: string, beforeShotCount: number): void {
-  if (!FIRST_SHOT_ADD_INTENTS.has(reason)) {
+  if (!FIRST_SHOT_ADD_INTENTS.has(reason) || isShotAddAnalyticsSuppressed()) {
     return;
   }
 

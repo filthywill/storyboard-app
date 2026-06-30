@@ -3,6 +3,10 @@ import { persist } from 'zustand/middleware';
 import { AuthService } from '@/services/authService';
 import { AnalyticsService } from '@/services/analytics/AnalyticsService';
 import { captureSignupCompleted } from '@/services/analytics/activationTracking';
+import {
+  captureLoginCompleted,
+  captureLogoutCompleted,
+} from '@/services/analytics/workspaceTracking';
 
 interface User {
   id: string;
@@ -112,6 +116,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false
           });
           syncAuthAnalyticsIdentity(user);
+          captureLoginCompleted('email');
         } catch (error: any) {
           set({ error: error.message, isLoading: false });
           throw error;
@@ -122,6 +127,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           await AuthService.signOut();
+          captureLogoutCompleted();
           set({
             user: null,
             isAuthenticated: false,

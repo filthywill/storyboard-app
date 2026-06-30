@@ -223,14 +223,12 @@ export const ProjectDropdown = ({
 
           // Now switch to the project (loads from localStorage into stores)
           // Allow normal save of current project before switching
-          const success = await switchToProject(project.id);
-          
+          const success = await switchToProject(project.id, { userInitiated: true });
+
           if (success) {
             toast.success(`Loaded ${project.name}`);
-          } else {
-            if (!shouldSuppressSwitchError()) {
-              toast.error('Failed to switch to project');
-            }
+          } else if (!shouldSuppressSwitchError()) {
+            toast.error('Failed to switch to project');
           }
         } catch (error) {
           console.error('Failed to load cloud project:', error);
@@ -241,11 +239,9 @@ export const ProjectDropdown = ({
         }
       } else {
         // Regular local project switch
-        const success = await switchToProject(project.id);
-        if (!success) {
-          if (!shouldSuppressSwitchError()) {
-            toast.error('Failed to switch to project');
-          }
+        const success = await switchToProject(project.id, { userInitiated: true });
+        if (!success && !shouldSuppressSwitchError()) {
+          toast.error('Failed to switch to project');
         }
       }
     } catch (error) {

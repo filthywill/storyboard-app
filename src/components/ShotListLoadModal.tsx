@@ -12,6 +12,7 @@ import { Upload, FileText, AlertCircle, CheckCircle, X, ArrowDown, Clipboard } f
 import { cn } from '@/lib/utils';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 import { enableBatchMode, disableBatchMode } from '@/utils/autoSave';
+import { captureShotListLoaded } from '@/services/analytics/editorTracking';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { useAppStore } from '@/store';
 import { toast } from 'sonner';
@@ -258,6 +259,12 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
     // Enable batch mode to prevent auto-save during bulk operations
     enableBatchMode();
 
+    let shotListImportSummary: {
+      shotCount: number;
+      importMethod: 'paste' | 'file';
+      failedCount?: number;
+    } | null = null;
+
     try {
       const successful: ParsedShotText[] = [];
       const failed: { line: string; error: string }[] = [];
@@ -326,15 +333,23 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
         toast.warning(`${failed.length} shots failed to load`);
       }
 
+      shotListImportSummary = {
+        shotCount: successful.length,
+        importMethod: inputMode,
+        failedCount: failed.length > 0 ? failed.length : undefined,
+      };
+
     } catch (error) {
       console.error('Shot list load failed:', error);
       toast.error('Shot list load failed. Please try again.');
       setLoadingState('error');
     } finally {
-      // Disable batch mode and trigger a single auto-save for all changes
       disableBatchMode();
+      if (shotListImportSummary) {
+        captureShotListLoaded(shotListImportSummary);
+      }
     }
-  }, [parsedShots, pageId, addShot, updateShot, startingPosition, pages, getTargetPageForInsertion, calculateTargetPosition, shotOrder, shots, getPageShots]);
+  }, [parsedShots, pageId, addShot, updateShot, startingPosition, pages, getTargetPageForInsertion, calculateTargetPosition, shotOrder, shots, getPageShots, inputMode]);
 
   // Reset modal state
   const handleClose = useCallback(() => {

@@ -38,6 +38,7 @@ import {
   normalizeShotTextFontSize,
 } from '@/styles/storyboardTheme';
 import { ThemeService, getThemeServiceErrorMessage } from '@/services/themeService';
+import { trackThemeSaved } from '@/services/analytics/configTracking';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -171,6 +172,7 @@ export const ThemeToolbar: React.FC = () => {
       const themeToSave = buildThemeFromCurrentSettings(themeName, crypto.randomUUID());
       const savedTheme = await ThemeService.saveTheme(themeToSave);
       setStoryboardTheme(cloneTheme(savedTheme));
+      trackThemeSaved(savedTheme.id);
       toast.success(`Theme "${savedTheme.name}" saved`);
       setThemeName('');
       setShowSaveDialog(false);

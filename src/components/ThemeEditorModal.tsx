@@ -15,6 +15,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { StoryboardTheme } from '@/styles/storyboardTheme';
 import { ThemeService } from '@/services/themeService';
+import { trackThemeSaved } from '@/services/analytics/configTracking';
 import { toast } from 'sonner';
 import { Trash2, Save, Pipette } from 'lucide-react';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
@@ -120,6 +121,7 @@ export const ThemeEditorModal: React.FC<ThemeEditorModalProps> = ({ open, onClos
       };
 
       await ThemeService.saveTheme(themeToSave);
+      trackThemeSaved(themeToSave.id);
       toast.success(`Theme "${themeName}" saved!`);
       setThemeName('');
     } catch (error: any) {

@@ -19,6 +19,7 @@ import {
   type BatchLoadResult 
 } from '@/utils/batchImageLoader';
 import { enableBatchMode, disableBatchMode } from '@/utils/autoSave';
+import { captureImagesBatchImported, setSuppressShotAddedEvents } from '@/services/analytics/editorTracking';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { useAppStore } from '@/store';
 import { toast } from 'sonner';
@@ -205,6 +206,9 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
 
     // Enable batch mode to prevent auto-save during bulk operations
     enableBatchMode();
+    setSuppressShotAddedEvents(true);
+
+    let batchImportSummary: { imageCount: number; failedCount?: number } | null = null;
 
     try {
       const result = await processBatchImages(
@@ -353,6 +357,11 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
         if (result.failed.length > 0) {
           toast.warning(`${result.failed.length} images failed to load`);
         }
+
+        batchImportSummary = {
+          imageCount: result.successful.length,
+          failedCount: result.failed.length > 0 ? result.failed.length : undefined,
+        };
       }
 
       setLoadingState('complete');
@@ -362,8 +371,11 @@ export const BatchLoadModal: React.FC<BatchLoadModalProps> = ({
       toast.error('Batch load failed. Please try again.');
       setLoadingState('error');
     } finally {
-      // Disable batch mode and trigger a single auto-save for all changes
+      setSuppressShotAddedEvents(false);
       disableBatchMode();
+      if (batchImportSummary) {
+        captureImagesBatchImported(batchImportSummary);
+      }
     }
   }, [parsedFiles, pageId, addShot, setTemplateSetting, templateSettings.shotNumberFormat, targetPosition, updateShot, startingPosition, pages, getTargetPageForInsertion, calculateTargetPosition]);
 

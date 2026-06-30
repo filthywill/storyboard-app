@@ -18,6 +18,8 @@ export const AnalyticsEvent = {
   AuthCompleted: 'auth_completed',
   AuthFailed: 'auth_failed',
   SignupCompleted: 'signup_completed',
+  LoginCompleted: 'login_completed',
+  LogoutCompleted: 'logout_completed',
   EmailVerificationPromptShown: 'email_verification_prompt_shown',
 
   ProjectPickerShown: 'project_picker_shown',
@@ -32,12 +34,29 @@ export const AnalyticsEvent = {
   FirstShotAdded: 'first_shot_added',
   ShotAdded: 'shot_added',
   ShotDeleted: 'shot_deleted',
+  ShotDuplicated: 'shot_duplicated',
   ShotsReordered: 'shots_reordered',
+  SubshotAdded: 'subshot_added',
   GuestProjectsMigrated: 'guest_projects_migrated',
+
+  ImageAdded: 'image_added',
+  ImagesBatchImported: 'images_batch_imported',
+  ImageRemoved: 'image_removed',
+  ImageReplaced: 'image_replaced',
+  ImageEdited: 'image_edited',
+
+  ActionTextAdded: 'action_text_added',
+  DialogueAdded: 'dialogue_added',
+
+  ShotListLoaded: 'shot_list_loaded',
 
   PageCreated: 'page_created',
   PageDeleted: 'page_deleted',
+  TemplateChanged: 'template_changed',
   LayoutChanged: 'layout_changed',
+  PageSizeChanged: 'page_size_changed',
+  AspectRatioChanged: 'aspect_ratio_changed',
+  ShotNumberFormatChanged: 'shot_number_format_changed',
 
   ThemeApplied: 'theme_applied',
   ThemeSaved: 'theme_saved',

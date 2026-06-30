@@ -186,5 +186,13 @@ export function isProjectLocked(): boolean {
   return isSwitchingProject;
 }
 
+/**
+ * Returns true when analytics should not emit editor events
+ * (batch imports, project switching, cloud sync pause, etc.).
+ */
+export function isAnalyticsSuppressed(): boolean {
+  return isBatchMode || isSwitchingProject || isSavePaused;
+}
+
 
 

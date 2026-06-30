@@ -16,6 +16,8 @@ import { LocalStorageManager } from './localStorageManager';
 import { withOperation } from '@/utils/operations';
 import { Telemetry } from '@/utils/telemetry';
 import { captureProjectCreated } from '@/services/analytics/activationTracking';
+import { resetEditorTrackingState } from '@/services/analytics/editorTracking';
+import { captureProjectNavigation } from '@/services/analytics/workspaceTracking';
 import { toast } from 'sonner';
 import { getProjectOpenState } from '@/services/projectOpenGate';
 import { getWorkspaceMode, setWorkspaceMode } from '@/services/workspaceModeService';
@@ -160,9 +162,13 @@ export class ProjectSwitcher {
   static async switchToProject(
     projectId: string,
     skipSaveCurrent: boolean = false,
-    forceReload: boolean = false
+    forceReload: boolean = false,
+    options: { userInitiated?: boolean } = {},
   ): Promise<boolean> {
-    return withOperation<boolean>(async () => {
+    const previousProjectId = useProjectManagerStore.getState().currentProjectId;
+    const userInitiated = options.userInitiated === true;
+
+    const success = await withOperation<boolean>(async () => {
       Telemetry.event('project.switch.begin', { projectId, skipSaveCurrent });
       const endTimer = Telemetry.timer('project.switch.duration');
       useCloudSaveConflictStore.getState().clearPause();
@@ -313,6 +319,16 @@ export class ProjectSwitcher {
         this.isSwitching = false;
       }
     }, { name: 'project-switch', lockSwitching: true, batchSaves: true });
+
+    if (success) {
+      captureProjectNavigation({
+        previousProjectId,
+        projectId,
+        userInitiated,
+      });
+    }
+
+    return success;
   }
 
   /**
@@ -564,6 +580,8 @@ export class ProjectSwitcher {
     try {
       const parsedCache = this.parseProjectCache(projectId);
       if (!parsedCache) return false;
+
+      resetEditorTrackingState();
 
       // Apply only after the full target snapshot has been parsed and validated.
       usePageStore.setState({
@@ -916,6 +934,7 @@ export class ProjectSwitcher {
    */
   static clearCurrentProjectData(): void {
     try {
+      resetEditorTrackingState();
       console.log('Clearing all current project data from stores...');
       
       // Clear all stores to empty/default state
