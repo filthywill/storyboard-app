@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { useAuthStore } from '@/store/authStore';
 import { AnalyticsService } from '@/services/analytics/AnalyticsService';
+import { captureEmailVerified } from '@/services/analytics/activationTracking';
 import { useProjectManagerStore } from '@/store/projectManagerStore';
 import { DataValidator } from '@/utils/dataValidator';
 import { toast } from 'sonner';
@@ -22,6 +23,7 @@ import { LoggedOutElsewhereScreen } from '@/components/LoggedOutElsewhereScreen'
 import { TemplateBackground } from '@/components/TemplateBackground';
 import { WorkspaceChoiceModal } from '@/components/WorkspaceChoiceModal';
 import { LockedProjectModal } from '@/components/LockedProjectModal';
+import { LoadingModal } from '@/components/LoadingModal';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
 import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
@@ -85,6 +87,7 @@ const Index = () => {
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
   const [isLoadingCloudProjects, setIsLoadingCloudProjects] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [projectPickerLoading, setProjectPickerLoading] = useState<{ message: string } | null>(null);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>('local');
@@ -267,6 +270,7 @@ const Index = () => {
       const refreshedUser = await AuthService.getCurrentUser();
 
       if (refreshedUser && (refreshedUser.email_confirmed_at || refreshedUser.confirmed_at)) {
+        const wasUnconfirmed = useAuthStore.getState().authStatus === 'authenticated_unconfirmed';
         const normalizedUser = {
           id: refreshedUser.id,
           email: refreshedUser.email ?? null,
@@ -276,6 +280,9 @@ const Index = () => {
           confirmed_at: refreshedUser.confirmed_at,
         };
         useAuthStore.getState().setUser(normalizedUser);
+        if (wasUnconfirmed) {
+          captureEmailVerified(refreshedUser);
+        }
         await AuthService.ensureUserProfile(refreshedUser);
         await AuthService.initializeSessionManagement();
         const { CloudAccessService } = await import('@/services/cloudAccessService');
@@ -1289,14 +1296,27 @@ const Index = () => {
               isCloudOnly: p.isCloudOnly
             }))}
             onSelectProject={async (projectId) => {
+              const project = allProjects.find((item) => item.id === projectId);
+              setProjectPickerLoading({
+                message: `Loading ${project?.name ?? 'project'}...`
+              });
               setShowProjectPicker(false);
-              await openProjectWithGate(projectId);
+              try {
+                await openProjectWithGate(projectId);
+              } finally {
+                setProjectPickerLoading(null);
+              }
             }}
             onCreateNew={() => {
               void handlePickerCreateNew();
             }}
           />
         )}
+
+        <LoadingModal
+          isVisible={Boolean(projectPickerLoading)}
+          message={projectPickerLoading?.message}
+        />
         
         {/* Project Limit Dialog - for unauthenticated users hitting project limit */}
         <ProjectLimitDialog

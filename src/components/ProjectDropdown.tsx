@@ -73,6 +73,8 @@ export const ProjectDropdown = ({
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [loadingProjectName, setLoadingProjectName] = useState('');
+  const [deleteLoadingMessage, setDeleteLoadingMessage] = useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [showWorkspaceChoice, setShowWorkspaceChoice] = useState(false);
@@ -182,6 +184,9 @@ export const ProjectDropdown = ({
 
   // Enhanced project selection handler for cloud projects
   const handleProjectSelect = async (project: any) => {
+    setLoadingProjectName(project.name);
+    setIsLoadingProject(true);
+
     try {
       const openState = await getProjectOpenState(project.id);
       if (!openState.allowed) {
@@ -212,10 +217,6 @@ export const ProjectDropdown = ({
           return;
         }
 
-        // Show loading modal
-        setLoadingProjectName(project.name);
-        setIsLoadingProject(true);
-
         try {
           // Load full project from cloud (saves to localStorage only, doesn't touch stores)
           const { CloudProjectSyncService } = await import('@/services/cloudProjectSyncService');
@@ -233,9 +234,6 @@ export const ProjectDropdown = ({
         } catch (error) {
           console.error('Failed to load cloud project:', error);
           toast.error('Failed to load project from cloud');
-        } finally {
-          setIsLoadingProject(false);
-          setLoadingProjectName('');
         }
       } else {
         // Regular local project switch
@@ -247,20 +245,24 @@ export const ProjectDropdown = ({
     } catch (error) {
       console.error('Error selecting project:', error);
       toast.error('Failed to select project');
+    } finally {
+      setIsLoadingProject(false);
+      setLoadingProjectName('');
     }
   };
 
   const handleDeleteProject = async (projectId: string) => {
+    if (deletingProjectId === projectId) {
+      return;
+    }
+
     const projectToDelete = allProjects.find(p => p.id === projectId);
     const isCurrentProject = currentProject?.id === projectId;
-    const isLastProject = allProjects.length <= 1;
 
     // Show appropriate confirmation message
-    let confirmMessage = `Are you sure you want to delete "${projectToDelete?.name}"?`;
-    if (isCurrentProject && isLastProject) {
-      confirmMessage += '\n\nThis is your last project. You will need to create a new one.';
-    } else if (isCurrentProject) {
-      confirmMessage += '\n\nYou are currently viewing this project. You will be switched to another project.';
+    let confirmMessage = `Delete "${projectToDelete?.name}"?\n\nThis project will be permanently deleted and cannot be undone.`;
+    if (isCurrentProject) {
+      confirmMessage += "\n\nAfter deletion, you'll return to the Project Selector to choose what to work on next.";
     }
 
     if (!window.confirm(confirmMessage)) {
@@ -268,6 +270,9 @@ export const ProjectDropdown = ({
     }
 
     try {
+      setDeletingProjectId(projectId);
+      setDeleteLoadingMessage(`Deleting ${projectToDelete?.name ?? 'project'}...`);
+
       // Add loading state to prevent multiple clicks
       const deleteButton = document.querySelector(`[data-project-id="${projectId}"] .delete-button`);
       if (deleteButton) {
@@ -301,6 +306,8 @@ export const ProjectDropdown = ({
         (deleteButton as HTMLElement).style.pointerEvents = 'auto';
         (deleteButton as HTMLElement).style.opacity = '1';
       }
+      setDeletingProjectId((currentId) => currentId === projectId ? null : currentId);
+      setDeleteLoadingMessage(null);
     }
   };
 
@@ -402,16 +409,22 @@ export const ProjectDropdown = ({
             const projectKind: ProjectKind =
               project.isCloudOnly || project.isCloudBacked ? 'cloud' : 'local';
             const isLocked = isWorkspaceConflict && workspaceMode !== projectKind;
+            const isDeletingProject = deletingProjectId === project.id;
             return (
             <DropdownMenuItem
               key={project.id}
               data-project-id={project.id}
-              onClick={() => handleProjectSelect(project)}
-              disabled={project.isCloudOnly && !isOnline}
+              onClick={() => {
+                if (isDeletingProject) return;
+                handleProjectSelect(project);
+              }}
+              disabled={(project.isCloudOnly && !isOnline) || isDeletingProject}
               className={`flex items-center justify-between p-1.5 ${
                 currentProject?.id === project.id ? 'bg-white/10' : ''
               } ${project.isCloudOnly && !isOnline ? 'opacity-50 cursor-not-allowed' : ''} ${
                 isLocked ? 'opacity-70' : ''
+              } ${
+                isDeletingProject ? 'opacity-60 cursor-wait' : ''
               }`}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -444,25 +457,36 @@ export const ProjectDropdown = ({
                 {project.shotCount} shots
               </span>
               
-              {/* Only show menu for local projects */}
-              {!project.isCloudOnly && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-white hover:bg-white/10">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={isDeletingProject}
+                    className="h-6 w-6 p-0 text-white hover:bg-white/10 disabled:opacity-100"
+                  >
+                    {isDeletingProject ? (
+                      <div className="h-3 w-3 animate-spin rounded-full border-b-2 border-white" />
+                    ) : (
                       <MoreHorizontal className="h-3 w-3 text-white" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      onClick={() => handleDeleteProject(project.id)}
-                      className="text-red-400 delete-button"
-                    >
-                      <Trash2 className="h-3 w-3 mr-2 text-red-400" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void handleDeleteProject(project.id);
+                    }}
+                    disabled={isDeletingProject}
+                    className="text-red-400 delete-button"
+                  >
+                    <Trash2 className="h-3 w-3 mr-2 text-red-400" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </DropdownMenuItem>
           );
           })}
@@ -500,8 +524,8 @@ export const ProjectDropdown = ({
 
       {/* Loading Modal */}
       <LoadingModal 
-        isVisible={isLoadingProject} 
-        message={`Loading ${loadingProjectName}...`}
+        isVisible={isLoadingProject || Boolean(deleteLoadingMessage)} 
+        message={deleteLoadingMessage ?? `Loading ${loadingProjectName}...`}
       />
 
       <WorkspaceChoiceModal

@@ -20,8 +20,6 @@ import { resetEditorTrackingState } from '@/services/analytics/editorTracking';
 import { captureProjectNavigation } from '@/services/analytics/workspaceTracking';
 import { toast } from 'sonner';
 import { getProjectOpenState } from '@/services/projectOpenGate';
-import { getWorkspaceMode, setWorkspaceMode } from '@/services/workspaceModeService';
-import { CloudAccessService } from '@/services/cloudAccessService';
 import { useCloudSaveConflictStore } from '@/store/cloudSaveConflictStore';
 import { setSavePaused } from '@/utils/autoSave';
 import { CloudProjectSyncService } from '@/services/cloudProjectSyncService';
@@ -294,7 +292,15 @@ export class ProjectSwitcher {
       }
 
       // Step 4: Update project manager
-      projectManager.setCurrentProject(projectId);
+      const latestProjectManager = useProjectManagerStore.getState();
+      if (!latestProjectManager.projects[projectId]) {
+        console.warn(`Project ${projectId} was removed before switch completed; cancelling current project update`);
+        Telemetry.event('project.switch.error', { projectId, reason: 'removed-before-current-update' });
+        endTimer.end({ projectId, success: false, removed: true });
+        return false;
+      }
+
+      latestProjectManager.setCurrentProject(projectId);
       
       // Step 5: Update project metadata (counts only, not timestamp - switching doesn't modify data)
       this.updateProjectMetadata(projectId, false);
@@ -741,14 +747,27 @@ export class ProjectSwitcher {
       const projectManager = useProjectManagerStore.getState();
       const currentProjectId = projectManager.currentProjectId;
       const allProjects = projectManager.getAllProjects();
+      const projectToDelete = projectManager.projects[projectId];
       const isCurrentProject = currentProjectId === projectId;
       const isLastProject = allProjects.length <= 1;
+      const isCloudProject = Boolean(
+        projectToDelete?.isCloudOnly ||
+        projectToDelete?.isCloudBacked ||
+        projectToDelete?.baseCloudUpdatedAt
+      );
+      const { isAuthenticated } = useAuthStore.getState();
+      const shouldDeleteFromCloud =
+        import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true' &&
+        isAuthenticated &&
+        isCloudProject;
       
       console.log('Deletion context:', {
         projectId,
         currentProjectId,
         isCurrentProject,
         isLastProject,
+        isCloudProject,
+        shouldDeleteFromCloud,
         totalProjects: allProjects.length
       });
 
@@ -760,6 +779,15 @@ export class ProjectSwitcher {
           console.warn('Could not save current project before deletion:', error);
           // Continue with deletion even if save fails
         }
+      }
+
+      if (shouldDeleteFromCloud) {
+        if (!navigator.onLine) {
+          console.warn('Cannot delete cloud project while offline:', projectId);
+          return false;
+        }
+
+        await this.deleteProjectFromCloud(projectId);
       }
 
       // Clear the project's storage first
@@ -778,77 +806,25 @@ export class ProjectSwitcher {
         }
       }
 
-      // Delete from cloud asynchronously (non-blocking)
-      if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
+      // Delete local-only projects from cloud asynchronously in case a cloud record exists.
+      if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true' && !shouldDeleteFromCloud) {
         // Don't await - let it run in background
         this.deleteProjectFromCloud(projectId).catch(error => {
           console.warn('Background cloud deletion failed:', error);
         });
       }
 
-      // Handle fallback for current project deletion
+      // Clear active selection and let the existing Project Selector flow handle the next choice.
       if (isCurrentProject) {
-        console.log('Handling fallback for current project deletion');
-        const remainingProjects = projectManager.getAllProjects();
-        console.log('Remaining projects:', remainingProjects.length);
-        
-        if (remainingProjects.length > 0) {
-          const accessState = await CloudAccessService.getAccessState();
-          const workspaceMode = getWorkspaceMode(accessState.userId);
-          const prefersCloud = workspaceMode === 'cloud';
-          const isCloudProject = (project: any) =>
-            project.isCloudOnly || project.isCloudBacked;
+        this.clearActiveProjectEditorData();
+        projectManager.setCurrentProject(null);
+      }
 
-          const preferred = remainingProjects.find((project) =>
-            prefersCloud ? isCloudProject(project) : !isCloudProject(project)
-          );
-          const fallbackProject = preferred ?? remainingProjects[0];
-          const fallbackProjectId = fallbackProject.id;
-
-          if (
-            accessState.isAuthenticated &&
-            accessState.userId &&
-            ((prefersCloud && !isCloudProject(fallbackProject)) ||
-              (!prefersCloud && isCloudProject(fallbackProject)))
-          ) {
-            const nextMode = isCloudProject(fallbackProject) ? 'cloud' : 'local';
-            setWorkspaceMode(nextMode, accessState.userId);
-          }
-
-          try {
-            const switchSuccess = this.loadProjectData(fallbackProjectId);
-            if (switchSuccess) {
-              projectManager.setCurrentProject(fallbackProjectId);
-              this.updateProjectMetadata(fallbackProjectId, false); // Switching only, not modifying
-            } else {
-              console.warn('Failed to load fallback project, creating new one');
-              const newProjectId = await this.createFallbackProject();
-              if (!newProjectId) {
-                console.error('Failed to create fallback project');
-                this.emergencyReset();
-              }
-            }
-          } catch (error) {
-            console.error('Error switching to fallback project:', error);
-            const newProjectId = await this.createFallbackProject();
-            if (!newProjectId) {
-              console.error('Failed to create fallback project');
-              this.emergencyReset();
-            }
-          }
-        } else {
-          console.log('Last project deleted, creating a local fallback project');
-          const newProjectId = await this.createFallbackProject();
-          if (!newProjectId) {
-            console.error('Failed to create fallback project');
-            this.emergencyReset();
-          }
-
-          const accessState = await CloudAccessService.getAccessState();
-          if (accessState.isAuthenticated && accessState.userId) {
-            setWorkspaceMode('local', accessState.userId);
-          }
-        }
+      const latestProjectManager = useProjectManagerStore.getState();
+      if (latestProjectManager.currentProjectId === projectId) {
+        console.warn(`Deleted project ${projectId} became current during deletion; clearing active project`);
+        this.clearActiveProjectEditorData();
+        latestProjectManager.setCurrentProject(null);
       }
 
       return true;
@@ -856,35 +832,6 @@ export class ProjectSwitcher {
     } catch (error) {
       console.error('Error deleting project:', error);
       return false;
-    }
-  }
-
-  /**
-   * Create a fallback project when deleting the last project
-   */
-  private static async createFallbackProject(): Promise<string | null> {
-    try {
-      const projectManager = useProjectManagerStore.getState();
-      
-      // Create the fallback project
-      const projectId = projectManager.createProject('New Project', 'Default project created after deletion');
-      
-      // Initialize with default state in localStorage
-      this.initializeNewProjectWithDefaults(projectId, 'New Project');
-      
-      // Apply default state directly to stores
-      this.applyDefaultStateToStores('New Project');
-      
-      // Update project manager to point to new project
-      projectManager.setCurrentProject(projectId);
-      
-      // Update project metadata
-      this.updateProjectMetadata(projectId);
-      
-      return projectId;
-    } catch (error) {
-      console.error('Error creating fallback project:', error);
-      return null;
     }
   }
 
@@ -900,6 +847,51 @@ export class ProjectSwitcher {
       console.warn('Failed to delete project from cloud:', error);
       throw error; // Re-throw to be caught by the caller
     }
+  }
+
+  /**
+   * Clear editor stores after deleting the active project without touching project metadata.
+   */
+  private static clearActiveProjectEditorData(): void {
+    resetEditorTrackingState();
+    usePageStore.setState({
+      pages: [],
+      activePageId: null,
+    });
+
+    useShotStore.setState({
+      shots: {},
+      shotOrder: [],
+    });
+
+    useProjectStore.setState({
+      projectName: 'Project Name',
+      projectInfo: 'Project Info',
+      projectLogoUrl: null,
+      projectLogoFile: null,
+      projectLogoDataUrl: null,
+      clientAgency: 'Client/Agency',
+      jobInfo: 'Job Info',
+      pageSizeMode: 'dynamic',
+      templateSettings: {
+        showLogo: false,
+        showProjectName: true,
+        showProjectInfo: true,
+        showClientAgency: true,
+        showJobInfo: true,
+        showActionText: true,
+        showScriptText: true,
+        showPageNumber: true,
+        shotNumberFormat: '01',
+      },
+      storyboardTheme: normalizeProjectSettings(undefined).storyboardTheme,
+    });
+
+    useUIStore.setState({
+      isDragging: false,
+      isExporting: false,
+      showDeleteConfirmation: true,
+    });
   }
 
   /**

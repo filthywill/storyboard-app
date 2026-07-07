@@ -12,7 +12,7 @@ import { Upload, FileText, AlertCircle, CheckCircle, X, ArrowDown, Clipboard } f
 import { cn } from '@/lib/utils';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
 import { enableBatchMode, disableBatchMode } from '@/utils/autoSave';
-import { captureShotListLoaded } from '@/services/analytics/editorTracking';
+import { captureShotListLoaded, setSuppressShotAddedEvents } from '@/services/analytics/editorTracking';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { useAppStore } from '@/store';
 import { toast } from 'sonner';
@@ -258,6 +258,7 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
 
     // Enable batch mode to prevent auto-save during bulk operations
     enableBatchMode();
+    setSuppressShotAddedEvents(true);
 
     let shotListImportSummary: {
       shotCount: number;
@@ -344,6 +345,7 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
       toast.error('Shot list load failed. Please try again.');
       setLoadingState('error');
     } finally {
+      setSuppressShotAddedEvents(false);
       disableBatchMode();
       if (shotListImportSummary) {
         captureShotListLoaded(shotListImportSummary);

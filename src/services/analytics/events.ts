@@ -20,6 +20,7 @@ export const AnalyticsEvent = {
   SignupCompleted: 'signup_completed',
   LoginCompleted: 'login_completed',
   LogoutCompleted: 'logout_completed',
+  EmailVerified: 'email_verified',
   EmailVerificationPromptShown: 'email_verification_prompt_shown',
 
   ProjectPickerShown: 'project_picker_shown',

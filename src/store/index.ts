@@ -233,20 +233,22 @@ export const useAppStore = () => {
     },
     setActivePage: pageStore.setActivePage,
     updateGridSize: (pageId: string, rows: number, cols: number) => {
-      return runIntent('update_grid', () => {
-        const { pages } = getPageStore();
-        const referencePage = pages.find((page) => page.id === pageId) ?? pages[0];
-        const oldLayout = referencePage
-          ? formatGridLayout(referencePage.gridCols, referencePage.gridRows)
-          : null;
+      const { pages } = getPageStore();
+      const referencePage = pages.find((page) => page.id === pageId) ?? pages[0];
+      const oldLayout = referencePage
+        ? formatGridLayout(referencePage.gridCols, referencePage.gridRows)
+        : null;
+      const newLayout = formatGridLayout(cols, rows);
 
+      const result = runIntent('update_grid', () => {
         pages.forEach(page => {
           pageStore.updateGridSize(page.id, rows, cols);
         });
         setTimeout(() => redistributeShotsAcrossPages(), 0);
-
-        trackLayoutChanged(oldLayout, formatGridLayout(cols, rows));
       });
+
+      trackLayoutChanged(oldLayout, newLayout);
+      return result;
     },
     updatePageAspectRatio: (pageId: string, aspectRatio: string) => {
       const { pages } = getPageStore();

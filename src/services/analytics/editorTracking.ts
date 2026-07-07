@@ -101,7 +101,7 @@ export function trackShotUpdate(
   reason: string,
   beforeShot: Shot | undefined,
 ): void {
-  if (isAnalyticsSuppressed()) {
+  if (isAnalyticsSuppressed() || suppressShotAddedEvents) {
     return;
   }
 
@@ -130,9 +130,7 @@ export function trackShotUpdate(
     !hasImageNow;
 
   if (!hadImage && hasImageNow && addsImageData) {
-    if (!suppressShotAddedEvents) {
-      captureIfAllowed(AnalyticsEvent.ImageAdded, { image_count: countImages() });
-    }
+    captureIfAllowed(AnalyticsEvent.ImageAdded, { image_count: countImages() });
   } else if (hadImage && hasImageNow && addsImageData) {
     captureIfAllowed(AnalyticsEvent.ImageReplaced, { image_count: countImages() });
   } else if (clearsImage) {
@@ -149,7 +147,7 @@ export function trackShotUpdate(
 }
 
 function trackActionTextAdded(shotId: string, previousText: string | undefined, nextText: string | undefined): void {
-  if (ACTION_TEXT_TRACKED_SHOTS.has(shotId)) {
+  if (suppressShotAddedEvents || ACTION_TEXT_TRACKED_SHOTS.has(shotId)) {
     return;
   }
 
@@ -165,7 +163,7 @@ function trackActionTextAdded(shotId: string, previousText: string | undefined, 
 }
 
 function trackDialogueAdded(shotId: string, previousText: string | undefined, nextText: string | undefined): void {
-  if (DIALOGUE_TRACKED_SHOTS.has(shotId)) {
+  if (suppressShotAddedEvents || DIALOGUE_TRACKED_SHOTS.has(shotId)) {
     return;
   }
 

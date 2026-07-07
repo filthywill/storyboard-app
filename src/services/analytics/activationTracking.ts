@@ -9,8 +9,16 @@ import { getWorkspaceMode } from '@/services/workspaceModeService';
 
 const FIRST_SHOT_TRACKED_PROJECTS = new Set<string>();
 const FIRST_SHOT_ADD_INTENTS = new Set(['add_shot', 'create_shot']);
+const EMAIL_VERIFIED_STORAGE_PREFIX = 'storyboardflow:analytics:email_verified';
+const EMAIL_VERIFIED_TRACKED_KEYS = new Set<string>();
 
 export type SignupMethod = 'email' | 'google' | 'unknown';
+
+type EmailVerifiedUser = {
+  id?: string | null;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
+};
 
 let appStartedCaptured = false;
 
@@ -97,6 +105,41 @@ export function captureSignupCompleted(method: SignupMethod, authStatus: AuthSta
   AnalyticsService.capture(AnalyticsEvent.SignupCompleted, {
     method,
     auth_status: authStatus,
+  });
+}
+
+export function captureEmailVerified(user: EmailVerifiedUser): void {
+  const userId = user.id?.trim();
+  const verifiedAt = user.email_confirmed_at || user.confirmed_at;
+
+  if (!userId || !verifiedAt) {
+    return;
+  }
+
+  const dedupeKey = `${EMAIL_VERIFIED_STORAGE_PREFIX}:${userId}:${verifiedAt}`;
+  if (EMAIL_VERIFIED_TRACKED_KEYS.has(dedupeKey)) {
+    return;
+  }
+
+  try {
+    if (localStorage.getItem(dedupeKey) === '1') {
+      EMAIL_VERIFIED_TRACKED_KEYS.add(dedupeKey);
+      return;
+    }
+  } catch {
+    // Continue with in-memory dedupe if storage is unavailable.
+  }
+
+  EMAIL_VERIFIED_TRACKED_KEYS.add(dedupeKey);
+  try {
+    localStorage.setItem(dedupeKey, '1');
+  } catch {
+    // Best-effort dedupe only.
+  }
+
+  AnalyticsService.init();
+  AnalyticsService.capture(AnalyticsEvent.EmailVerified, {
+    method: 'email',
   });
 }
 

@@ -4,6 +4,7 @@ import './index.css'
 import { getAppBackgroundCSSVars, getColor } from './styles/glassmorphism-styles'
 import { supabase } from '@/lib/supabase'
 import { AnalyticsService } from '@/services/analytics/AnalyticsService'
+import { captureEmailVerified } from '@/services/analytics/activationTracking'
 
 if (import.meta.env.DEV) {
   void import('@/utils/storyboardDiagnostics');
@@ -353,6 +354,15 @@ async function bootstrap(): Promise<void> {
 
   const hasUser = await waitForSessionUser(2000);
   if (hasUser) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        captureEmailVerified(data.session.user);
+      }
+    } catch {
+      // Analytics should never block confirmation completion.
+    }
+
     try {
       sessionStorage.setItem(CONFIRM_HANDLED_KEY, '1');
     } catch {

@@ -389,16 +389,25 @@ export class ProjectService {
 
   static async deleteProject(projectId: string): Promise<void> {
     // Delete project data first
-    await supabase
+    const { error: dataError } = await supabase
       .from('project_data')
       .delete()
       .eq('project_id', projectId);
+    
+    if (dataError) throw dataError;
 
     // Delete project
-    await supabase
+    const { data: deletedProject, error: projectError } = await supabase
       .from('projects')
       .delete()
-      .eq('id', projectId);
+      .eq('id', projectId)
+      .select('id')
+      .maybeSingle();
+    
+    if (projectError) throw projectError;
+    if (!deletedProject) {
+      throw new Error('Project not found or delete not permitted');
+    }
   }
 
   static async getProjects(): Promise<any[]> {
