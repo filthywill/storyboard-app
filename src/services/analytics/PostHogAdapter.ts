@@ -1,4 +1,6 @@
 // Restrictive-CSP bundle: no runtime script loads from PostHog CDNs (connect-src only).
+// Session Replay requires the recorder extension; module.no-external excludes all extensions.
+import 'posthog-js/dist/posthog-recorder';
 import posthog from 'posthog-js/dist/module.no-external';
 import type { AnalyticsAdapter, AnalyticsProperties } from './AnalyticsAdapter';
 import { AnalyticsEvent } from './events';
