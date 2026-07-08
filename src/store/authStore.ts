@@ -51,10 +51,7 @@ const syncAuthAnalyticsIdentity = (user: User | null): void => {
     AnalyticsService.identify(user.id, {
       auth_status: deriveAuthStatus(user),
     });
-    return;
   }
-
-  AnalyticsService.reset();
 };
 
 export const useAuthStore = create<AuthState>()(
@@ -135,7 +132,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
             logoutReason: 'none'
           });
-          syncAuthAnalyticsIdentity(null);
+          AnalyticsService.reset();
           
           // Clear all current project data on manual sign-out
           try {

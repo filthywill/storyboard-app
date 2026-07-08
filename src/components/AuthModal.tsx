@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Chrome } from 'lucide-react'
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles'
 import { AuthService } from '@/services/authService'
+import { AnalyticsService } from '@/services/analytics/AnalyticsService'
 import { useAuthModalStore } from '@/store/authModalStore'
 
 interface AuthModalProps {
@@ -170,6 +171,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setLoading(true)
     try {
       await AuthService.signOut()
+      AnalyticsService.reset()
       setSignupNoticeEmail(null)
       setIsSignUp(true)
       setEmail('')

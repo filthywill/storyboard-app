@@ -250,6 +250,7 @@ const Index = () => {
     try {
       const { AuthService } = await import('@/services/authService');
       await AuthService.signOut();
+      AnalyticsService.reset();
       openAuthModal();
     } catch (error) {
       console.error('Failed to sign out for email change:', error);
@@ -914,7 +915,10 @@ const Index = () => {
             }
 
             console.warn('Session is no longer valid, setting expired reason:', validation.reason);
-            const { setLogoutReason } = useAuthStore.getState();
+            const { logoutReason, setLogoutReason } = useAuthStore.getState();
+            if (logoutReason !== 'expired') {
+              AnalyticsService.reset();
+            }
             setLogoutReason('expired');
             // Don't force logout - let them continue working locally
             // The banner will show the session expiry message
