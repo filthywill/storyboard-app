@@ -37,5 +37,8 @@ TO DO NOTES
 # Manual PDF export smoke test artifacts (curl output)
 smoke-*
 
+# Local developer cleanup reports
+reports/test-user-cleanup/
+
 # Supabase CLI release tarball — use package manager; migrations live in supabase/
 supabase.tar.gz

@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import Stripe from "npm:stripe@17.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { resolveCheckoutPlan } from "./billingPlans.ts";
 
 // CORS
 const ALLOWED_ORIGINS = new Set<string>([
@@ -78,15 +79,23 @@ Deno.serve(async (req) => {
     }
     const user = userData.user;
 
-    // Parse request
+    // Parse request — logical plan id only; raw Stripe Price IDs are rejected.
     const body = await req.json().catch(() => ({}));
-    const priceId = body?.priceId;
-    if (!priceId || typeof priceId !== "string") {
-      return new Response(JSON.stringify({ error: "Missing or invalid priceId" }), {
+    if (body?.priceId !== undefined) {
+      return new Response(JSON.stringify({ error: "priceId is no longer accepted; use planId" }), {
         status: 400,
         headers: { ...ch, "Content-Type": "application/json" },
       });
     }
+
+    const planResolution = resolveCheckoutPlan(body?.planId);
+    if (!planResolution.ok) {
+      return new Response(JSON.stringify({ error: planResolution.error }), {
+        status: 400,
+        headers: { ...ch, "Content-Type": "application/json" },
+      });
+    }
+    const { stripePriceId } = planResolution;
 
     // Admin client to read/write billing_subscriptions (bypasses RLS)
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -152,7 +161,7 @@ Deno.serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [{ price: stripePriceId, quantity: 1 }],
       allow_promotion_codes: true,
       success_url: `${SITE_URL}/billing/success`,
       cancel_url: `${SITE_URL}/billing/canceled`,

@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
 
     const { data: billingRow, error: billingReadError } = await supabaseAdmin
       .from("billing_subscriptions")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, stripe_subscription_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -101,10 +101,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    const portalSession = await stripe.billingPortal.sessions.create({
+    const body = await req.json().catch(() => ({}));
+    const flow = typeof body?.flow === "string" ? body.flow : "default";
+
+    const portalParams: Stripe.BillingPortal.SessionCreateParams = {
       customer: stripeCustomerId,
       return_url: `${SITE_URL}/billing`,
-    });
+    };
+
+    if (flow === "payment_method") {
+      portalParams.flow_data = { type: "payment_method_update" };
+    } else if (flow === "cancel") {
+      const subscriptionId = billingRow?.stripe_subscription_id;
+      if (!subscriptionId) {
+        return new Response(JSON.stringify({ error: "No subscription found to cancel." }), {
+          status: 400,
+          headers: { ...ch, "Content-Type": "application/json" },
+        });
+      }
+      portalParams.flow_data = {
+        type: "subscription_cancel",
+        subscription_cancel: { subscription: subscriptionId },
+      };
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create(portalParams);
 
     return new Response(JSON.stringify({ url: portalSession.url }), {
       status: 200,

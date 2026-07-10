@@ -4,7 +4,17 @@ import { ArrowLeft, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { BILLING } from "@/config/billing";
+import {
+  getPublicCheckoutPlanForInterval,
+  getSubscriptionPlanDisplay,
+  isFoundingOffer,
+  resolvePlanIdFromPriceId,
+  formatBillingInterval,
+  formatSubscriptionStatus,
+  type BillingInterval,
+  type BillingPlanId,
+} from "@/config/billing";
+import { ChangeBillingIntervalDialog } from "@/components/ChangeBillingIntervalDialog";
 import { supabase } from "@/lib/supabase";
 import { getGlassmorphismStyles, getColor } from "@/styles/glassmorphism-styles";
 import { APP_HOME } from "@/config/routes";
@@ -74,8 +84,8 @@ function clearStripeReturnParams(): void {
   window.history.replaceState({}, "", url);
 }
 
-// 2) Existing: start checkout (now also refresh billing state after returning later)
-async function startCheckout(priceId: string) {
+// 2) Start checkout with a logical plan id (never a raw Stripe Price ID).
+async function startCheckout(planId: BillingPlanId) {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   console.log("sessionError", sessionError);
   console.log("session", sessionData?.session);
@@ -86,7 +96,7 @@ async function startCheckout(priceId: string) {
   }
 
   const { data, error } = await supabase.functions.invoke("create-checkout-session", {
-    body: { priceId },
+    body: { planId },
   });
 
   console.log("invoke result", { data, error });
@@ -104,18 +114,23 @@ async function startCheckout(priceId: string) {
   window.location.href = data.url;
 }
 
-// 3) Open Stripe Customer Portal (manage payment, cancel, invoices)
-// Note: openPortal receives setPortalLoading so the button can be disabled during the request.
-async function openPortal(setPortalLoading: (v: boolean) => void) {
+type PortalFlow = "default" | "payment_method" | "cancel";
+
+// 3) Open Stripe Customer Portal for billing admin (not subscription switching).
+async function openPortal(
+  setPortalLoading: (v: boolean) => void,
+  flow: PortalFlow = "default"
+) {
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData?.session) {
     alert("You are not logged in. Please log in again.");
     return;
   }
 
-  setPortalLoading(true);
+  setPortalLoading(flow);
   try {
-    const { data, error } = await supabase.functions.invoke("create-portal-session", {});
+    const body = flow === "default" ? {} : { flow };
+    const { data, error } = await supabase.functions.invoke("create-portal-session", { body });
 
     if (error) {
       alert(`Could not open billing portal: ${error.message}`);
@@ -129,7 +144,7 @@ async function openPortal(setPortalLoading: (v: boolean) => void) {
 
     window.location.href = data.url;
   } finally {
-    setPortalLoading(false);
+    setPortalLoading(null);
   }
 }
 
@@ -138,8 +153,13 @@ export default function BillingPage() {
   const [billing, setBilling] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [portalLoading, setPortalLoading] = useState(false);
-  const [billingInterval, setBillingInterval] = useState<"annual" | "monthly">("annual");
+  const [portalLoading, setPortalLoading] = useState<PortalFlow | null>(null);
+  const [showIntervalDialog, setShowIntervalDialog] = useState(false);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("annual");
+  const monthlyPlan = getPublicCheckoutPlanForInterval("monthly");
+  const annualPlan = getPublicCheckoutPlanForInterval("annual");
+  const selectedPlan = getPublicCheckoutPlanForInterval(billingInterval);
+  const isFoundingPublicOffer = isFoundingOffer();
 
   const refreshBilling = useCallback((opts?: { showFullScreen?: boolean }) => {
     const showFullScreen = opts?.showFullScreen ?? false;
@@ -166,7 +186,8 @@ export default function BillingPage() {
   // Decide if user is Pro (unchanged gating logic)
   const isPro = billing?.status === "active" || billing?.status === "trialing";
   const nonProMessage = !isPro && billing ? getNonProStatusMessage(billing.status) : null;
-  
+  const currentPlanId = resolvePlanIdFromPriceId(billing?.price_id);
+  const currentPlan = getSubscriptionPlanDisplay(billing?.price_id);
 
   const navigate = useNavigate();
 
@@ -201,15 +222,24 @@ export default function BillingPage() {
             <>
               <div>
                 <h1 className="text-2xl font-semibold mb-1" style={{ color: getColor("text", "primary") }}>
-                  PRO Account
+                  Billing & Subscription
                 </h1>
+                <p className="text-sm" style={{ color: getColor("text", "secondary") }}>
+                  Manage your Pro account and billing details.
+                </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <p className="text-sm" style={{ color: getColor("text", "secondary") }}>
-                  Status: <span className="font-medium" style={{ color: getColor("text", "primary") }}>{billing?.status ?? "unknown"}</span>
-                </p>
-                {isPro && (
+              <div
+                className="rounded-lg p-4 space-y-3"
+                style={{
+                  backgroundColor: getColor("input", "background"),
+                  border: `1px solid ${getColor("border", "subtle")}`,
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium" style={{ color: getColor("text", "primary") }}>
+                    Subscription details
+                  </p>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -226,26 +256,97 @@ export default function BillingPage() {
                       <p>Refresh subscription status</p>
                     </TooltipContent>
                   </Tooltip>
-                )}
+                </div>
+
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  <div>
+                    <dt style={{ color: getColor("text", "muted") }}>Current plan</dt>
+                    <dd className="font-medium" style={{ color: getColor("text", "primary") }}>
+                      {currentPlan?.display.label ?? "Pro"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: getColor("text", "muted") }}>Billing interval</dt>
+                    <dd className="font-medium" style={{ color: getColor("text", "primary") }}>
+                      {currentPlan
+                        ? formatBillingInterval(currentPlan.interval)
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: getColor("text", "muted") }}>Price</dt>
+                    <dd className="font-medium" style={{ color: getColor("text", "primary") }}>
+                      {currentPlan?.display.price ?? "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: getColor("text", "muted") }}>Status</dt>
+                    <dd className="font-medium" style={{ color: getColor("text", "primary") }}>
+                      {formatSubscriptionStatus(billing?.status, billing?.cancel_at_period_end)}
+                    </dd>
+                  </div>
+                  {billing?.current_period_end && (
+                    <div className="sm:col-span-2">
+                      <dt style={{ color: getColor("text", "muted") }}>
+                        {billing.cancel_at_period_end ? "Cancels on" : "Renews on"}
+                      </dt>
+                      <dd className="font-medium" style={{ color: getColor("text", "primary") }}>
+                        {new Date(billing.current_period_end).toLocaleDateString()}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
               </div>
 
-              {billing?.current_period_end && (
-                <p className="text-sm" style={{ color: getColor("text", "secondary") }}>
-                  {billing.cancel_at_period_end
-                    ? `Cancels on ${new Date(billing.current_period_end).toLocaleDateString()}`
-                    : `Renews on ${new Date(billing.current_period_end).toLocaleDateString()}`}
+              <div className="space-y-2">
+                <p className="text-sm font-medium" style={{ color: getColor("text", "primary") }}>
+                  Actions
                 </p>
-              )}
-
-              <div className="flex flex-wrap items-center gap-4">
-                <Button
-                  disabled={portalLoading}
-                  onClick={() => openPortal(setPortalLoading)}
-                  style={getGlassmorphismStyles("button")}
-                >
-                  {portalLoading ? "Opening…" : "Manage billing"}
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    disabled={!currentPlanId || portalLoading !== null}
+                    onClick={() => setShowIntervalDialog(true)}
+                    style={getGlassmorphismStyles("buttonAccent")}
+                    className="w-full justify-start"
+                  >
+                    Change Billing Interval
+                  </Button>
+                  <Button
+                    disabled={portalLoading !== null}
+                    onClick={() => openPortal(setPortalLoading, "payment_method")}
+                    style={getGlassmorphismStyles("button")}
+                    className="w-full justify-start"
+                  >
+                    {portalLoading === "payment_method" ? "Opening…" : "Manage Payment Method"}
+                  </Button>
+                  <Button
+                    disabled={portalLoading !== null}
+                    onClick={() => openPortal(setPortalLoading, "default")}
+                    style={getGlassmorphismStyles("button")}
+                    className="w-full justify-start"
+                  >
+                    {portalLoading === "default" ? "Opening…" : "View Invoices"}
+                  </Button>
+                  <Button
+                    disabled={portalLoading !== null}
+                    onClick={() => openPortal(setPortalLoading, "cancel")}
+                    style={getGlassmorphismStyles("button")}
+                    className="w-full justify-start"
+                  >
+                    {portalLoading === "cancel" ? "Opening…" : "Cancel Subscription"}
+                  </Button>
+                </div>
               </div>
+
+              {currentPlanId && (
+                <ChangeBillingIntervalDialog
+                  isOpen={showIntervalDialog}
+                  onClose={() => setShowIntervalDialog(false)}
+                  currentPlanId={currentPlanId}
+                  renewalDate={billing?.current_period_end}
+                  onSuccess={() => refreshBilling({ showFullScreen: false })}
+                />
+              )}
             </>
           ) : (
             <>
@@ -328,13 +429,15 @@ export default function BillingPage() {
                       color: getColor("text", "primary"),
                     }}
                   >
-                    Pro
+                    {isFoundingPublicOffer ? "Founding Member" : "Pro"}
                   </span>
                   <h2 className="text-xl font-semibold mt-2 mb-1" style={{ color: getColor("text", "primary") }}>
-                    Professional
+                    {isFoundingPublicOffer ? "Founding Member" : "Professional"}
                   </h2>
                   <p className="text-sm mb-4" style={{ color: getColor("text", "secondary") }}>
-                    Unlock the full power of Storyboard Flow with unlimited pages and priority support.
+                    {isFoundingPublicOffer
+                      ? "Limited-time Founding Member pricing. Unlock unlimited pages and priority support."
+                      : "Unlock the full power of Storyboard Flow with unlimited pages and priority support."}
                   </p>
 
                   <div className="flex rounded-lg overflow-visible mb-4" style={{ backgroundColor: getColor("input", "background") }}>
@@ -348,7 +451,7 @@ export default function BillingPage() {
                       }}
                     >
                       <span>Monthly</span>
-                      <span className="text-xs font-normal opacity-90">{BILLING.proMonthlyDisplay}</span>
+                      <span className="text-xs font-normal opacity-90">{monthlyPlan.display.price}</span>
                     </button>
                     <button
                       type="button"
@@ -361,7 +464,7 @@ export default function BillingPage() {
                     >
                       <span>Annual</span>
                       <span className="text-xs font-normal opacity-90">
-                        {BILLING.proAnnualMonthlyEquivalent} ({BILLING.proAnnualSavingsLabel})
+                        {annualPlan.display.monthlyEquivalent} ({annualPlan.display.savingsLabel})
                       </span>
                     </button>
                   </div>
@@ -369,18 +472,18 @@ export default function BillingPage() {
                   {billingInterval === "annual" ? (
                     <>
                       <p className="text-2xl font-bold mb-0.5" style={{ color: getColor("text", "primary") }}>
-                        {BILLING.proAnnualMonthlyEquivalent}{" "}
+                        {annualPlan.display.price}{" "}
                         <span className="text-sm font-normal" style={{ color: getColor("text", "muted") }}>
-                          ({BILLING.proAnnualSavingsLabel})
+                          ({annualPlan.display.monthlyEquivalent}, {annualPlan.display.savingsLabel})
                         </span>
                       </p>
                       <p className="text-xs mb-4" style={{ color: getColor("text", "muted") }}>
-                        {BILLING.proAnnualBilledLabel}
+                        {annualPlan.display.billedLabel}
                       </p>
                     </>
                   ) : (
                     <p className="text-2xl font-bold mb-4" style={{ color: getColor("text", "primary") }}>
-                      {BILLING.proMonthlyDisplay}
+                      {monthlyPlan.display.price}
                     </p>
                   )}
 
@@ -404,9 +507,7 @@ export default function BillingPage() {
                   </ul>
 
                   <Button
-                    onClick={() =>
-                      startCheckout(billingInterval === "annual" ? BILLING.proAnnualPriceId : BILLING.proMonthlyPriceId)
-                    }
+                    onClick={() => startCheckout(selectedPlan.id)}
                     style={getGlassmorphismStyles("buttonAccent")}
                     className="w-full mt-auto"
                   >

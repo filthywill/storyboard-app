@@ -7,14 +7,35 @@
 | Free | 1 max | Must choose local OR cloud | $0 |
 | Pro | Unlimited | Both local and cloud | See pricing below |
 
-## Stripe Product & Price IDs
+## Stripe Product & Price IDs (TEST)
 
-- **Product ID:** `prod_TkYhj9N6JE4Ml7`
-- **Monthly:** `price_1Sn3aFA0uFpyWFFpqJoLMwJ4`
-- **Bi-Annual:** `price_1Sn3bbA0uFpyWFFpzL9ZwxkB`
-- **Annual:** `price_1Sn3bbA0uFpyWFFpXAgYw8wl`
+- **Product ID:** `prod_TkYhj9N6JE4Ml7` (StoryboardFlow Pro)
 
-Active in `src/config/billing.ts`: Monthly and Annual only.
+### Current checkout prices (only these four are selectable)
+
+| Logical planId | Price ID | Amount | Lookup key |
+|----------------|----------|--------|------------|
+| `pro_monthly` | `price_1TribmA0uFpyWFFpKlVbq64G` | $7.99/mo | `pro_monthly` |
+| `pro_annual` | `price_1TribmA0uFpyWFFpsRyxPx3Y` | $59/yr | `pro_annual` |
+| `founding_monthly` | `price_1TrkV9A0uFpyWFFpwR7et6Se` | $5.99/mo | `pro_founding_monthly` |
+| `founding_annual` | `price_1Trka6A0uFpyWFFpldozeOVw` | $45/yr | `pro_founding_annual` |
+
+Server mapping: `supabase/functions/create-checkout-session/billingPlans.ts`
+
+Public offer toggle: `VITE_PUBLIC_PRO_OFFER` — see [PUBLIC_PRO_OFFER.md](./PUBLIC_PRO_OFFER.md)
+
+### Archived prices (existing subscriptions only; not for new checkout)
+
+| Price ID | Amount | Status | Notes |
+|----------|--------|--------|-------|
+| `price_1TrkVDA0uFpyWFFpXxHnLdU7` | $49/yr founding | Archived | Superseded by $45 annual |
+| `price_1TribnA0uFpyWFFpeebDRymR` | $4.99/mo founding | Archived | Superseded by $5.99 monthly |
+| `price_1TribnA0uFpyWFFpaR8O8QjY` | $39/yr founding | Archived | Superseded by $45 annual |
+| `price_1Sn3bbA0uFpyWFFpXAgYw8wl` | $30/yr standard | Archived | 3 active TEST subs |
+| `price_1Sn3bbA0uFpyWFFpzL9ZwxkB` | $20/6mo bi-annual | Archived | Historical |
+| `price_1Sn3aFA0uFpyWFFpqJoLMwJ4` | $4/mo standard | **Active** | Product default price; cannot archive without changing product default |
+
+Historical display resolution: `src/config/billing.ts` (`HISTORICAL_*` maps)
 
 ## Redirect URLs
 
@@ -32,7 +53,7 @@ Path: Settings → Billing → Customer portal
 
 Return URL: `https://storyboardflow.com/billing` (set when ready)
 
-> This is not the same as Checkout success/cancel. Can be ignored until after Checkout works.
+**Subscription plan switching must remain disabled.** StoryboardFlow owns interval changes via `change-subscription`; portal is for payment method, invoices, and cancellation only.
 
 ---
 
@@ -56,7 +77,7 @@ UI enforces: UpgradeToProDialog, WorkspaceChoiceModal, LockedProjectModal
 
 | File | Purpose |
 |------|---------|
-| `src/config/billing.ts` | Price IDs |
+| `src/config/billing.ts` | Logical plans, display amounts, historical price resolution |
 | `src/services/cloudAccessService.ts` | Plan checks, access state, caching |
 | `src/services/projectOpenGate.ts` | Pre-switch validation |
 | `src/services/workspaceModeService.ts` | Local vs cloud mode (localStorage) |
@@ -72,7 +93,9 @@ UI enforces: UpgradeToProDialog, WorkspaceChoiceModal, LockedProjectModal
 
 | Function | Purpose |
 |----------|---------|
-| `supabase/functions/create-checkout-session/` | Creates Stripe Checkout session; maps Supabase user → Stripe customer |
+| `supabase/functions/create-checkout-session/` | Creates Stripe Checkout session; maps logical planId → current Stripe Price |
+| `supabase/functions/change-subscription/` | Interval changes within offer family; destinations use current prices only |
+| `supabase/functions/create-portal-session/` | Customer Portal (payment/cancel/invoices; no plan switching) |
 | `supabase/functions/stripe-webhook/` | Handles Stripe events; updates `billing_subscriptions` table |
 
 ### Webhook Events Handled
@@ -122,13 +145,4 @@ Allowed origins in `create-checkout-session`: `http://localhost:8080`
 
 ---
 
-## Supabase CLI Access Token
-
-`<SUPABASE_ACCESS_TOKEN>`
-
-**Warning:** Do not commit real tokens/keys to the repo.
-
----
-
-*Last Updated: February 9, 2026*
-*Expanded from raw notes to structured reference.*
+*Last Updated: July 2026*
