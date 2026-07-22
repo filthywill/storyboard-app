@@ -67,7 +67,8 @@ const Index = () => {
     currentProject,
     switchToProject,
     reconcileFromShotOrder,
-    canCreateProject
+    canCreateProject,
+    createProject
   } = useAppStore();
   
   const navigate = useNavigate();
@@ -197,6 +198,27 @@ const Index = () => {
     } catch (error) {
       console.error("Project gate check failed:", error);
       toast.error("Couldn't verify your plan. Please try again.");
+    }
+  };
+
+  const handleGuestTryWithoutAccount = async () => {
+    if (!canCreateProject()) {
+      setShowLimitDialog(true);
+      return;
+    }
+
+    const projectName = 'Untitled Project';
+
+    try {
+      const projectId = await createProject(projectName);
+      if (projectId) {
+        toast.success(`Created project: ${projectName}`);
+      } else {
+        toast.error('Failed to create project');
+      }
+    } catch (error: unknown) {
+      console.error('Error creating guest project:', error);
+      toast.error('Failed to create project');
     }
   };
 
@@ -1258,7 +1280,7 @@ const Index = () => {
         {!isAuthenticated && !currentProject && (
           <EmptyProjectState 
             isAuthenticated={false}
-            onCreateProject={() => void handleRequestCreateProject()}
+            onCreateProject={() => void handleGuestTryWithoutAccount()}
             onSignIn={openAuthModal}
             onGoogleSignIn={() => void handleGoogleSignIn()}
           />
