@@ -41,12 +41,12 @@ export const LockedProjectModal: React.FC<LockedProjectModalProps> = ({
       ? [
           'This project is saved to your account.',
           `You're currently working in ${currentMode === 'local' ? 'Local' : 'Account'} workspace.`,
-          'On Free, you can work on either your Local Draft or your Account Project, but not both at the same time.',
+          'On Basic, you can work on either your Local Draft or your Account Project, but not both at the same time.',
         ]
       : [
           'This project is stored only on this device.',
           `You're currently working in ${currentMode === 'local' ? 'Local' : 'Account'} workspace.`,
-          'On Free, you can work on either your Local Draft or your Account Project, but not both at the same time.',
+          'On Basic, you can work on either your Local Draft or your Account Project, but not both at the same time.',
         ];
 
   const switchLabel =
@@ -76,7 +76,7 @@ export const LockedProjectModal: React.FC<LockedProjectModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-col">
+        <DialogFooter layout="stacked">
           <Button
             style={getGlassmorphismStyles('buttonAccent')}
             onClick={onSwitchWorkspace}

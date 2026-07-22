@@ -983,7 +983,7 @@ export const ThemeToolbar: React.FC = () => {
               title={
                 canSaveNewSavedTheme
                   ? undefined
-                  : `Free accounts can save up to ${FREE_SAVED_THEME_LIMIT} themes`
+                  : `Basic accounts can save up to ${FREE_SAVED_THEME_LIMIT} themes`
               }
             >
               Save as New
@@ -1012,7 +1012,7 @@ export const ThemeToolbar: React.FC = () => {
         isOpen={showUpgradeDialog}
         onClose={() => setShowUpgradeDialog(false)}
         onUpgrade={() => navigate('/billing')}
-        description={`Free accounts can save up to ${FREE_SAVED_THEME_LIMIT} themes. Upgrade to Pro for unlimited saved themes.`}
+        description={`Basic accounts can save up to ${FREE_SAVED_THEME_LIMIT} themes. Upgrade to Pro for unlimited saved themes.`}
       />
 
       {/* Rename Theme Dialog */}

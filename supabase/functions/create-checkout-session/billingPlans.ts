@@ -11,12 +11,12 @@ export const CHECKOUT_PLAN_IDS = [
 
 export type CheckoutPlanId = (typeof CHECKOUT_PLAN_IDS)[number];
 
-/** Current TEST checkout prices — the only selectable destination prices. */
+/** Current LIVE checkout prices — the only selectable destination prices. */
 const STRIPE_PRICE_BY_PLAN: Record<CheckoutPlanId, string> = {
-  pro_monthly: "price_1TribmA0uFpyWFFpKlVbq64G",
-  pro_annual: "price_1TribmA0uFpyWFFpsRyxPx3Y",
-  founding_monthly: "price_1TrkV9A0uFpyWFFpwR7et6Se",
-  founding_annual: "price_1Trka6A0uFpyWFFpldozeOVw",
+  pro_monthly: "price_1TvMxCAB8QpWwxxscOO7sNum",
+  pro_annual: "price_1TvMxBAB8QpWwxxsHdOol8De",
+  founding_monthly: "price_1TvMxAAB8QpWwxxstMwVzn3J",
+  founding_annual: "price_1TvMx9AB8QpWwxxs6dsnQ4Gr",
 };
 
 export function resolveCheckoutPlan(

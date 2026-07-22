@@ -160,6 +160,20 @@ export default function BillingPage() {
   const annualPlan = getPublicCheckoutPlanForInterval("annual");
   const selectedPlan = getPublicCheckoutPlanForInterval(billingInterval);
   const isFoundingPublicOffer = isFoundingOffer();
+  const proFeatures = isFoundingPublicOffer
+    ? [
+        "No project limits",
+        "Access to all features",
+        "Premium templates",
+        "Early access to new features",
+      ]
+    : [
+        "No project limits",
+        "Advanced export options",
+        "Premium templates",
+        "Team collaboration (coming soon)",
+        "Early access to new features",
+      ];
 
   const refreshBilling = useCallback((opts?: { showFullScreen?: boolean }) => {
     const showFullScreen = opts?.showFullScreen ?? false;
@@ -363,7 +377,7 @@ export default function BillingPage() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Free (current) card */}
+                {/* Basic (current) card */}
                 <div
                   className="relative rounded-xl p-6 flex flex-col"
                   style={{
@@ -382,16 +396,13 @@ export default function BillingPage() {
                     Basic
                   </span>
                   <h2 className="text-xl font-semibold mt-2 mb-1" style={{ color: getColor("text", "primary") }}>
-                    Free
+                    Basic
                   </h2>
                   <p className="text-sm mb-4" style={{ color: getColor("text", "secondary") }}>
                     For getting started with storyboards.
                   </p>
                   <p className="text-2xl font-bold mb-4" style={{ color: getColor("text", "primary") }}>
                     $0
-                  </p>
-                  <p className="text-xs mb-4" style={{ color: getColor("text", "muted") }}>
-                    Billed Annually
                   </p>
                   <p className="text-sm font-medium mb-2" style={{ color: getColor("text", "primary") }}>
                     Includes:
@@ -478,7 +489,7 @@ export default function BillingPage() {
                         </span>
                       </p>
                       <p className="text-xs mb-4" style={{ color: getColor("text", "muted") }}>
-                        {annualPlan.display.billedLabel}
+                        {isFoundingPublicOffer ? "Billed once annually" : annualPlan.display.billedLabel}
                       </p>
                     </>
                   ) : (
@@ -488,17 +499,10 @@ export default function BillingPage() {
                   )}
 
                   <p className="text-sm font-medium mb-2" style={{ color: getColor("text", "primary") }}>
-                    Free features, plus:
+                    Basic features, plus:
                   </p>
                   <ul className="space-y-2 mb-6 flex-1">
-                    {[
-                      "Unlimited pages per project",
-                      "Priority support",
-                      "Advanced export options",
-                      "Premium templates",
-                      "Team collaboration (coming soon)",
-                      "Early access to new features",
-                    ].map((item) => (
+                    {proFeatures.map((item) => (
                       <li key={item} className="flex items-center gap-2 text-sm" style={{ color: getColor("text", "secondary") }}>
                         <Check className="h-4 w-4 flex-shrink-0" style={{ color: getColor("status", "successGlow") }} />
                         {item}

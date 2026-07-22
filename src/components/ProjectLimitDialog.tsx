@@ -76,7 +76,7 @@ export const ProjectLimitDialog: React.FC<ProjectLimitDialogProps> = ({
           </div>
         </div>
 
-        <DialogFooter className="flex-col sm:flex-col gap-2">
+        <DialogFooter layout="stacked">
           <Button
             onClick={handleSignIn}
             className="w-full"

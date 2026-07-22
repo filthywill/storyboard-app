@@ -8,7 +8,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
 import { getGlassmorphismStyles } from "@/styles/glassmorphism-styles";
 
 interface UpgradeToProDialogProps {
@@ -24,7 +23,7 @@ export const UpgradeToProDialog: React.FC<UpgradeToProDialogProps> = ({
   onClose,
   onUpgrade,
   title = 'Upgrade to Pro',
-  description = "You've reached the free project limit. Upgrade to Pro to create unlimited projects.",
+  description = "You've reached the Basic project limit.\nUpgrade to Pro to create and save more projects.",
 }) => {
   const handleUpgrade = () => {
     onClose();
@@ -39,24 +38,22 @@ export const UpgradeToProDialog: React.FC<UpgradeToProDialogProps> = ({
       >
         <DialogHeader>
           <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-              <Sparkles className="h-8 w-8 text-white" />
-            </div>
+            <img
+              src="/sf_icon_01.svg"
+              alt="Storyboard Flow logo"
+              className="h-16 w-16"
+            />
           </div>
           <DialogTitle className="text-center text-2xl text-white">
             {title}
           </DialogTitle>
-          <DialogDescription className="text-center text-base text-white/80 mt-2">
+          <DialogDescription className="text-center text-base text-white/80 mt-2 whitespace-pre-line">
             {description}
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
           <div className="space-y-3 text-sm text-white/70">
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5">-</div>
-              <div>Create unlimited projects</div>
-            </div>
             <div className="flex items-start gap-2">
               <div className="mt-0.5">-</div>
               <div>Automatic cloud backup & sync</div>
@@ -72,7 +69,7 @@ export const UpgradeToProDialog: React.FC<UpgradeToProDialogProps> = ({
           </div>
         </div>
 
-        <DialogFooter className="flex-col sm:flex-col gap-2">
+        <DialogFooter layout="stacked">
           <Button
             onClick={handleUpgrade}
             className="w-full"

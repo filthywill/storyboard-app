@@ -341,14 +341,21 @@ export function formatSubscriptionStatus(
  * Checkout uses planId allowlist server-side; these IDs are never sent from the client.
  */
 const CURRENT_PRICE_ID_TO_PLAN: Record<string, BillingPlanId> = {
-  price_1TribmA0uFpyWFFpKlVbq64G: BILLING_PLAN_IDS.PRO_MONTHLY,
-  price_1TribmA0uFpyWFFpsRyxPx3Y: BILLING_PLAN_IDS.PRO_ANNUAL,
-  price_1TrkV9A0uFpyWFFpwR7et6Se: BILLING_PLAN_IDS.FOUNDING_MONTHLY,
-  price_1Trka6A0uFpyWFFpldozeOVw: BILLING_PLAN_IDS.FOUNDING_ANNUAL,
+  price_1TvMxCAB8QpWwxxscOO7sNum: BILLING_PLAN_IDS.PRO_MONTHLY,
+  price_1TvMxBAB8QpWwxxsHdOol8De: BILLING_PLAN_IDS.PRO_ANNUAL,
+  price_1TvMxAAB8QpWwxxstMwVzn3J: BILLING_PLAN_IDS.FOUNDING_MONTHLY,
+  price_1TvMx9AB8QpWwxxs6dsnQ4Gr: BILLING_PLAN_IDS.FOUNDING_ANNUAL,
 };
 
 /** Archived price_ids retained so existing subscriptions display correctly. */
 const HISTORICAL_PRICE_ID_TO_PLAN: Record<string, BillingPlanId> = {
+  // Legacy standard/test
+  price_1TribmA0uFpyWFFpKlVbq64G: BILLING_PLAN_IDS.PRO_MONTHLY,
+  price_1TribmA0uFpyWFFpsRyxPx3Y: BILLING_PLAN_IDS.PRO_ANNUAL,
+  // Legacy founding/test
+  price_1TrkV9A0uFpyWFFpwR7et6Se: BILLING_PLAN_IDS.FOUNDING_MONTHLY,
+  price_1Trka6A0uFpyWFFpldozeOVw: BILLING_PLAN_IDS.FOUNDING_ANNUAL,
+  // Archived founding
   price_1TrkVDA0uFpyWFFpXxHnLdU7: BILLING_PLAN_IDS.FOUNDING_ANNUAL,
   price_1TribnA0uFpyWFFpeebDRymR: BILLING_PLAN_IDS.FOUNDING_MONTHLY,
   price_1TribnA0uFpyWFFpaR8O8QjY: BILLING_PLAN_IDS.FOUNDING_ANNUAL,

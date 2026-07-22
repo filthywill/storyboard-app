@@ -8,6 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "cleanup:test-user": "node scripts/delete-test-user.js",
+    "grant-beta": "node scripts/grant-beta.js",
+    "revoke-beta": "node scripts/revoke-beta.js",
+    "list-beta": "node scripts/list-beta.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },

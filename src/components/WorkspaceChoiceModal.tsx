@@ -38,7 +38,7 @@ export const WorkspaceChoiceModal: React.FC<WorkspaceChoiceModalProps> = ({
           >
             <p>You created a Local Draft on this device.</p>
             <p>Your account already has 1 saved project.</p>
-            <p>Free includes 1 saved project in the cloud.</p>
+            <p>Basic includes 1 saved project in the cloud.</p>
             <p>
               Choose what you want to work on right now. You can still keep the other
               project locally on this device.
@@ -46,7 +46,7 @@ export const WorkspaceChoiceModal: React.FC<WorkspaceChoiceModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-col">
+        <DialogFooter layout="stacked">
           <Button
             style={getGlassmorphismStyles('buttonAccent')}
             onClick={onKeepLocal}

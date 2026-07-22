@@ -7,7 +7,7 @@
 | Free | 1 max | Must choose local OR cloud | $0 |
 | Pro | Unlimited | Both local and cloud | See pricing below |
 
-## Stripe Product & Price IDs (TEST)
+## Stripe Product & Price IDs (LIVE)
 
 - **Product ID:** `prod_TkYhj9N6JE4Ml7` (StoryboardFlow Pro)
 
@@ -15,10 +15,10 @@
 
 | Logical planId | Price ID | Amount | Lookup key |
 |----------------|----------|--------|------------|
-| `pro_monthly` | `price_1TribmA0uFpyWFFpKlVbq64G` | $7.99/mo | `pro_monthly` |
-| `pro_annual` | `price_1TribmA0uFpyWFFpsRyxPx3Y` | $59/yr | `pro_annual` |
-| `founding_monthly` | `price_1TrkV9A0uFpyWFFpwR7et6Se` | $5.99/mo | `pro_founding_monthly` |
-| `founding_annual` | `price_1Trka6A0uFpyWFFpldozeOVw` | $45/yr | `pro_founding_annual` |
+| `pro_monthly` | `price_1TvMxCAB8QpWwxxscOO7sNum` | $7.99/mo | `pro_monthly` |
+| `pro_annual` | `price_1TvMxBAB8QpWwxxsHdOol8De` | $59/yr | `pro_annual` |
+| `founding_monthly` | `price_1TvMxAAB8QpWwxxstMwVzn3J` | $5.99/mo | `pro_founding_monthly` |
+| `founding_annual` | `price_1TvMx9AB8QpWwxxs6dsnQ4Gr` | $45/yr | `pro_founding_annual` |
 
 Server mapping: `supabase/functions/create-checkout-session/billingPlans.ts`
 
@@ -43,15 +43,15 @@ Historical display resolution: `src/config/billing.ts` (`HISTORICAL_*` maps)
 - `http://localhost:8080/billing/success`
 - `http://localhost:8080/billing/canceled`
 
-**Production (set later):**
-- `https://yourdomain.com/billing/success`
-- `https://yourdomain.com/billing/canceled`
+**Production:**
+- `${SITE_URL}/billing/success`
+- `${SITE_URL}/billing/canceled`
 
 ## Stripe Customer Portal
 
 Path: Settings → Billing → Customer portal
 
-Return URL: `https://storyboardflow.com/billing` (set when ready)
+Return URL: `${SITE_URL}/billing`
 
 **Subscription plan switching must remain disabled.** StoryboardFlow owns interval changes via `change-subscription`; portal is for payment method, invoices, and cancellation only.
 
@@ -139,9 +139,13 @@ UI enforces: UpgradeToProDialog, WorkspaceChoiceModal, LockedProjectModal
 
 ## CORS Configuration
 
-Allowed origins in `create-checkout-session`: `http://localhost:8080`
+Allowed origins in the billing Edge Functions:
+- `https://www.storyboardflow.com`
+- `https://storyboardflow.com`
+- `http://localhost:8080`
+- `http://localhost:3000`
 
-> Add production URLs before deployment.
+`SITE_URL` must be set to the canonical production origin before deployment.
 
 ---
 

@@ -48,7 +48,7 @@ export const ProjectConflictDialog: React.FC<ProjectConflictDialogProps> = ({
           </DialogTitle>
           <DialogDescription className="space-y-2" style={{ color: getColor('text', 'secondary') as string }}>
             <p>
-              You&apos;re signed in on the Free plan, which includes 1 project.
+              You&apos;re signed in on the Basic plan, which includes 1 project.
             </p>
             <p>
               Right now you have 1 local draft on this device and 1 project in your account.
@@ -107,7 +107,7 @@ export const ProjectConflictDialog: React.FC<ProjectConflictDialogProps> = ({
           </div>
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:items-stretch">
+        <DialogFooter layout="stacked">
           <Button
             onClick={onUpgrade}
             className="w-full"

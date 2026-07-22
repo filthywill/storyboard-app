@@ -83,7 +83,7 @@ export function ChangeBillingIntervalDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md" style={getGlassmorphismStyles("content")}>
+      <DialogContent className="sm:max-w-md" style={getGlassmorphismStyles("dark")}>
         <DialogHeader>
           <DialogTitle style={{ color: getColor("text", "primary") }}>
             Change Billing Interval
@@ -126,7 +126,7 @@ export function ChangeBillingIntervalDialog({
           </p>
         )}
 
-        <DialogFooter className="flex-col sm:flex-col gap-2">
+        <DialogFooter layout="stacked">
           <Button
             disabled={submitting}
             onClick={handleConfirm}

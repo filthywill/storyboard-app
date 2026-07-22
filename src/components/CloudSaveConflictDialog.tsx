@@ -40,7 +40,7 @@ export const CloudSaveConflictDialog: React.FC<CloudSaveConflictDialogProps> = (
           </DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-col">
+        <DialogFooter layout="stacked">
           <Button style={getGlassmorphismStyles('buttonAccent')} onClick={onReload}>
             Reload from cloud
           </Button>

@@ -17,10 +17,6 @@ function buildAppUrl(searchParams: URLSearchParams, source: string): string {
   params.set('source', source);
   return `${APP_HOME}?${params.toString()}`;
 }
-
-// Sample PDF asset not yet in /public — add e.g. /sample-storyboard.pdf and wire SAMPLE_PDF_HREF.
-const SAMPLE_PDF_HREF: string | null = null;
-
 const WORKFLOW_STEPS = [
   { icon: Upload, title: 'Upload frames', description: 'Bring in your images, artwork, or references for shots.' },
   { icon: Grid3x3, title: 'Arrange shots', description: 'Arrange your sequence while keeping your shots organized.' },
@@ -99,10 +95,9 @@ export default function LandingPage() {
               className="text-base sm:text-lg leading-relaxed max-w-xl mx-auto lg:mx-0"
               style={{ color: getColor('text', 'secondary') as string }}
             >
-              Upload your frames, arrange your shots, customize the layout, and export your
-              storyboard in minutes using a dynamic template.
+              Upload your shots, arrange the sequence, customize the template, and export your storyboard in minutes.
             </p>
-            <div className="inline-grid gap-3 pt-2 w-fit max-w-full mx-auto lg:mx-0 grid-cols-[max-content_max-content] max-[400px]:grid-cols-1">
+            <div className="pt-2 w-fit max-w-full mx-auto lg:mx-0">
               <Button
                 asChild
                 size="lg"
@@ -113,37 +108,9 @@ export default function LandingPage() {
                   to={heroAppHref}
                   onClick={() => Telemetry.event('cta_clicked', { source: 'homepage_hero' })}
                 >
-                  Start a free storyboard
+                  Create a storyboard
                 </Link>
               </Button>
-              {SAMPLE_PDF_HREF ? (
-                <Button
-                  asChild
-                  size="lg"
-                  className="whitespace-nowrap max-[400px]:w-full"
-                  style={getGlassmorphismStyles('buttonSecondary')}
-                >
-                  <a
-                    href={SAMPLE_PDF_HREF}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => Telemetry.event('cta_clicked', { source: 'homepage_example_pdf' })}
-                  >
-                    View example PDF
-                  </a>
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  size="lg"
-                  disabled
-                  title="Example PDF coming soon — add /public/sample-storyboard.pdf"
-                  className="whitespace-nowrap max-[400px]:w-full opacity-60 cursor-not-allowed"
-                  style={getGlassmorphismStyles('buttonSecondary')}
-                >
-                  View example PDF
-                </Button>
-              )}
             </div>
           </div>
 

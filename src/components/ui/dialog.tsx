@@ -67,15 +67,22 @@ const DialogHeader = ({
 )
 DialogHeader.displayName = "DialogHeader"
 
+type DialogFooterLayout = "default" | "stacked"
+
+const dialogFooterLayoutClasses: Record<DialogFooterLayout, string> = {
+  default: "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+  stacked: "flex flex-col gap-2",
+}
+
 const DialogFooter = ({
   className,
+  layout = "default",
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> & {
+  layout?: DialogFooterLayout
+}) => (
   <div
-    className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      className
-    )}
+    className={cn(dialogFooterLayoutClasses[layout], className)}
     {...props}
   />
 )

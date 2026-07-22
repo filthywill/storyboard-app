@@ -9,7 +9,7 @@ import { normalizeProjectSettings } from '@/utils/projectSettings';
 export class UpgradeRequiredError extends Error {
   code = "UPGRADE_REQUIRED";
   
-  constructor(message: string = "Free plan limit reached. Upgrade to Pro for unlimited projects.") {
+  constructor(message: string = "Basic plan limit reached. Upgrade to Pro for unlimited projects.") {
     super(message);
     this.name = "UpgradeRequiredError";
   }
