@@ -13,6 +13,7 @@ import { SecurityNotificationService } from '@/services/securityNotificationServ
 import { getColor } from '@/styles/glassmorphism-styles';
 import { getShotTextSpacing } from '@/styles/storyboardTheme';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
+import { calculateCoverImageGeometry } from '@/utils/imageGeometry';
 
 interface ShotCardProps {
   shot: Shot;
@@ -28,9 +29,80 @@ interface ShotCardProps {
   readOnly?: boolean;
   className?: string;
   aspectRatio?: string;
-  previewDimensions?: { width: number; imageHeight: number; gap: number } | null;
+  previewDimensions?: { width: number; imageContainerWidth: number; imageHeight: number; gap: number } | null;
+  minimumGridCellHeight?: number;
   exportPayload?: ServerPDFExportPayload;
 }
+
+interface TransformedCoverImageProps {
+  src: string;
+  alt: string;
+  containerWidth: number;
+  containerHeight: number;
+  imageScale: number;
+  offsetX: number;
+  offsetY: number;
+  borderRadius: number;
+  onError?: () => void;
+}
+
+const TransformedCoverImage: React.FC<TransformedCoverImageProps> = ({
+  src,
+  alt,
+  containerWidth,
+  containerHeight,
+  imageScale,
+  offsetX,
+  offsetY,
+  borderRadius,
+  onError,
+}) => {
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    setNaturalSize(null);
+  }, [src]);
+
+  const geometry = naturalSize
+    ? calculateCoverImageGeometry(
+      naturalSize.width,
+      naturalSize.height,
+      containerWidth,
+      containerHeight
+    )
+    : null;
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="block"
+      style={{
+        position: 'absolute',
+        width: geometry ? `${geometry.width}px` : 'auto',
+        height: geometry ? `${geometry.height}px` : 'auto',
+        left: geometry ? `${geometry.left}px` : '0px',
+        top: geometry ? `${geometry.top}px` : '0px',
+        visibility: geometry ? 'visible' : 'hidden',
+        borderRadius: `${borderRadius}px`,
+        transform: geometry
+          ? `scale(${imageScale}) translate(${offsetX}px, ${offsetY}px)`
+          : undefined,
+        transformOrigin: 'center center',
+        border: 'none',
+        boxShadow: 'none',
+        outline: 'none',
+      }}
+      onLoad={(event) => {
+        setNaturalSize({
+          width: event.currentTarget.naturalWidth,
+          height: event.currentTarget.naturalHeight,
+        });
+      }}
+      onError={onError}
+    />
+  );
+};
 
 const ConnectedShotCard: React.FC<ShotCardProps> = ({
   shot,
@@ -46,7 +118,8 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
   readOnly = false,
   className,
   aspectRatio = '16/9',
-  previewDimensions = null
+  previewDimensions = null,
+  minimumGridCellHeight,
 }) => {
   const { templateSettings, storyboardTheme } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -199,6 +272,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
         ...style,
         ...(previewDimensions ? {
           width: `${previewDimensions.width}px`,
+          minHeight: minimumGridCellHeight ? `${minimumGridCellHeight}px` : undefined,
           flex: 'none',
           overflow: 'visible'
         } : {}),
@@ -321,30 +395,28 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
             const imageSource = getImageSource(shot);
             
             // Calculate actual offsets in pixels from percentage values
-            const containerWidth = previewDimensions ? previewDimensions.width : 300;
+            const containerWidth = previewDimensions ? previewDimensions.imageContainerWidth : 300;
             const containerHeight = previewDimensions ? previewDimensions.imageHeight : 169;
             const actualOffsetX = (shot.imageOffsetX || 0) * containerWidth;
             const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
             
             return imageSource ? (
               <div 
-                className="relative w-full h-full group overflow-hidden"
+                className="relative h-full group overflow-hidden"
                 style={{
+                  width: `${containerWidth}px`,
                   borderRadius: `${storyboardTheme.shotCard.borderRadius}px`
                 }}
               >
-                <img
+                <TransformedCoverImage
                   src={imageSource}
                   alt={`Shot ${shot.number}`}
-                  className="w-full h-full object-cover"
-                  style={{
-                    borderRadius: `${storyboardTheme.shotCard.borderRadius}px`,
-                    transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
-                    transformOrigin: 'center center',
-                    border: 'none',
-                    boxShadow: 'none',
-                    outline: 'none'
-                  }}
+                  containerWidth={containerWidth}
+                  containerHeight={containerHeight}
+                  imageScale={shot.imageScale || 1.0}
+                  offsetX={actualOffsetX}
+                  offsetY={actualOffsetY}
+                  borderRadius={storyboardTheme.shotCard.borderRadius}
                   onError={handleImageError}
                 />
 
@@ -668,6 +740,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
 const ExportShotCard: React.FC<ShotCardProps> = ({
   shot,
   previewDimensions = null,
+  minimumGridCellHeight,
   exportPayload,
 }) => {
   if (!exportPayload || !previewDimensions) {
@@ -676,7 +749,7 @@ const ExportShotCard: React.FC<ShotCardProps> = ({
 
   const { template, theme } = exportPayload;
   const imageSource = getImageSource(shot);
-  const containerWidth = previewDimensions.width;
+  const containerWidth = previewDimensions.imageContainerWidth;
   const containerHeight = previewDimensions.imageHeight;
   const actualOffsetX = (shot.imageOffsetX || 0) * containerWidth;
   const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
@@ -687,6 +760,7 @@ const ExportShotCard: React.FC<ShotCardProps> = ({
     <div
       style={{
         width: `${previewDimensions.width}px`,
+        minHeight: minimumGridCellHeight ? `${minimumGridCellHeight}px` : undefined,
         flex: 'none',
         overflow: 'visible',
         ['--inline-bg-color' as any]: theme.shotCard.backgroundEnabled ? theme.shotCard.background : 'transparent',
@@ -724,23 +798,22 @@ const ExportShotCard: React.FC<ShotCardProps> = ({
         >
           {imageSource ? (
             <div
-              className="relative w-full h-full overflow-hidden"
+              className="relative h-full overflow-hidden"
+              data-image-viewport
               style={{
+                width: `${containerWidth}px`,
                 borderRadius: `${theme.shotCard.borderRadius}px`
               }}
             >
-              <img
+              <TransformedCoverImage
                 src={imageSource}
                 alt={`Shot ${shot.number}`}
-                className="w-full h-full object-cover"
-                style={{
-                  borderRadius: `${theme.shotCard.borderRadius}px`,
-                  transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
-                  transformOrigin: 'center center',
-                  border: 'none',
-                  boxShadow: 'none',
-                  outline: 'none'
-                }}
+                containerWidth={containerWidth}
+                containerHeight={containerHeight}
+                imageScale={shot.imageScale || 1.0}
+                offsetX={actualOffsetX}
+                offsetY={actualOffsetY}
+                borderRadius={theme.shotCard.borderRadius}
               />
             </div>
           ) : null}

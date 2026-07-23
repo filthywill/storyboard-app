@@ -2,6 +2,7 @@ import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
 
 export interface PreviewDimensions {
   width: number;
+  imageContainerWidth: number;
   imageHeight: number;
   gap: number;
 }
@@ -14,7 +15,7 @@ export interface PreviewDimensionsPageInput {
 export const calculatePreviewDimensions = (
   page: PreviewDimensionsPageInput | null | undefined
 ): PreviewDimensions => {
-  if (!page) return { width: 200, imageHeight: 100, gap: 8 };
+  if (!page) return { width: 200, imageContainerWidth: 200, imageHeight: 100, gap: 8 };
 
   const { gridCols, aspectRatio } = page;
   const headerPadding = 16;
@@ -31,6 +32,7 @@ export const calculatePreviewDimensions = (
 
   return {
     width: shotWidth,
+    imageContainerWidth,
     imageHeight: imageHeight,
     gap: 8
   };

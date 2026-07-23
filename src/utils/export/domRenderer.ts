@@ -8,6 +8,16 @@ import {
 import { DOMCaptureResult } from './domCapture';
 import { getShotTextSpacing } from '@/styles/storyboardTheme';
 
+// Untransformed CSS geometry from the canonical offscreen image element.
+interface RenderedDOMImageGeometry {
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+  transformOriginX: number;
+  transformOriginY: number;
+}
+
 export class DOMRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -375,8 +385,15 @@ export class DOMRenderer {
     scale: number
   ): Promise<void> {
     // Find image container in shot element
-    const imageContainer = shotElement.querySelector('[style*="aspect-ratio"]') || 
-                          shotElement.querySelector('.relative.w-full');
+    const viewportSelectors = [
+      '[data-image-viewport]',
+      '.relative.h-full.overflow-hidden',
+      '[style*="aspect-ratio"]',
+      '.relative.w-full',
+    ];
+    const imageContainer = viewportSelectors
+      .map((selector) => shotElement.querySelector(selector))
+      .find((element): element is Element => Boolean(element));
     
     if (!imageContainer) return;
     
@@ -403,15 +420,9 @@ export class DOMRenderer {
     const imageOffsetXPercent = shot.imageOffsetX || 0; // Percentage (0.0 to 1.0)
     const imageOffsetYPercent = shot.imageOffsetY || 0; // Percentage (0.0 to 1.0)
     
-    // Convert percentage offsets to pixels based on ACTUAL captured container size
-    // imageBounds already reflects the correct container size after transform removal
-    // CRITICAL: The image container has borders based on theme
-    // Subtract border width from container dimensions for accurate positioning
-    const borderWidth = this.storyboardState?.storyboardTheme?.imageFrame?.borderEnabled 
-      ? this.storyboardState.storyboardTheme.imageFrame.borderWidth 
-      : 0;
-    const borderLeftRight = borderWidth * 2; // border on left + right
-    const containerWidth = (imageWidth / scale) - borderLeftRight;
+    // Convert percentage offsets to pixels using the explicit image viewport.
+    // The viewport already excludes card padding and the image-frame border.
+    const containerWidth = imageWidth / scale;
     const containerHeight = (imageHeight / scale);
     
     // Calculate offsets in unscaled coordinates, then scale for canvas
@@ -421,13 +432,44 @@ export class DOMRenderer {
     
     
     if (shot.imageData) {
-      await this.renderImage(shot.imageData, imageBounds, imageScale, imageOffsetX, imageOffsetY);
+      const renderedImageElement = imageContainer.querySelector('img');
+      const renderedImageStyle = renderedImageElement
+        ? window.getComputedStyle(renderedImageElement)
+        : null;
+      const renderedWidth = Number.parseFloat(renderedImageStyle?.width ?? '');
+      const renderedHeight = Number.parseFloat(renderedImageStyle?.height ?? '');
+      const renderedLeft = Number.parseFloat(renderedImageStyle?.left ?? '');
+      const renderedTop = Number.parseFloat(renderedImageStyle?.top ?? '');
+      const [transformOriginX, transformOriginY] = (
+        renderedImageStyle?.transformOrigin ?? ''
+      ).split(' ').map(Number.parseFloat);
+      const renderedImageGeometry: RenderedDOMImageGeometry | undefined =
+        [renderedWidth, renderedHeight, renderedLeft, renderedTop, transformOriginX, transformOriginY]
+          .every(Number.isFinite)
+          ? {
+              width: renderedWidth,
+              height: renderedHeight,
+              left: renderedLeft,
+              top: renderedTop,
+              transformOriginX,
+              transformOriginY,
+            }
+          : undefined;
+      await this.renderImage(
+        shot.imageData,
+        imageBounds,
+        imageScale,
+        imageOffsetX,
+        imageOffsetY,
+        'cover',
+        renderedImageGeometry
+      );
     } else {
       // Render placeholder
       this.renderPlaceholder(imageBounds, scale);
     }
   }
-  
+
   /**
    * Measure actual text rendering size in browser vs canvas
    */
@@ -671,7 +713,8 @@ export class DOMRenderer {
     imageScale: number = 1.0,
     imageOffsetX: number = 0,
     imageOffsetY: number = 0,
-    objectFit: 'cover' | 'contain' = 'cover'
+    objectFit: 'cover' | 'contain' = 'cover',
+    renderedImageGeometry?: RenderedDOMImageGeometry
   ): Promise<void> {
     if (imageData instanceof HTMLImageElement) {
       // Calculate aspect ratio preserving fit
@@ -700,7 +743,20 @@ export class DOMRenderer {
           drawWidth = bounds.height * imgAspect;
         }
       }
-      
+
+      let centerX = bounds.x + bounds.width / 2;
+      let centerY = bounds.y + bounds.height / 2;
+      if (renderedImageGeometry) {
+        drawWidth = renderedImageGeometry.width * this.scale;
+        drawHeight = renderedImageGeometry.height * this.scale;
+        centerX =
+          bounds.x +
+          ((renderedImageGeometry.left + renderedImageGeometry.transformOriginX) * this.scale);
+        centerY =
+          bounds.y +
+          ((renderedImageGeometry.top + renderedImageGeometry.transformOriginY) * this.scale);
+      }
+
       // Draw the image with CSS-like transforms applied
       this.ctx.save();
       
@@ -717,10 +773,7 @@ export class DOMRenderer {
       
       // Apply CSS-like transforms: scale() translate()
       // CSS: transform: scale(X) translate(Ypx, Zpx)
-      // Transform origin is center of the bounds (transformOrigin: 'center center')
-      const centerX = bounds.x + bounds.width / 2;
-      const centerY = bounds.y + bounds.height / 2;
-      
+      // Use the rendered image's transform origin when DOM geometry is available.
       
       // 1. Translate to transform origin (center)
       this.ctx.translate(centerX, centerY);
@@ -736,8 +789,7 @@ export class DOMRenderer {
       // So they should match if we use the same values!
       this.ctx.translate(imageOffsetX, imageOffsetY);
       
-      // 4. Draw image centered at origin (since object-cover centers by default)
-      // The image is drawn such that its center is at the current transform origin
+      // 4. Draw the image centered on its measured transform origin.
       this.ctx.drawImage(
         imageData,
         -drawWidth / 2,

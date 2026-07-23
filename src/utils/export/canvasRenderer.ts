@@ -328,10 +328,7 @@ export class CanvasRenderer {
     // Calculate the EXACT same dimensions as ShotGrid previewDimensions
     const shotWidth = bounds.width / scale; // Convert back to unscaled
     const cardContentPadding = 8 * 2; // p-2 = 8px each side = 16px total
-    const borderWidth = this.storyboardTheme?.imageFrame?.borderEnabled 
-      ? this.storyboardTheme.imageFrame.borderWidth 
-      : 0;
-    const imageBorder = borderWidth * 2; // border on both sides
+    const imageBorder = 1 * 2; // Match the editor/live image viewport inset.
     const imageContainerWidth = shotWidth - cardContentPadding - imageBorder;
     
     // Parse aspect ratio exactly like ShotGrid
@@ -356,7 +353,7 @@ export class CanvasRenderer {
     
     if (shot.imageData) {
       await this.renderShotImage(
-        shot.imageData, 
+        shot.imageData,
         imageBounds, 
         shot.imageScale, 
         shot.imageOffsetX, 
@@ -618,7 +615,7 @@ export class CanvasRenderer {
         drawHeight = bounds.width / imgAspect;
         drawY = bounds.y + (bounds.height - drawHeight) / 2;
       }
-      
+
       // Draw the image with rounded corners and CSS-like transforms
       this.ctx.save();
       

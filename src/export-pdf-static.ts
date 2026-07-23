@@ -14,6 +14,8 @@ import {
 } from './utils/pageSize';
 import { getShotTextSpacing, normalizeShotTextFontSize } from './styles/storyboardTheme';
 import { getStoryboardHeaderAlignmentInsetCss } from './utils/storyboardLayout';
+import { calculateCoverImageGeometry } from './utils/imageGeometry';
+import { getMinimumShotCardNonImageHeight } from './utils/emptySlotHeight';
 
 const EXPORT_ROUTE_PATH = '/export/pdf/render-static';
 const READY_EVENT_NAME = 'server-pdf-export-ready';
@@ -23,7 +25,7 @@ const IMAGE_READY_TIMEOUT_MS = 10000;
 const EXPORT_FONT_FAMILY =
   '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const LIGHTER_BACKGROUND = 'rgba(255, 255, 255, 0.03)';
-const EMPTY_EXPORT_SLOT_EXTRA_HEIGHT_PX = 80;
+const FIXED_PAGE_EMPTY_SLOT_EXTRA_HEIGHT_PX = 80;
 const LETTER_PORTRAIT_WIDTH_PX = 816;
 const LETTER_PORTRAIT_HEIGHT_PX = 1056;
 const LETTER_LANDSCAPE_WIDTH_PX = 1056;
@@ -348,6 +350,48 @@ async function waitForImages(root: HTMLElement): Promise<void> {
   }
 }
 
+function applyCoverImageGeometry(root: HTMLElement): void {
+  const images = Array.from(root.querySelectorAll('[data-cover-image]'));
+
+  for (const element of images) {
+    if (!(element instanceof HTMLImageElement)) {
+      throw new Error('Cover image marker was applied to a non-image element.');
+    }
+
+    const containerWidth = Number(element.dataset.containerWidth);
+    const containerHeight = Number(element.dataset.containerHeight);
+    const imageScale = Number(element.dataset.imageScale);
+    const offsetX = Number(element.dataset.offsetX);
+    const offsetY = Number(element.dataset.offsetY);
+    const geometry = calculateCoverImageGeometry(
+      element.naturalWidth,
+      element.naturalHeight,
+      containerWidth,
+      containerHeight
+    );
+
+    if (
+      !geometry ||
+      !Number.isFinite(imageScale) ||
+      !Number.isFinite(offsetX) ||
+      !Number.isFinite(offsetY)
+    ) {
+      throw new Error(`Unable to apply cover geometry for image: ${element.currentSrc || element.src}`);
+    }
+
+    Object.assign(element.style, {
+      position: 'absolute',
+      width: `${geometry.width}px`,
+      height: `${geometry.height}px`,
+      left: `${geometry.left}px`,
+      top: `${geometry.top}px`,
+      visibility: 'visible',
+      transform: `scale(${imageScale}) translate(${offsetX}px, ${offsetY}px)`,
+      transformOrigin: 'center center',
+    });
+  }
+}
+
 async function waitForStableLayout(root: HTMLElement): Promise<{ width: number; height: number }> {
   let stableFrames = 0;
   let previous = { width: -1, height: -1 };
@@ -639,11 +683,12 @@ function buildMasterHeader(payload: ServerPDFExportPayload): HTMLElement {
 function buildShotCard(
   payload: ServerPDFExportPayload,
   shot: ServerPDFExportPayload['page']['shots'][number],
-  previewDimensions: { width: number; imageHeight: number }
+  previewDimensions: { width: number; imageContainerWidth: number; imageHeight: number }
 ): HTMLElement {
   const { template, theme } = payload;
+  const isDynamicPageMode = resolveExportPageSizeMode(payload) === 'dynamic';
   const imageSource = getImageSource(shot.image);
-  const actualOffsetX = (shot.imageOffsetX || 0) * previewDimensions.width;
+  const actualOffsetX = (shot.imageOffsetX || 0) * previewDimensions.imageContainerWidth;
   const actualOffsetY = (shot.imageOffsetY || 0) * previewDimensions.imageHeight;
   const actionTextSpacing = getShotTextSpacing(theme.actionText.fontSize);
   const scriptTextSpacing = getShotTextSpacing(theme.scriptText.fontSize);
@@ -652,6 +697,14 @@ function buildShotCard(
     className: 'group relative transition-all duration-200 shot-card storyboard-themeable',
     style: {
       width: `${previewDimensions.width}px`,
+      minHeight: isDynamicPageMode
+        ? `${previewDimensions.imageHeight + getMinimumShotCardNonImageHeight({
+          showActionText: template.showActionText,
+          showScriptText: template.showScriptText,
+          actionTextFontSize: theme.actionText.fontSize,
+          scriptTextFontSize: theme.scriptText.fontSize,
+        })}px`
+        : undefined,
       flex: 'none',
       overflow: 'visible',
     },
@@ -693,23 +746,30 @@ function buildShotCard(
 
   if (imageSource) {
     const imageOverflow = createElement('div', {
-      className: 'relative w-full h-full overflow-hidden',
+      className: 'relative h-full overflow-hidden',
       style: {
+        width: `${previewDimensions.imageContainerWidth}px`,
         borderRadius: `${theme.shotCard.borderRadius}px`,
       },
     });
 
     imageOverflow.appendChild(
       createElement('img', {
-        className: 'w-full h-full object-cover',
+        className: 'block',
         attrs: {
           src: imageSource,
           alt: `Shot ${shot.number}`,
+          'data-cover-image': '',
+          'data-container-width': String(previewDimensions.imageContainerWidth),
+          'data-container-height': String(previewDimensions.imageHeight),
+          'data-image-scale': String(shot.imageScale || 1.0),
+          'data-offset-x': String(actualOffsetX),
+          'data-offset-y': String(actualOffsetY),
         },
         style: {
+          position: 'absolute',
+          visibility: 'hidden',
           borderRadius: `${theme.shotCard.borderRadius}px`,
-          transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
-          transformOrigin: 'center center',
           border: 'none',
           boxShadow: 'none',
           outline: 'none',
@@ -780,11 +840,24 @@ function buildShotCard(
   return card;
 }
 
-function buildEmptySlotPlaceholder(previewDimensions: { width: number; imageHeight: number }): HTMLElement {
+function buildEmptySlotPlaceholder(
+  payload: ServerPDFExportPayload,
+  previewDimensions: { width: number; imageHeight: number },
+  isFixedPageMode: boolean
+): HTMLElement {
+  const minimumNonImageHeight = isFixedPageMode
+    ? FIXED_PAGE_EMPTY_SLOT_EXTRA_HEIGHT_PX
+    : getMinimumShotCardNonImageHeight({
+      showActionText: payload.template.showActionText,
+      showScriptText: payload.template.showScriptText,
+      actionTextFontSize: payload.theme.actionText.fontSize,
+      scriptTextFontSize: payload.theme.scriptText.fontSize,
+    });
+
   return createElement('div', {
     style: {
       width: `${previewDimensions.width}px`,
-      minHeight: `${previewDimensions.imageHeight + EMPTY_EXPORT_SLOT_EXTRA_HEIGHT_PX}px`,
+      minHeight: `${previewDimensions.imageHeight + minimumNonImageHeight}px`,
       flex: 'none',
     },
     attrs: {
@@ -823,7 +896,7 @@ function buildShotGrid(payload: ServerPDFExportPayload): HTMLElement {
     grid.appendChild(
       shot
         ? buildShotCard(payload, shot, previewDimensions)
-        : buildEmptySlotPlaceholder(previewDimensions)
+        : buildEmptySlotPlaceholder(payload, previewDimensions, isFixedPageMode)
     );
   }
 
@@ -1007,6 +1080,7 @@ async function bootstrap(): Promise<void> {
   try {
     await waitForFonts(exportRoot);
     await waitForImages(exportRoot);
+    applyCoverImageGeometry(exportRoot);
     const stableLayout = await waitForStableLayout(exportRoot);
 
     emitReady({

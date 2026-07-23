@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shot } from '@/store';
 import { getImageSource } from '@/utils/imageCompression';
 import { useAppStore } from '@/store';
+import { calculateCoverImageGeometry } from '@/utils/imageGeometry';
 
 interface ShotImageRendererProps {
   shot: Shot;
@@ -12,11 +13,7 @@ interface ShotImageRendererProps {
 
 /**
  * Renders ONLY the image portion of a shot with transforms applied.
- * Used by ImageEditorModal to show the full original image (not CSS-cropped).
- * 
- * Unlike ShotCard which uses object-cover (causing CSS cropping before transforms),
- * this component renders the image at its natural aspect ratio within the container,
- * allowing transforms to reveal any part of the original image.
+ * Used by ImageEditorModal with the shared explicit cover geometry.
  */
 export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
   shot,
@@ -53,22 +50,15 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
   const actualOffsetX = (shot.imageOffsetX || 0) * containerWidth;
   const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
 
-  // Calculate what size the image would be if it used object-cover
-  // This matches the "cover" behavior: scale to fill container while maintaining aspect ratio
-  const containerAspect = containerWidth / containerHeight;
-  const imageAspect = imageNaturalSize.width / imageNaturalSize.height;
-  
-  let renderWidth: number;
-  let renderHeight: number;
-  
-  if (imageAspect > containerAspect) {
-    // Image is wider - height fills container, width overflows
-    renderHeight = containerHeight;
-    renderWidth = containerHeight * imageAspect;
-  } else {
-    // Image is taller - width fills container, height overflows
-    renderWidth = containerWidth;
-    renderHeight = containerWidth / imageAspect;
+  const imageGeometry = calculateCoverImageGeometry(
+    imageNaturalSize.width,
+    imageNaturalSize.height,
+    containerWidth,
+    containerHeight
+  );
+
+  if (!imageGeometry) {
+    return null;
   }
 
   return (
@@ -78,17 +68,17 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
         width: `${containerWidth}px`,
         height: `${containerHeight}px`,
         borderRadius: `${borderRadius}px`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
       }}
     >
       <img
         src={imageSource}
         alt={`Shot ${shot.number}`}
         style={{
-          width: `${renderWidth}px`,
-          height: 'auto', // Let browser maintain aspect ratio - prevents distortion
+          position: 'absolute',
+          width: `${imageGeometry.width}px`,
+          height: `${imageGeometry.height}px`,
+          left: `${imageGeometry.left}px`,
+          top: `${imageGeometry.top}px`,
           borderRadius: `${borderRadius}px`,
           // Use percentage-based transform origin like ShotCard
           // This makes transforms stable across aspect ratio changes

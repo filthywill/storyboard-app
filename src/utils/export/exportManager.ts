@@ -457,7 +457,11 @@ export class ExportManager {
     for (let index = 0; index < pages.length; index += 1) {
       const page = pages[index];
       onProgress?.(index + 1, pages.length, page.name);
-      const blob = await this.exportPageAsPNG(page, { ...storyboardState, activePageId: page.id }, options);
+      const blob = await this.exportPageAsPNG(
+        page,
+        { ...storyboardState, activePageId: page.id },
+        options
+      );
       exportedPages.push({ page, blob });
     }
 

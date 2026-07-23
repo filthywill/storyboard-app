@@ -7,8 +7,9 @@ import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getColor } from '@/styles/glassmorphism-styles';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
-import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
+import { RENDERED_PAGE_WIDTH_PX, resolvePageSizeMode } from '@/utils/pageSize';
 import { getStoryboardHeaderAlignmentInsetCss } from '@/utils/storyboardLayout';
+import { getMinimumShotCardNonImageHeight } from '@/utils/emptySlotHeight';
 
 interface ShotGridProps {
   pageId: string;
@@ -139,6 +140,16 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
   const resolvedPageNumber = pageNumberOverride ?? (activePageIndex !== -1 ? activePageIndex + 1 : null);
   const isFixedPageMode = pageSizeMode !== 'dynamic';
   const footerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(gridCols);
+  const emptySlotMinHeight = previewDimensions.imageHeight + (
+    isFixedPageMode
+      ? 80
+      : getMinimumShotCardNonImageHeight({
+        showActionText: templateSettings.showActionText,
+        showScriptText: templateSettings.showScriptText,
+        actionTextFontSize: storyboardTheme.actionText.fontSize,
+        scriptTextFontSize: storyboardTheme.scriptText.fontSize,
+      })
+  );
 
   return (
     <div
@@ -177,6 +188,7 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
             onEditImage={onEditImage ? () => onEditImage(shot) : undefined}
             aspectRatio={aspectRatio}
             previewDimensions={previewDimensions}
+            minimumGridCellHeight={emptySlotMinHeight}
             readOnly={readOnly}
           />
         ))}
@@ -192,7 +204,7 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
             )}
             style={{
               width: `${previewDimensions.width}px`,
-              minHeight: `${previewDimensions.imageHeight + 80}px`,
+              minHeight: `${emptySlotMinHeight}px`,
               flex: 'none'
             }}
             onClick={() => {
@@ -284,6 +296,17 @@ const ExportShotGrid: React.FC<ShotGridProps> = ({
   const emptySlotsCount = hideEmptySlots ? 0 : Math.max(0, totalSlots - pageShotsOverride.length);
   const resolvedPageNumber = pageNumberOverride ?? exportPayload.page.pageNumber;
   const footerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(gridCols);
+  const isFixedPageMode = resolvePageSizeMode(exportPayload.pageSizeMode) !== 'dynamic';
+  const emptySlotMinHeight = previewDimensions.imageHeight + (
+    isFixedPageMode
+      ? 80
+      : getMinimumShotCardNonImageHeight({
+        showActionText: templateSettings.showActionText,
+        showScriptText: templateSettings.showScriptText,
+        actionTextFontSize: storyboardTheme.actionText.fontSize,
+        scriptTextFontSize: storyboardTheme.scriptText.fontSize,
+      })
+  );
 
   return (
     <div className={cn('w-full shot-grid', className)}>
@@ -314,6 +337,7 @@ const ExportShotGrid: React.FC<ShotGridProps> = ({
             onInsertShot={() => {}}
             aspectRatio={aspectRatio}
             previewDimensions={previewDimensions}
+            minimumGridCellHeight={emptySlotMinHeight}
             readOnly
             exportPayload={exportPayload}
           />
@@ -329,7 +353,7 @@ const ExportShotGrid: React.FC<ShotGridProps> = ({
             )}
             style={{
               width: `${previewDimensions.width}px`,
-              minHeight: `${previewDimensions.imageHeight + 80}px`,
+              minHeight: `${emptySlotMinHeight}px`,
               flex: 'none'
             }}
             onClick={() => {
