@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Upload, FileText, AlertCircle, CheckCircle, X, ArrowDown, Clipboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
-import { enableBatchMode, disableBatchMode } from '@/utils/autoSave';
+import { beginIntent, endIntent } from '@/utils/autoSave';
 import { captureShotListLoaded, setSuppressShotAddedEvents } from '@/services/analytics/editorTracking';
 import { formatShotNumber } from '@/utils/formatShotNumber';
 import { useAppStore } from '@/store';
@@ -236,14 +236,23 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
   // Get target page and shots for preview
   const targetPage = getTargetPageForInsertion();
   const targetPosition = calculateTargetPosition();
+  const customTargetPosition = startingPosition === 'custom'
+    ? shotOrder.findIndex(shotId => (
+      shots[shotId]?.number === formatShotNumber(customPosition, templateSettings.shotNumberFormat)
+    ))
+    : -1;
 
   // For preview, we need to show the global shot order when inserting at start
   let existingShots;
   let previewTargetPosition;
   
-  if (startingPosition === 'start') {
+  if (startingPosition === 'start' || startingPosition === 'custom') {
     existingShots = shotOrder.map(shotId => shots[shotId]).filter(Boolean);
-    previewTargetPosition = 0;
+    previewTargetPosition = startingPosition === 'custom' && customTargetPosition !== -1
+      ? customTargetPosition
+      : startingPosition === 'custom'
+        ? existingShots.length
+        : 0;
   } else {
     existingShots = getPageShots(targetPage.id);
     previewTargetPosition = targetPosition;
@@ -256,8 +265,8 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
     setLoadingState('processing');
     setProgress({ current: 0, total: parsedShots.length, currentLine: '' });
 
-    // Enable batch mode to prevent auto-save during bulk operations
-    enableBatchMode();
+    // Keep all facade mutations within one import intent.
+    beginIntent('load_shot_list');
     setSuppressShotAddedEvents(true);
 
     let shotListImportSummary: {
@@ -269,6 +278,12 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
     try {
       const successful: ParsedShotText[] = [];
       const failed: { line: string; error: string }[] = [];
+      const customTargetShots = startingPosition === 'custom'
+        ? shotOrder.map(shotId => shots[shotId]).filter(Boolean)
+        : [];
+      const customStartIndex = customTargetPosition === -1
+        ? customTargetShots.length
+        : customTargetPosition;
 
       // Process each parsed shot
       for (let i = 0; i < parsedShots.length; i++) {
@@ -295,6 +310,19 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
               }) || pages[0];
               
               const shotId = addShot(targetPageForShot.id, globalIndex);
+              updateShot(shotId, {
+                actionText: parsedShot.text
+              });
+            }
+          } else if (startingPosition === 'custom') {
+            const targetShot = customTargetShots[customStartIndex + i];
+
+            if (targetShot) {
+              updateShot(targetShot.id, {
+                actionText: parsedShot.text
+              });
+            } else {
+              const shotId = addShot(targetPage.id);
               updateShot(shotId, {
                 actionText: parsedShot.text
               });
@@ -346,12 +374,12 @@ export const ShotListLoadModal: React.FC<ShotListLoadModalProps> = ({
       setLoadingState('error');
     } finally {
       setSuppressShotAddedEvents(false);
-      disableBatchMode();
+      endIntent('load_shot_list');
       if (shotListImportSummary) {
         captureShotListLoaded(shotListImportSummary);
       }
     }
-  }, [parsedShots, pageId, addShot, updateShot, startingPosition, pages, getTargetPageForInsertion, calculateTargetPosition, shotOrder, shots, getPageShots, inputMode]);
+  }, [parsedShots, pageId, addShot, updateShot, startingPosition, pages, getTargetPageForInsertion, calculateTargetPosition, shotOrder, shots, getPageShots, inputMode, customTargetPosition]);
 
   // Reset modal state
   const handleClose = useCallback(() => {
