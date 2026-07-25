@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +51,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [resendError, setResendError] = useState<string | null>(null)
   const [passwordResetMode, setPasswordResetMode] = useState(false)
   const [passwordResetStatus, setPasswordResetStatus] = useState<PasswordResetStatus>('idle')
+  const emailPasswordSubmitInFlightRef = useRef(false)
   const idBase = useId()
   const emailId = `${idBase}-email`
   const passwordId = `${idBase}-password`
@@ -67,6 +68,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (emailPasswordSubmitInFlightRef.current) {
+      if (import.meta.env.DEV) {
+        console.info('Duplicate email/password auth submission blocked')
+      }
+      return
+    }
+
+    emailPasswordSubmitInFlightRef.current = true
     setLoading(true)
     
     try {
@@ -89,6 +98,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         setResendError(null)
       }
     } finally {
+      emailPasswordSubmitInFlightRef.current = false
       setLoading(false)
     }
   }

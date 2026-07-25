@@ -32,6 +32,7 @@ function getSiteUrl(): string {
 
 export class AuthService {
   private static currentSessionId: string | null = null;
+  private static cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private static isUserConfirmed(user: any): boolean {
     return Boolean(user?.email_confirmed_at || user?.confirmed_at);
   }
@@ -368,9 +369,13 @@ export class AuthService {
       await this.initializeCurrentSession();
       
       // Set up periodic cleanup (every hour)
-      setInterval(() => {
-        this.cleanupExpiredSessions();
-      }, 60 * 60 * 1000);
+      if (this.cleanupInterval === null) {
+        this.cleanupInterval = setInterval(() => {
+          this.cleanupExpiredSessions();
+        }, 60 * 60 * 1000);
+      } else if (import.meta.env.DEV) {
+        console.info('Auth session cleanup interval already registered');
+      }
       
       console.log('Session management initialized');
     } catch (error) {

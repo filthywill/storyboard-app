@@ -719,7 +719,7 @@ Supabase owns the JWT session. In parallel, StoryboardFlow maintains `user_sessi
 4. Other sessions receive a broadcast and/or row update.
 5. Forced logout clears local Supabase auth, project state, analytics identity, and shows `LoggedOutElsewhereScreen`.
 
-Session cleanup runs at startup and hourly through an RPC whose implementation is not checked in.
+Session cleanup runs at startup and hourly through an RPC whose implementation is not checked in. The hourly cleanup interval and the Supabase auth-state listener are each registered once per browser page lifetime, while auth initialization continues to reconcile the current Supabase user on repeated calls.
 
 ### Protected routes
 

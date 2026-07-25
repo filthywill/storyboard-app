@@ -1084,7 +1084,7 @@ These invariants describe assumptions embedded across multiple modules. Violatin
 34. Supabase Auth is authoritative for identity/JWT validity; persisted Zustand state alone is insufficient for privileged operations.
 35. Manual or forced logout clears project state and analytics identity as well as local auth state.
 36. OAuth, recovery, and confirmation redirects must resolve through configured canonical origins.
-37. Application-session enforcement and writer leases solve different problems and must not be conflated.
+37. Application-session enforcement and writer leases solve different problems and must not be conflated. Page-lifetime auth infrastructure (the cleanup interval and Supabase auth-state listener) is singleton, while current-user/session reconciliation remains repeatable.
 
 ## Export invariants
 
