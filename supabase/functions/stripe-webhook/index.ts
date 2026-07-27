@@ -8,6 +8,9 @@ const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SERVICE_ROLE_KEY"); // <-- same key name you set earlier
+const EMAIL_PROVIDER_API_KEY = Deno.env.get("EMAIL_PROVIDER_API_KEY");
+const EMAIL_FROM_ADDRESS = Deno.env.get("EMAIL_FROM_ADDRESS");
+const SITE_URL = Deno.env.get("SITE_URL");
 
 if (!STRIPE_SECRET_KEY) throw new Error("Missing STRIPE_SECRET_KEY");
 if (!STRIPE_WEBHOOK_SECRET) throw new Error("Missing STRIPE_WEBHOOK_SECRET");
@@ -75,6 +78,29 @@ case "customer.subscription.deleted": {
   break;
 }
 
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (
+          invoice.billing_reason !== "subscription_create" ||
+          invoice.paid !== true ||
+          invoice.status !== "paid"
+        ) {
+          break;
+        }
+
+        const subscriptionId = getStripeObjectId(invoice.subscription);
+        if (!subscriptionId) {
+          console.warn("Initial paid subscription invoice is missing a subscription", {
+            eventType: event.type,
+            invoiceId: invoice.id,
+          });
+          break;
+        }
+
+        await syncInitialPaidSubscription(invoice, subscriptionId, event.type);
+        break;
+      }
+
 
       default:
         break;
@@ -132,4 +158,407 @@ async function upsertFromSubscription(sub: Stripe.Subscription, customerId: stri
   );
 
   if (upsertError) console.error("billing_subscriptions upsert error:", upsertError);
+}
+
+function getStripeObjectId(
+  value: string | { id: string } | null | undefined
+): string | null {
+  const id = typeof value === "string" ? value : value?.id;
+  return typeof id === "string" && id.trim() !== "" ? id : null;
+}
+
+function getSupabaseUserId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+
+  const userId = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    ? userId
+    : null;
+}
+
+async function resolveUserIdForInitialPaidSubscription(
+  sub: Stripe.Subscription,
+  customerId: string
+): Promise<string | null> {
+  const subscriptionUserId = getSupabaseUserId(sub.metadata?.supabase_user_id);
+  if (subscriptionUserId) return subscriptionUserId;
+
+  let customer: Stripe.Customer | Stripe.DeletedCustomer;
+  try {
+    customer = await stripe.customers.retrieve(customerId);
+  } catch {
+    throw new Error("Failed to retrieve Stripe customer for initial paid subscription");
+  }
+
+  if (!("deleted" in customer && customer.deleted)) {
+    const customerUserId = getSupabaseUserId(customer.metadata?.supabase_user_id);
+    if (customerUserId) return customerUserId;
+  }
+
+  const { data: billingRow, error: billingLookupError } = await supabaseAdmin
+    .from("billing_subscriptions")
+    .select("user_id, stripe_customer_id")
+    .eq("stripe_customer_id", customerId)
+    .maybeSingle();
+
+  if (billingLookupError) {
+    throw new Error("Failed to resolve billing mapping for initial paid subscription");
+  }
+
+  if (billingRow?.stripe_customer_id !== customerId) return null;
+  return getSupabaseUserId(billingRow?.user_id);
+}
+
+async function syncInitialPaidSubscription(
+  invoice: Stripe.Invoice,
+  subscriptionId: string,
+  eventType: string
+) {
+  let sub: Stripe.Subscription;
+  try {
+    sub = await stripe.subscriptions.retrieve(subscriptionId, {
+      expand: ["items.data.price"],
+    });
+  } catch {
+    console.error("Initial paid subscription retrieval failed", {
+      eventType,
+      invoiceId: invoice.id,
+      subscriptionId,
+    });
+    throw new Error("Failed to retrieve canonical subscription");
+  }
+
+  const customerId = getStripeObjectId(sub.customer);
+  const price = sub.items.data.length === 1 ? sub.items.data[0]?.price : null;
+  const priceId = getStripeObjectId(price);
+
+  if (!customerId || !priceId || sub.status !== "active") {
+    console.warn("Initial paid subscription did not meet welcome-email criteria", {
+      eventType,
+      invoiceId: invoice.id,
+      subscriptionId: sub.id,
+      customerId,
+      subscriptionStatus: sub.status,
+      hasSingleCurrentPrice: Boolean(priceId),
+    });
+    return;
+  }
+
+  const userId = await resolveUserIdForInitialPaidSubscription(sub, customerId);
+  if (!userId) {
+    console.warn("Initial paid subscription has no safe user mapping", {
+      eventType,
+      invoiceId: invoice.id,
+      subscriptionId: sub.id,
+      customerId,
+    });
+    return;
+  }
+
+  const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc(
+    "sync_billing_subscription_and_enqueue_welcome",
+    {
+      p_user_id: userId,
+      p_stripe_customer_id: customerId,
+      p_stripe_subscription_id: sub.id,
+      p_price_id: priceId,
+      p_status: sub.status,
+      p_current_period_end: sub.current_period_end
+        ? new Date(sub.current_period_end * 1000).toISOString()
+        : null,
+      p_cancel_at_period_end: sub.cancel_at_period_end ?? false,
+    }
+  );
+
+  const result = Array.isArray(rpcResult) ? rpcResult[0] : null;
+  if (rpcError || result?.billing_synchronized !== true) {
+    console.error("Initial paid subscription lifecycle RPC failed", {
+      eventType,
+      invoiceId: invoice.id,
+      subscriptionId: sub.id,
+      customerId,
+      hasRpcError: Boolean(rpcError),
+    });
+    throw new Error("Failed to synchronize initial paid subscription");
+  }
+
+  console.info("Initial paid subscription synchronized", {
+    eventType,
+    invoiceId: invoice.id,
+    subscriptionId: sub.id,
+    customerId,
+    outboxInserted: result.outbox_inserted === true,
+  });
+
+  const outboxId = getSupabaseUserId(result.outbox_id);
+  if (result.outbox_inserted === true && outboxId) {
+    await deliverWelcomeEmail(outboxId, userId);
+  } else if (result.outbox_inserted === true) {
+    console.error("New lifecycle-email intent has no usable outbox ID", {
+      eventType,
+      invoiceId: invoice.id,
+      subscriptionId: sub.id,
+    });
+  }
+}
+
+async function deliverWelcomeEmail(outboxId: string, userId: string): Promise<void> {
+  const processingStarted = await markOutboxProcessing(outboxId);
+  if (!processingStarted) return;
+
+  try {
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (authError) {
+      await updateOutbox(outboxId, {
+        status: "retry",
+        last_error_code: "recipient_lookup_failed",
+      });
+      return;
+    }
+
+    const recipientEmail = authData.user?.email?.trim();
+    if (!recipientEmail) {
+      await updateOutbox(outboxId, {
+        status: "blocked",
+        last_error_code: "recipient_email_missing",
+      });
+      return;
+    }
+
+    const emailConfig = getEmailConfig();
+    if (!emailConfig) {
+      await updateOutbox(outboxId, {
+        status: "retry",
+        last_error_code: "email_configuration_missing",
+      });
+      return;
+    }
+
+    const displayName = await getOptionalDisplayName(userId);
+    let email: { html: string; text: string };
+    try {
+      email = buildWelcomeEmail(displayName, emailConfig.siteUrl);
+    } catch {
+      await updateOutbox(outboxId, {
+        status: "retry",
+        last_error_code: "email_render_error",
+      });
+      return;
+    }
+
+    let response: Response;
+    try {
+      response = await fetchResend(emailConfig, outboxId, recipientEmail, email);
+    } catch (error) {
+      await updateOutbox(outboxId, {
+        status: "retry",
+        last_error_code: error instanceof Error && error.name === "AbortError"
+          ? "provider_timeout"
+          : "provider_network_error",
+      });
+      return;
+    }
+
+    const responseBody: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      await updateOutbox(outboxId, {
+        status: response.status === 429 || response.status >= 500 ? "retry" : "failed",
+        last_error_code: response.status === 429
+          ? "provider_rate_limited"
+          : response.status >= 500
+            ? "provider_server_error"
+            : "provider_rejected",
+      });
+      return;
+    }
+
+    const providerMessageId =
+      typeof responseBody === "object" &&
+      responseBody !== null &&
+      "id" in responseBody &&
+      typeof responseBody.id === "string"
+        ? responseBody.id
+        : null;
+
+    if (!providerMessageId) {
+      await updateOutbox(outboxId, {
+        status: "retry",
+        last_error_code: "provider_response_invalid",
+      });
+      return;
+    }
+
+    await updateOutbox(outboxId, {
+      status: "sent",
+      provider_message_id: providerMessageId,
+      sent_at: new Date().toISOString(),
+      last_error_code: null,
+    });
+  } catch {
+    console.error("Welcome email delivery path failed", { outboxId });
+    await updateOutbox(outboxId, {
+      status: "retry",
+      last_error_code: "email_delivery_unexpected_error",
+    });
+  }
+}
+
+function getEmailConfig(): {
+  apiKey: string;
+  fromAddress: string;
+  siteUrl: string;
+} | null {
+  const apiKey = EMAIL_PROVIDER_API_KEY?.trim();
+  const fromAddress = EMAIL_FROM_ADDRESS?.trim();
+  const rawSiteUrl = SITE_URL?.trim();
+  if (!apiKey || !fromAddress || !rawSiteUrl) return null;
+
+  try {
+    const siteUrl = new URL(rawSiteUrl);
+    if (siteUrl.protocol !== "https:" && siteUrl.protocol !== "http:") return null;
+
+    return {
+      apiKey,
+      fromAddress,
+      siteUrl: siteUrl.toString().replace(/\/+$/, ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function markOutboxProcessing(outboxId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("lifecycle_email_outbox")
+      .update({
+        status: "processing",
+        attempts: 1,
+        last_error_code: null,
+      })
+      .eq("id", outboxId)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+
+    if (!error && data?.id) return true;
+  } catch {
+    // Fall through to the operational diagnostic below.
+  }
+
+  console.error("Welcome email outbox could not enter processing", { outboxId });
+  return false;
+}
+
+async function updateOutbox(
+  outboxId: string,
+  values: Record<string, string | null>
+): Promise<boolean> {
+  try {
+    const { error } = await supabaseAdmin
+      .from("lifecycle_email_outbox")
+      .update(values)
+      .eq("id", outboxId);
+
+    if (!error) return true;
+  } catch {
+    // Do not surface email-state persistence failures to Stripe.
+  }
+
+  console.error("Welcome email outbox state update failed", { outboxId });
+  return false;
+}
+
+async function getOptionalDisplayName(userId: string): Promise<string | null> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("user_profiles")
+      .select("display_name")
+      .eq("id", userId)
+      .maybeSingle();
+
+    return typeof data?.display_name === "string" && data.display_name.trim() !== ""
+      ? data.display_name.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildWelcomeEmail(
+  displayName: string | null,
+  siteUrl: string
+): { html: string; text: string } {
+  const appUrl = `${siteUrl}/app`;
+  const billingUrl = `${siteUrl}/billing`;
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi,";
+
+  return {
+    text: `${displayName ? `Hi ${displayName},` : "Hi,"}
+
+Welcome to StoryboardFlow Pro. Your Pro subscription is active.
+
+You now have access to multiple cloud projects, unlimited saved storyboard themes, and cloud-backed project access.
+
+Open StoryboardFlow: ${appUrl}
+Manage billing: ${billingUrl}`,
+    html: `<!doctype html>
+<html lang="en">
+  <body style="margin:0;padding:24px;background:#f5f5f5;color:#1f2937;font-family:Arial,sans-serif;">
+    <main style="max-width:600px;margin:0 auto;background:#ffffff;padding:32px;border-radius:8px;">
+      <h1 style="margin:0 0 20px;font-size:24px;line-height:1.25;">Welcome to StoryboardFlow Pro</h1>
+      <p style="margin:0 0 16px;line-height:1.5;">${greeting}</p>
+      <p style="margin:0 0 16px;line-height:1.5;">Your Pro subscription is active. Thanks for supporting StoryboardFlow.</p>
+      <p style="margin:0 0 20px;line-height:1.5;">You now have access to multiple cloud projects, unlimited saved storyboard themes, and cloud-backed project access.</p>
+      <p style="margin:0 0 20px;">
+        <a href="${escapeHtml(appUrl)}" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;">Open StoryboardFlow</a>
+      </p>
+      <p style="margin:0;line-height:1.5;">
+        <a href="${escapeHtml(billingUrl)}" style="color:#2563eb;">Manage billing</a>
+      </p>
+    </main>
+  </body>
+</html>`,
+  };
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
+}
+
+async function fetchResend(
+  config: { apiKey: string; fromAddress: string; siteUrl: string },
+  outboxId: string,
+  recipientEmail: string,
+  email: { html: string; text: string }
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    return await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": `lifecycle-email/${outboxId}/welcome_pro`,
+      },
+      body: JSON.stringify({
+        from: config.fromAddress,
+        to: [recipientEmail],
+        subject: "Welcome to StoryboardFlow Pro",
+        html: email.html,
+        text: email.text,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
