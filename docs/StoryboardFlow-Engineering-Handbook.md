@@ -2,6 +2,7 @@
 
 > Repository audit date: 2026-07-11  
 > Verification pass: 2026-07-11 (code is authoritative; handbook updated only where inaccurate or incomplete)  
+> Targeted update: 2026-07-27 (Stripe billing, Supabase Architecture, and Environment Configuration sections revised against the now-verified `invoice.paid` Pro welcome-email implementation; remainder of the document reflects the 2026-07-11 pass unless noted)  
 > Scope: the checked-in repository as it exists on the audit date  
 > Package: `storyboard-flow` 1.0.0
 
@@ -18,7 +19,7 @@ Unless marked otherwise, statements in this document are **Confirmed**. Existing
 
 StoryboardFlow is a browser-based storyboard editor. It supports guest/local work, authenticated cloud projects, multi-page shot layouts, image editing, custom themes, PDF/PNG export, subscriptions, offline operation, and single-writer protection across tabs or devices.
 
-The product is a React 18 single-page application built with Vite. The main editor lives at `/app`; `src/pages/Index.tsx` coordinates authentication, project availability, cloud loading, writer-lease state, and the editor UI. The application is local-first: Zustand persists working state in browser storage, while project-scoped snapshots are used for switching and cloud synchronization. Supabase provides authentication, Postgres, Storage, Realtime, RPCs, and Stripe-related Edge Functions. Vercel hosts the SPA and a headless-Chromium PDF API.
+The product is a React 18 single-page application built with Vite. The main editor lives at `/app`; `src/pages/Index.tsx` coordinates authentication, project availability, cloud loading, writer-lease state, and the editor UI. The application is local-first: Zustand persists working state in browser storage, while project-scoped snapshots are used for switching and cloud synchronization. Supabase provides authentication, Postgres, Storage, Realtime, RPCs, and Stripe-related Edge Functions, including a verified `invoice.paid`-triggered welcome-email path for new paid Pro subscriptions. Vercel hosts the SPA and a headless-Chromium PDF API.
 
 Current maturity is mixed:
 
@@ -45,6 +46,7 @@ Major technologies are React, TypeScript, Vite, Zustand, Supabase, Stripe, PostH
 | Database | Supabase Postgres; JSONB project payloads | migrations and `ProjectService` |
 | Authentication | Supabase email/password, Google OAuth, password recovery | `AuthService`, auth pages |
 | Payments | Stripe Checkout, Customer Portal, subscriptions, webhooks | four Supabase Edge Functions |
+| Transactional email | Resend HTTP API called with native `fetch` from `stripe-webhook`; no Resend SDK | `supabase/functions/stripe-webhook/index.ts` |
 | Analytics | PostHog through an adapter; separate development-only telemetry | `src/services/analytics/`, `src/utils/telemetry.ts` |
 | Object storage | Supabase bucket `project-images`; local base64/data URLs | `StorageService`, shot state |
 | Build | Vite with SWC; main SPA and static PDF-render entries | `vite.config.ts` |
@@ -74,7 +76,7 @@ Dependency versions are declared with caret ranges, so installed versions may be
 | `src/hooks/` | Four hooks: network status, object URL/canvas cleanup, and toast (`use-toast.ts`; shadcn also ships a duplicate under `src/components/ui/use-toast.ts`) |
 | `api/` | Vercel serverless functions; currently the PDF endpoint |
 | `supabase/functions/` | Stripe Checkout, Portal, subscription-change, and webhook Edge Functions |
-| `supabase/migrations/` | Partial database migration history: custom themes and writer leases/RPCs |
+| `supabase/migrations/` | Partial database migration history: custom themes, writer leases/RPCs, and the lifecycle-email outbox table/RPC |
 | `docs/` | Architecture, implementation, business, setup, test, and historical documentation |
 | `product-discovery/` | Product, launch, analytics, testing, and Notion-oriented planning material; not runtime code |
 | `public/` | Static web assets |
@@ -376,6 +378,7 @@ Batch operations and project switching defer or suppress autosave. Immediate-sav
 - Checkout invokes the authenticated `create-checkout-session` Edge Function with a logical `planId`.
 - Stripe redirects to hosted Checkout.
 - Stripe webhooks update `billing_subscriptions`.
+- For the initial paid subscription specifically, a verified `invoice.paid` webhook additionally enqueues and attempts delivery of one `welcome_pro` lifecycle email through Resend; this path never grants or affects Pro entitlement, which remains driven solely by `billing_subscriptions.status`. See the Stripe Billing section for the full flow.
 - UI re-reads subscription status; active or trialing means Pro.
 - Portal and interval-change actions invoke separate Edge Functions.
 
@@ -396,14 +399,15 @@ Batch operations and project switching defer or suppress autosave. Immediate-sav
 | `project_images` | type and storage service | Storage-object metadata per shot/logo | Schema inferred; RLS unknown |
 | `user_storyboard_themes` | full migration | User-created themes | Confirmed with owner RLS |
 | `billing_subscriptions` | Edge Functions and billing UI | Stripe customer/subscription entitlement | Schema inferred; RLS unknown |
+| `lifecycle_email_outbox` | full migration + fix migration; `stripe-webhook` | Durable, deduplicated intent/state record for lifecycle emails (currently `welcome_pro` only) | Confirmed with owner-less service-role-only access (RLS enabled, no policies; all privileges revoked from `anon`/`authenticated`/`PUBLIC`) |
 | `user_sessions` | auth service and Realtime subscription | Application-level single-device session records | Schema inferred; RLS/Realtime config unknown |
 | Storage `project-images` | storage service | Shot and logo files | Bucket use confirmed; policies/public setting unknown |
 
-The repository contains only two SQL migrations. It cannot recreate the full production database from source control.
+The repository contains four SQL migrations: custom themes, writer leases/RPCs, and two lifecycle-email migrations (initial `lifecycle_email_outbox` table/RPC, followed by a fix to the RPC's user-validity check). This is still a partial migration history — it cannot recreate the full production database (core `projects`/`project_data`/`billing_subscriptions`/`user_sessions` schema and RLS are not checked in) — but it is no longer accurate to describe the repository as containing only two migrations.
 
 ### RLS
 
-Confirmed RLS exists only for `user_storyboard_themes`, with SELECT/INSERT/UPDATE/DELETE policies scoped by `auth.uid() = user_id`.
+Confirmed RLS with owner-scoped policies exists only for `user_storyboard_themes` (`auth.uid() = user_id`). `lifecycle_email_outbox` has RLS enabled but no policies; access is controlled entirely through explicit `REVOKE`/`GRANT`, leaving only `service_role` (which bypasses RLS) able to read or write the table.
 
 Owner checks are also embedded in the security-definer writer/save RPCs. RLS for core projects, billing, sessions, profiles, project images, and the Storage bucket is **Unknown** because its SQL is not checked in. Free-project enforcement appears to involve database policy behavior, but this is an **Inference**.
 
@@ -411,10 +415,11 @@ Owner checks are also embedded in the security-definer writer/save RPCs. RLS for
 
 | RPC | Behavior |
 |---|---|
-| `claim_writer_lease` | Verifies ownership, locks the row, grants/rejects a 60-second lease, supports forced takeover |
-| `release_writer_lease` | Clears lease only for the current holder |
-| `save_project_if_unchanged` | Verifies owner, lease, and expected revision; atomically writes JSONB data and extends the lease |
+| `claim_writer_lease` | Verifies ownership, locks the row, grants/rejects a 60-second lease, supports forced takeover (`SECURITY DEFINER`) |
+| `release_writer_lease` | Clears lease only for the current holder (`SECURITY DEFINER`) |
+| `save_project_if_unchanged` | Verifies owner, lease, and expected revision; atomically writes JSONB data and extends the lease (`SECURITY DEFINER`) |
 | `cleanup_expired_sessions` | Called by the client; implementation is not checked in |
+| `sync_billing_subscription_and_enqueue_welcome` | Seven-argument RPC called only by the `stripe-webhook` Edge Function's service-role client. Atomically upserts `billing_subscriptions` (`ON CONFLICT (user_id)`) and, only when the passed subscription status is `active`, inserts a `welcome_pro` row into `lifecycle_email_outbox` (`ON CONFLICT (stripe_subscription_id, email_type) DO NOTHING`, falling back to selecting the existing row on conflict). Returns `billing_synchronized boolean`, `outbox_inserted boolean`, `outbox_id uuid`. Runs as `SECURITY INVOKER` (not `SECURITY DEFINER`); `PUBLIC` execute is revoked and only `service_role` is granted execute. It does not query `auth.users` directly — a fix migration removed that check and relies on the `billing_subscriptions.user_id → auth.users(id)` foreign key to enforce user validity transactionally. |
 
 ### Edge Functions
 
@@ -423,7 +428,7 @@ Owner checks are also embedded in the security-definer writer/save RPCs. RLS for
 | `create-checkout-session` | Enabled | Resolve/create Stripe customer and create subscription Checkout |
 | `create-portal-session` | Enabled | Open default, payment-method, or cancellation portal flow |
 | `change-subscription` | Enabled | Immediate monthly-to-annual change or scheduled annual-to-monthly change |
-| `stripe-webhook` | Disabled; Stripe signature required | Synchronize checkout/subscription events into `billing_subscriptions` |
+| `stripe-webhook` | Disabled; Stripe signature required | Synchronize checkout/subscription events into `billing_subscriptions`; for the initial paid subscription only, additionally verify `invoice.paid`, atomically enqueue a `welcome_pro` outbox row, and attempt immediate Resend delivery (see Stripe Billing section) |
 
 ### Storage
 
@@ -451,7 +456,7 @@ The client sends logical plan IDs, not arbitrary Stripe price IDs.
 
 `VITE_PUBLIC_PRO_OFFER` selects the Standard or Founding offer for new checkout UI. Existing subscriptions are resolved by stored Stripe `price_id`, including archived price IDs for grandfathered display.
 
-The Edge Function plan maps currently contain Stripe IDs labeled as test prices. Production live-price configuration is **Unknown** and is a deployment risk.
+`supabase/functions/create-checkout-session/billingPlans.ts` now maps all four logical plans to Stripe price IDs explicitly commented as "Current LIVE checkout prices" (not test prices). The deployed `STRIPE_SECRET_KEY` Edge Function secret's exact value/mode cannot be established from source control alone, but live-mode production behavior was independently verified: a controlled live checkout produced the initial paid subscription whose `invoice.paid` webhook replay is documented below (HTTP 200 response, correct atomic billing/outbox synchronization, and successful Resend delivery).
 
 ### Subscription lifecycle
 
@@ -472,6 +477,39 @@ sequenceDiagram
 ```
 
 Statuses `active` and `trialing` grant Pro behavior. `CloudAccessService` caches access state for 30 seconds.
+
+### Initial paid Pro welcome email (lifecycle email)
+
+`stripe-webhook` additionally handles `invoice.paid` to send exactly one welcome email for a brand-new paid Pro subscription. Stripe remains the sole entitlement authority throughout; this path only sends a notification after entitlement is already synchronized.
+
+**Trigger conditions (all required, evaluated in `stripe-webhook/index.ts`):**
+
+- `event.type === "invoice.paid"`.
+- `invoice.billing_reason === "subscription_create"`.
+- `invoice.status === "paid"`.
+- A resolvable subscription reference on the invoice. Current (Clover-era) invoices resolve it from `invoice.parent.subscription_details.subscription`. `resolveInvoiceSubscriptionReference()` falls back to the legacy top-level `invoice.subscription` field, then to an unambiguous single subscription-item line (`invoice.lines.data[].parent.subscription_item_details.subscription`) when exactly one such line exists; an ambiguous (multiple-line) or missing reference is skipped, not guessed.
+- The canonical subscription is then re-retrieved from Stripe by ID (`stripe.subscriptions.retrieve`), never trusted from the invoice payload alone.
+- The canonical subscription's `status === "active"`.
+- The canonical subscription has exactly one current item with a resolvable price ID (`sub.items.data.length === 1`).
+- A UUID-shaped Supabase user ID can be resolved (see below).
+
+Renewal invoices, proration invoices, non-`subscription_create` invoices, unpaid invoices, inactive/non-active canonical subscriptions, multi-item or price-ambiguous subscriptions, missing/ambiguous subscription references, and unresolved user mappings are all logged and skipped (`logInitialPaidInvoiceSkip`) — none of them enqueue or send a welcome email.
+
+**User resolution order** (`resolveUserIdForInitialPaidSubscription`), first match wins, never guessed:
+
+1. `supabase_user_id` in the canonical Stripe **Subscription** metadata.
+2. `supabase_user_id` in the retrieved Stripe **Customer** metadata.
+3. The existing `billing_subscriptions` row's `user_id` for the same `stripe_customer_id`.
+
+The recipient email address is never taken from the invoice or customer payload. It is looked up server-side from Supabase Auth (`supabaseAdmin.auth.admin.getUserById`) using the resolved user ID.
+
+**Atomic billing sync and outbox insertion:** the webhook calls the RPC `public.sync_billing_subscription_and_enqueue_welcome` (see RPC inventory in the Supabase Architecture section) with the resolved user ID, customer ID, subscription ID, price ID, status, period end, and cancel-at-period-end flag. In one transaction the RPC upserts `billing_subscriptions` and, only if the passed status is `active`, inserts a `welcome_pro` row into `lifecycle_email_outbox`. The unique constraint on `(stripe_subscription_id, email_type)` deduplicates: a duplicate webhook delivery for the same subscription retrieves the existing outbox row (`outbox_inserted: false`) instead of creating a second one, and the webhook does not resend in that case.
+
+**Immediate delivery through Resend:** only when the RPC reports a newly inserted row (`outbox_inserted: true`) does the webhook call `deliverWelcomeEmail()`, which sends both an HTML and a plain-text body to `https://api.resend.com/emails` using native `fetch` (no Resend SDK) with an `Idempotency-Key` derived from the outbox row ID. `EMAIL_PROVIDER_API_KEY` and `EMAIL_FROM_ADDRESS` are Supabase Edge Function secrets; the verified production sender is `StoryboardFlow <hello@storyboardflow.com>`. There is currently no scheduler, background worker, or periodic retry processor — `lifecycle_email_outbox` provides deduplication, delivery-state tracking, and auditability, and is a seam for a future retry mechanism, not a queue-worker system that exists today.
+
+**Failure isolation:** Stripe signature verification failures return HTTP 400. Canonical subscription/customer retrieval failures and RPC failures return HTTP 500 so Stripe retries the billing-synchronization path. Once the RPC has committed successfully, all Resend/provider failures are handled inside `deliverWelcomeEmail()`'s own `try/catch` blocks, are recorded on the outbox row (`status: "retry"`, `"blocked"`, or `"failed"` with a `last_error_code`), and never propagate as a thrown error — so they cannot cause the webhook to return a retryable failure to Stripe, and they never revoke, delay, or alter Pro entitlement.
+
+**Verified in production:** replay of a specific production `invoice.paid` event was inspected. The webhook returned HTTP 200, exactly one `lifecycle_email_outbox` row was created, and its final state was `email_type = welcome_pro`, `status = sent`, `attempts = 1`, a populated `provider_message_id`, `last_error_code = NULL`, and a populated `sent_at`; the email was confirmed delivered. Specific IDs and the recipient address are intentionally omitted from this document.
 
 ### Checkout and portal
 
@@ -500,13 +538,13 @@ The billing page and upgrade dialogs expose Free/Pro choices and subscription ma
 
 ### Known limitations
 
-- Test price IDs appear in runtime Edge Function mappings.
-- Production/live Stripe setup is not captured in repository configuration.
-- The webhook handles checkout completion and subscription create/update/delete, but not events such as `invoice.payment_failed`.
+- Live-labeled Stripe price IDs are checked into `billingPlans.ts`, but full production Stripe/Vercel/Supabase deployment configuration is still not captured in repository configuration.
+- The webhook handles checkout completion, subscription create/update/delete, and `invoice.paid` for the initial paid subscription only; it does not handle events such as `invoice.payment_failed`, and it does not send any renewal, cancellation, dunning, or other lifecycle email — only the one-time `welcome_pro` email is implemented.
 - Initial customer-row upsert failure is non-blocking, which can complicate webhook user resolution.
 - Entitlement refresh can lag due to webhook and cache timing.
 - Billing route protection checks Zustand auth state, not a fresh server/JWT validation.
 - Test-user cleanup does not delete Stripe objects.
+- `lifecycle_email_outbox` rows that end up `retry`, `blocked`, or `failed` have no automatic retry mechanism today; there is no scheduler or background worker, so recovering a failed welcome email currently requires manual intervention (e.g., a manual resend or a future retry processor reading the outbox).
 
 ## 9. Analytics
 
@@ -841,6 +879,8 @@ Vite built-ins `DEV`, `PROD`, and `MODE` control diagnostics and analytics metad
 | `SUPABASE_URL` | Supabase endpoint |
 | `SUPABASE_ANON_KEY` | JWT-validation client |
 | `SERVICE_ROLE_KEY` | Administrative Supabase client |
+| `EMAIL_PROVIDER_API_KEY` | Resend API key used by `stripe-webhook` for lifecycle-email delivery |
+| `EMAIL_FROM_ADDRESS` | Verified Resend sender address for lifecycle emails (`StoryboardFlow <hello@storyboardflow.com>` in production) |
 
 ### Admin scripts
 
@@ -862,11 +902,14 @@ flowchart LR
   E --> Stripe
   E --> S
   Stripe --> E
+  E --> Resend[Resend email API]
 ```
 
 `vercel.json` preserves `/api/*`, rewrites `/export/pdf/render-static` to the secondary HTML entry, and rewrites all other paths to `/` for SPA routing. Vite builds both `index.html` and `export-pdf-static.html`.
 
 Supabase Edge Function configuration enables JWT verification for user-invoked billing functions and disables it for the Stripe webhook, which performs signature verification.
+
+A production `invoice.paid` webhook replay for an initial paid Pro subscription was inspected and confirmed the flow described in the Stripe Billing section end to end (HTTP 200 response, exactly one `lifecycle_email_outbox` row created, final state `sent` with a populated `provider_message_id` and no error code). This document intentionally omits the specific event, customer, subscription, invoice, and message identifiers, and the recipient address.
 
 The exact production Vercel project settings, domains, environment values, Supabase project schema, production Stripe mode, and deployment promotion process are **Unknown**.
 
@@ -991,6 +1034,12 @@ Available scripts are `dev`, `build`, `build:dev`, `lint`, `preview`, and `clean
 **Why:** Enables forced logout of another session/device.  
 **Tradeoff:** Duplicates session concepts, depends on undocumented RLS/Realtime configuration, and increases auth complexity.
 
+### Atomic billing sync with non-blocking welcome email
+
+**Decision:** Insert the `welcome_pro` lifecycle-email intent in the same RPC transaction as the `billing_subscriptions` upsert, then attempt Resend delivery immediately afterward without letting delivery failure affect the webhook response or entitlement.  
+**Why it appears to exist:** Guarantees exactly one welcome-email intent per subscription without making Stripe entitlement depend on an external email provider's availability.  
+**Tradeoff:** There is no scheduler/worker today, so a failed send is durable and auditable in `lifecycle_email_outbox` but not automatically retried.
+
 ## 17. Technical Debt
 
 | Area | Debt |
@@ -1005,8 +1054,9 @@ Available scripts are `dev`, `build`, `build:dev`, `lint`, `preview`, and `clean
 | Types | Strict mode is off; Supabase types are partial; private auth APIs appear crossed |
 | Analytics | Registry and product-dashboard documentation exceed runtime instrumentation |
 | Telemetry | PostHog and development-only `Telemetry` use parallel event systems |
-| Billing | Stripe price IDs are hardcoded and currently labeled as test prices |
+| Billing | Stripe price IDs are hardcoded in `billingPlans.ts`; now labeled as live prices rather than test prices, but still coupled to code releases |
 | Billing | `list-beta.js` cannot distinguish manually granted complimentary Pro access from Stripe-managed subscriptions because the schema has no manual-grant marker column |
+| Billing | `lifecycle_email_outbox` has no automatic retry worker; `retry`/`blocked`/`failed` rows require manual follow-up until a retry processor is built |
 | Auth | Offline unsynced sign-out guard is required by rules but not found in executable paths |
 | Offline | Project-data queue appears memory-only across refresh; image queue has separate persistence |
 | Documentation | Root README is unrelated; route and confirmation behavior drift from architecture docs |
@@ -1029,7 +1079,8 @@ High-value refactors are recommendations, not current commitments:
 | Offline refresh before project queue replay | High | Project-scoped local snapshot; cloud queue durability remains uncertain |
 | Browser storage quota from base64 images | High | Compression, storage monitoring, Supabase image upload |
 | Incomplete DB-as-code | High | Some migrations and service checks; production cannot be recreated from repo |
-| Test Stripe IDs or misconfigured live mode | High | Logical plan allowlist; deployment state unknown |
+| Misconfigured live mode or price-ID drift | Low/Medium | Logical plan allowlist; price IDs are now live-labeled in code, and live-mode production behavior was independently verified through a controlled live checkout and `invoice.paid` webhook replay; the deployed secret's exact value cannot be confirmed from source control alone |
+| Unrecovered failed lifecycle email | Low/Medium | Outbox row records failure state and error code; no automatic retry worker exists yet, so recovery is currently manual and does not affect Pro entitlement |
 | Lease/takeover races | Medium/High | Row locking, expirations, heartbeat, BroadcastChannel |
 | Exact-timestamp comparison on project open | Medium | Forced reload on mismatch; guest flow has separate tolerance |
 | Auth state inconsistency | Medium | Central auth store and Index state UI; dual session systems add coupling |
@@ -1122,7 +1173,7 @@ High-value refactors are recommendations, not current commitments:
 ## Low-confidence or unknown areas
 
 - Full production Supabase schema, RLS policies, Storage policies, triggers, Realtime publication, and `cleanup_expired_sessions` implementation
-- Production Stripe live-price mapping and operational switch from checked-in test mappings
+- ~~Production Stripe live-price mapping and operational switch from checked-in test mappings~~ — **Superseded by the 2026-07-27 targeted update:** `billingPlans.ts` now contains price IDs explicitly labeled "Current LIVE checkout prices" (not test prices), and live-mode production behavior was independently verified via a controlled live checkout and `invoice.paid` webhook replay; see the Stripe Billing section. The deployed Stripe secret's exact value still cannot be confirmed from source control alone.
 - Production Vercel settings, domains, environment values, and promotion/rollback process
 - Canonical package manager and release/versioning procedure
 - Whether local hook installation is enforced
@@ -1133,7 +1184,7 @@ High-value refactors are recommendations, not current commitments:
 
 1. Export and review the live Supabase schema, RLS, Storage, Realtime, and RPC definitions against checked-in migrations.
 2. Verify production Vercel and Supabase environment configuration without recording secret values.
-3. Verify Stripe is using live products/prices and exercise webhook failure/retry behavior.
+3. ~~Verify Stripe is using live products/prices and exercise webhook failure/retry behavior.~~ — **Partially superseded by the 2026-07-27 targeted update:** live-labeled prices are now confirmed in code and one `invoice.paid` webhook replay was independently verified end to end. Broader webhook failure/retry behavior in live mode, beyond that single verified replay, remains a valid follow-up.
 4. Run a manual state-matrix audit for guest, unconfirmed, confirmed, forced-logout, no-project, cloud-loading, read-only, offline, and conflict states.
 5. Test project open/edit/save/reconnect/takeover flows in two tabs and two devices.
 6. Compare PDF and PNG output against the live editor across page sizes, themes, fonts, logos, images, and multi-page projects.
@@ -1214,14 +1265,14 @@ High-value refactors are recommendations, not current commitments:
 | | Rating | Notes |
 |---|---|---|
 | **Before verification** | **8 / 10** | Strong first-pass audit; minor gaps in service inventory, `Index.tsx` overlay behavior, env typing, and section numbering |
-| **After verification** | **9 / 10** | Factual claims match repository; remaining gaps are inherently unprovable from checked-in code (production schema, live Stripe, deployment env) |
+| **After verification** | **9 / 10** | Factual claims match repository; remaining gaps are inherently unprovable from checked-in code (production schema, exact deployed Stripe secret mode, deployment env) |
 
 ## Remaining Unknowns
 
 These could not be confirmed from the repository alone:
 
 - Full production Supabase schema, RLS, Storage policies, Realtime publication, and `cleanup_expired_sessions` RPC body
-- Production Stripe live price IDs and webhook failure/retry behavior in live mode
+- ~~Production Stripe live price IDs and webhook failure/retry behavior in live mode~~ — **Superseded by the 2026-07-27 targeted update:** live-labeled price IDs are confirmed in `billingPlans.ts`, and one `invoice.paid` webhook replay was independently verified in live mode (see Stripe Billing section). Webhook failure/retry behavior beyond that single verified replay, and the exact deployed `STRIPE_SECRET_KEY` value, remain unconfirmed from source control alone.
 - Production Vercel project settings, domains, and environment variable values
 - Whether npm or Bun is the canonical package manager (both lockfiles present)
 - Durability of `CloudSyncService` in-memory offline project queue across page refresh (code uses a static array; image queue is persisted separately)

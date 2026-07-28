@@ -1,6 +1,7 @@
 # StoryboardFlow Engineering Decisions
 
 > Decision review date: 2026-07-11  
+> Targeted update: 2026-07-27 (added Decision 20 and lifecycle-email invariants for the now-verified `invoice.paid` Pro welcome-email implementation; decisions 20–26 renumbered to 21–27)  
 > Companion to: `docs/StoryboardFlow-Engineering-Handbook.md`  
 > Authority: checked-in source and configuration; documentation is supporting context
 
@@ -681,7 +682,7 @@ Starting a subscription requires secure payment collection, tax/payment-method h
 
 - Users leave the application for payment.
 - Return-page success is not itself proof of entitlement.
-- Price IDs are currently embedded in Edge Function code and labeled as test values.
+- Price IDs are embedded directly in Edge Function code, so a Stripe catalog/price change requires a code release rather than an environment-specific configuration change.
 - Webhook delay can produce temporary stale UI.
 
 ### Alternatives considered
@@ -766,9 +767,61 @@ Monthly-to-annual and annual-to-monthly changes have different proration and cus
 
 **Evidence:** `src/components/ChangeBillingIntervalDialog.tsx`, `supabase/functions/change-subscription/`, `supabase/functions/stripe-webhook/`.
 
+## Decision 20: Send the initial Pro welcome email as an atomic, non-blocking outbox write
+
+### Problem
+
+A successful initial paid Pro subscription should produce exactly one welcome email. Coupling that email to entitlement, or to a synchronous call to an external email provider, risks either duplicate/missing emails on webhook retry or letting a provider outage delay/deny paid entitlement that Stripe has already confirmed.
+
+### Decision
+
+**✅ Confirmed:** Stripe `invoice.paid` (with `billing_reason: subscription_create`, `status: paid`, a resolvable and canonically re-retrieved `active` subscription, exactly one priced item, and a resolved Supabase user) is the initial paid-subscription signal. The webhook calls `public.sync_billing_subscription_and_enqueue_welcome`, which atomically upserts `billing_subscriptions` and inserts a `welcome_pro` row into `lifecycle_email_outbox` in the same transaction, guarded by a unique constraint on `(stripe_subscription_id, email_type)`. Only when that call reports a newly inserted row does the webhook immediately attempt delivery through Resend via native `fetch` (no SDK). Delivery failure after a successful RPC commit is recorded on the outbox row and is non-blocking: it does not cause the webhook to return a retryable failure to Stripe and does not affect Pro entitlement. No scheduler, background worker, or periodic retry processor exists today.
+
+### Why this approach
+
+**⚠️ Inference:** Splitting "did the customer pay" (Stripe, synchronous, authoritative) from "did the customer get an email" (outbox + best-effort send) preserves Stripe as the single entitlement authority while still making a durable, deduplicated attempt to notify the customer. Attempting delivery immediately after commit — rather than deferring to a worker — keeps the implementation simple while the product only needs one lifecycle email today.
+
+### Rationale
+
+- Preserve Stripe billing authority: entitlement is fully determined by the atomic RPC's write to `billing_subscriptions`, before any email is attempted.
+- Prevent provider outages from affecting entitlement: Resend failures are caught and recorded, never thrown back into the webhook's request/response cycle.
+- Retain durable audit/deduplication evidence: the durable email intent and its delivery state (status, attempt count, error code) are visible in `lifecycle_email_outbox`; a duplicate webhook delivery resolves to the existing row rather than creating or recording a second one.
+- Avoid premature worker infrastructure: with a single lifecycle email implemented, a scheduler/worker would add operational surface without a corresponding present need.
+
+### Tradeoffs and consequences
+
+- Failed sends (`retry`, `blocked`, or `failed` status) are visible and auditable in the outbox but are **not automatically retried**; recovering a specific failed welcome email currently requires manual intervention.
+- The outbox's `next_attempt_at` and `retry` status columns exist as a retry seam, but no code currently reads or acts on them — adding a retry processor later would not require changing the billing-authority model or the RPC contract.
+- Only the initial paid Pro `welcome_pro` email is implemented; no cancellation, renewal, dunning, or other lifecycle email currently exists.
+
+### Alternatives considered
+
+- Synchronous email without an outbox: simpler, but loses deduplication/auditability and risks either duplicate sends on webhook retry or losing the send entirely on a transient failure.
+- Letting a provider failure return an HTTP 500 to Stripe after the billing RPC already committed: would cause Stripe to retry a webhook whose billing work is already done, risking confusing retry semantics without protecting entitlement (which is already committed) and without actually being necessary for correctness.
+- A full scheduled worker/retry system: the more complete long-term design, but premature while only one lifecycle email type exists and volume is low.
+- Sending from the checkout success redirect: unreliable, since success redirects are not entitlement proof and can be skipped, retried, or reached before the webhook has processed.
+
+### Invariants
+
+- Email delivery never grants or revokes Pro access; `billing_subscriptions.status` (Decision 16) remains the only entitlement signal.
+- Stripe webhooks remain the entitlement source of truth (invariant 30); `invoice.paid` handling for the initial subscription only adds a notification side effect on top of that authority.
+- Provider failures after a successful atomic RPC commit must not cause the webhook to return a Stripe-retryable failure (no HTTP 500 for email-only failures).
+- At most one `welcome_pro` row — and therefore at most one webhook-attempted send — exists per Stripe subscription, enforced by the `(stripe_subscription_id, email_type)` unique constraint.
+- Recipient identity comes from the resolved Supabase Auth user (subscription metadata → customer metadata → existing `billing_subscriptions` row, in that order), never from untrusted invoice/customer email fields.
+- Resend and Stripe secrets remain server-side in Supabase Edge Function secrets; the webhook remains authenticated only by Stripe signature verification (invariant 49), not user JWT.
+
+### Future evolution
+
+- **Safe:** Add a scheduled retry processor that claims `pending`/`retry` outbox rows by `next_attempt_at` without changing the RPC's transaction boundary or entitlement logic.
+- **Safe:** Add further `email_type` values (e.g., payment-failed, cancellation) behind the same outbox/dedup pattern.
+- **High risk:** Let email-provider state influence `billing_subscriptions` or any entitlement check.
+- **High risk:** Change `sync_billing_subscription_and_enqueue_welcome` to `SECURITY DEFINER` or query `auth.users` directly inside it; user validity is intentionally left to the `billing_subscriptions.user_id` foreign key under `SECURITY INVOKER`.
+
+**Evidence:** `supabase/functions/stripe-webhook/index.ts`, `supabase/migrations/20260726131206_create_lifecycle_email_outbox.sql`, `supabase/migrations/20260727181606_fix_lifecycle_email_rpc_auth_lookup.sql`, `supabase/functions/create-checkout-session/billingPlans.ts`.
+
 # Export Decisions
 
-## Decision 20: Give export a stable data contract separate from live UI state
+## Decision 21: Give export a stable data contract separate from live UI state
 
 ### Problem
 
@@ -803,7 +856,7 @@ Exports must include selected pages, layout, theme, images, fonts, and project m
 
 **Evidence:** `src/components/PDFExportModal.tsx`, `src/components/PNGExportModal.tsx`, `src/utils/export/exportManager.ts`, `src/utils/types/exportTypes.ts`.
 
-## Decision 21: Render production PDFs in a minimal server-controlled browser
+## Decision 22: Render production PDFs in a minimal server-controlled browser
 
 ### Problem
 
@@ -840,7 +893,7 @@ Browser-generated PDFs vary by environment, while the full SPA introduces authen
 
 **Evidence:** `api/export-pdf.ts`, `export-pdf-static.html`, `src/export-pdf-static.ts`, `vercel.json`, `vite.config.ts`.
 
-## Decision 22: Generate PNG exports client-side with layered fallbacks
+## Decision 23: Generate PNG exports client-side with layered fallbacks
 
 ### Problem
 
@@ -878,7 +931,7 @@ PNG export needs direct file/directory/ZIP delivery, should avoid server cost, a
 
 # Observability Decisions
 
-## Decision 23: Make analytics optional, private, and non-blocking
+## Decision 24: Make analytics optional, private, and non-blocking
 
 ### Problem
 
@@ -914,7 +967,7 @@ Product analytics is useful for activation and feature decisions, but storyboard
 
 **Evidence:** `src/services/analytics/AnalyticsService.ts`, `src/services/analytics/privacy.ts`, `src/services/analytics/PostHogAdapter.ts`, `src/services/analytics/NoopAdapter.ts`.
 
-## Decision 24: Use a typed, intent-oriented PostHog taxonomy
+## Decision 25: Use a typed, intent-oriented PostHog taxonomy
 
 ### Problem
 
@@ -954,7 +1007,7 @@ The repository declares 72 registry event strings; 33 have confirmed PostHog cap
 
 # Deployment Decisions
 
-## Decision 25: Split static SPA, PDF compute, and Supabase integrations by runtime
+## Decision 26: Split static SPA, PDF compute, and Supabase integrations by runtime
 
 ### Problem
 
@@ -990,7 +1043,7 @@ The browser editor is a static SPA, PDF generation needs Node-compatible Chromiu
 
 **Evidence:** `vercel.json`, `vite.config.ts`, `api/export-pdf.ts`, `supabase/config.toml`, `supabase/functions/`.
 
-## Decision 26: Centralize visual semantics while separating storyboard themes
+## Decision 27: Centralize visual semantics while separating storyboard themes
 
 ### Problem
 
@@ -1110,6 +1163,15 @@ These invariants describe assumptions embedded across multiple modules. Violatin
 51. Database/RPC changes that affect saves are deployed compatibly with browser clients.
 52. Production schema, RLS, Storage policy, and Edge Function configuration are part of the architecture even where currently missing from source control.
 
+## Lifecycle-email invariants
+
+53. At most one `welcome_pro` row is enqueued per Stripe subscription; the `(stripe_subscription_id, email_type)` unique constraint on `lifecycle_email_outbox`, not application-level checks alone, is the enforcement mechanism.
+54. Welcome-email delivery outcome (sent, retried, blocked, or failed) never changes `billing_subscriptions` or any other entitlement-bearing state; entitlement is fully determined before any send is attempted.
+55. The lifecycle-email recipient address is always resolved server-side from Supabase Auth by the already-resolved user ID; invoice, customer, or other untrusted payload email fields are never treated as authoritative.
+56. `sync_billing_subscription_and_enqueue_welcome` remains `SECURITY INVOKER`, executable only by `service_role`, and must not query `auth.users` directly; user validity is enforced transactionally by the `billing_subscriptions.user_id` foreign key.
+57. Email-provider failures after a successful atomic billing/outbox RPC commit must not cause the webhook to return an HTTP 500 (or any Stripe-retryable status) to Stripe.
+58. No lifecycle-email scheduler, background worker, or automatic retry process may be documented or assumed to exist unless one is actually implemented.
+
 # Future Evolution by Risk Class
 
 ## Generally safe changes
@@ -1165,13 +1227,14 @@ These invariants describe assumptions embedded across multiple modules. Violatin
 | D-17 | Stripe-hosted Checkout | ✅ Implemented | Server-allowlisted plans and hosted payment UI |
 | D-18 | Stripe Customer Portal | ✅ Implemented | Hosted account/payment/cancellation management |
 | D-19 | Directional interval-change policy | ✅ Implemented | Immediate upgrades, scheduled downgrades |
-| D-20 | Stable export contract | ✅ Implemented; legacy bridge remains | Export independent of visible editor state |
-| D-21 | Static Chromium PDF renderer | ✅ Implemented | Deterministic server PDF without SPA side effects |
-| D-22 | Client offscreen PNG with fallbacks | ✅ Implemented | Low server cost and direct file delivery |
-| D-23 | Optional privacy-filtered analytics | ✅ Implemented | Analytics cannot break or inspect storyboard content |
-| D-24 | Typed intent-oriented event taxonomy | ✅ Partially instrumented | Stable semantics; 33 of 72 registry events wired |
-| D-25 | Split Vercel/Supabase deployment | ✅ Implemented | Workloads run on capability-appropriate platforms |
-| D-26 | Semantic UI colors separate from storyboard themes | ✅ Implemented | Independent app chrome and export appearance |
+| D-20 | Atomic billing sync + non-blocking Resend welcome email | ✅ Implemented | One `welcome_pro` email per subscription; entitlement never depends on email delivery; no retry worker yet |
+| D-21 | Stable export contract | ✅ Implemented; legacy bridge remains | Export independent of visible editor state |
+| D-22 | Static Chromium PDF renderer | ✅ Implemented | Deterministic server PDF without SPA side effects |
+| D-23 | Client offscreen PNG with fallbacks | ✅ Implemented | Low server cost and direct file delivery |
+| D-24 | Optional privacy-filtered analytics | ✅ Implemented | Analytics cannot break or inspect storyboard content |
+| D-25 | Typed intent-oriented event taxonomy | ✅ Partially instrumented | Stable semantics; 33 of 72 registry events wired |
+| D-26 | Split Vercel/Supabase deployment | ✅ Implemented | Workloads run on capability-appropriate platforms |
+| D-27 | Semantic UI colors separate from storyboard themes | ✅ Implemented | Independent app chrome and export appearance |
 
 # Open Architectural Questions
 
@@ -1179,7 +1242,7 @@ These are not decisions that can be confirmed from the repository:
 
 1. Is npm or Bun the canonical package manager?
 2. What are the complete production Supabase schema, RLS, Storage, trigger, and Realtime definitions?
-3. How are production Stripe live prices supplied in place of checked-in test mappings?
+3. How should environment-specific Stripe price mappings be managed (e.g., per-environment server configuration) instead of hardcoding price IDs directly in Edge Function code across releases?
 4. Must project-data offline replay survive a full browser refresh, or is reconstruction from snapshots sufficient?
 5. Is single-device application session enforcement a permanent product requirement?
 6. Are page/shot limits intended as billing entitlements or only technical request limits?
@@ -1187,6 +1250,7 @@ These are not decisions that can be confirmed from the repository:
 8. What release ordering and rollback policy coordinates Vercel, Supabase schema/RPCs, and Edge Functions?
 9. Is the long-term export direction a shared renderer or intentionally separate PDF/PNG implementations?
 10. Is collaborative or shared project editing on the product roadmap? It would supersede several current lease and ownership assumptions.
+11. Is a scheduled retry processor for `lifecycle_email_outbox` planned, and if so, on what cadence and claim/backoff model? None exists today.
 
 # Source Map
 
@@ -1210,6 +1274,9 @@ The most important evidence for this decision record is:
 - `export-pdf-static.html`
 - `src/export-pdf-static.ts`
 - `supabase/functions/`
+- `supabase/functions/stripe-webhook/index.ts`
 - `supabase/migrations/`
+- `supabase/migrations/20260726131206_create_lifecycle_email_outbox.sql`
+- `supabase/migrations/20260727181606_fix_lifecycle_email_rpc_auth_lookup.sql`
 - `vercel.json`
 - `vite.config.ts`

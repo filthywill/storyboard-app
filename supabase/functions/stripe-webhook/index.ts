@@ -80,24 +80,34 @@ case "customer.subscription.deleted": {
 
       case "invoice.paid": {
         const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionReference = resolveInvoiceSubscriptionReference(invoice);
         if (
-          invoice.billing_reason !== "subscription_create" ||
-          invoice.paid !== true ||
-          invoice.status !== "paid"
+          event.type !== "invoice.paid" ||
+          invoice.billing_reason !== "subscription_create"
         ) {
+          logInitialPaidInvoiceSkip(event.id, invoice, subscriptionReference, "invoice_not_subscription_create");
           break;
         }
 
-        const subscriptionId = getStripeObjectId(invoice.subscription);
+        if (invoice.status !== "paid") {
+          logInitialPaidInvoiceSkip(event.id, invoice, subscriptionReference, "invoice_not_paid");
+          break;
+        }
+
+        const subscriptionId = subscriptionReference.subscriptionId;
         if (!subscriptionId) {
-          console.warn("Initial paid subscription invoice is missing a subscription", {
-            eventType: event.type,
-            invoiceId: invoice.id,
-          });
+          logInitialPaidInvoiceSkip(
+            event.id,
+            invoice,
+            subscriptionReference,
+            subscriptionReference.isAmbiguous
+              ? "subscription_reference_ambiguous"
+              : "subscription_reference_missing"
+          );
           break;
         }
 
-        await syncInitialPaidSubscription(invoice, subscriptionId, event.type);
+        await syncInitialPaidSubscription(invoice, subscriptionId, event.id, subscriptionReference);
         break;
       }
 
@@ -161,10 +171,94 @@ async function upsertFromSubscription(sub: Stripe.Subscription, customerId: stri
 }
 
 function getStripeObjectId(
-  value: string | { id: string } | null | undefined
+  value: unknown
 ): string | null {
-  const id = typeof value === "string" ? value : value?.id;
+  const id =
+    typeof value === "string"
+      ? value
+      : typeof value === "object" && value !== null && "id" in value
+        ? value.id
+        : null;
   return typeof id === "string" && id.trim() !== "" ? id : null;
+}
+
+type InvoiceSubscriptionReference = {
+  subscriptionId: string | null;
+  parentType: string | null;
+  isAmbiguous: boolean;
+};
+
+function getRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? value as Record<string, unknown> : null;
+}
+
+function resolveInvoiceSubscriptionReference(invoice: Stripe.Invoice): InvoiceSubscriptionReference {
+  const invoiceRecord = invoice as unknown as Record<string, unknown>;
+  const parent = getRecord(invoiceRecord.parent);
+  const parentType = typeof parent?.type === "string" ? parent.type : null;
+
+  if (parentType === "subscription_details") {
+    const subscriptionId = getStripeObjectId(
+      getRecord(parent?.subscription_details)?.subscription
+    );
+    if (subscriptionId) return { subscriptionId, parentType, isAmbiguous: false };
+  }
+
+  // Older invoice payloads exposed this field at the top level.
+  const legacySubscriptionId = getStripeObjectId(invoiceRecord.subscription);
+  if (legacySubscriptionId) {
+    return { subscriptionId: legacySubscriptionId, parentType, isAmbiguous: false };
+  }
+
+  const lines = getRecord(invoiceRecord.lines);
+  const subscriptionLines = Array.isArray(lines?.data)
+    ? lines.data.filter((line): line is Record<string, unknown> => {
+      const lineParent = getRecord(getRecord(line)?.parent);
+      return lineParent?.type === "subscription_item_details";
+    })
+    : [];
+
+  if (subscriptionLines.length !== 1) {
+    return {
+      subscriptionId: null,
+      parentType,
+      isAmbiguous: subscriptionLines.length > 1,
+    };
+  }
+
+  const subscriptionItemDetails = getRecord(
+    getRecord(getRecord(subscriptionLines[0])?.parent)?.subscription_item_details
+  );
+
+  return {
+    subscriptionId: getStripeObjectId(subscriptionItemDetails?.subscription),
+    parentType,
+    isAmbiguous: false,
+  };
+}
+
+function logInitialPaidInvoiceSkip(
+  eventId: string,
+  invoice: Stripe.Invoice,
+  subscriptionReference: InvoiceSubscriptionReference,
+  skipReason:
+    | "invoice_not_subscription_create"
+    | "invoice_not_paid"
+    | "subscription_reference_missing"
+    | "subscription_reference_ambiguous"
+    | "subscription_not_active"
+    | "subscription_price_ambiguous"
+    | "user_mapping_missing"
+) {
+  console.warn("Initial paid subscription invoice skipped", {
+    eventId,
+    invoiceId: invoice.id,
+    billingReason: invoice.billing_reason,
+    invoiceStatus: invoice.status,
+    parentType: subscriptionReference.parentType,
+    subscriptionReferenceFound: Boolean(subscriptionReference.subscriptionId),
+    skipReason,
+  });
 }
 
 function getSupabaseUserId(value: unknown): string | null {
@@ -212,7 +306,8 @@ async function resolveUserIdForInitialPaidSubscription(
 async function syncInitialPaidSubscription(
   invoice: Stripe.Invoice,
   subscriptionId: string,
-  eventType: string
+  eventId: string,
+  subscriptionReference: InvoiceSubscriptionReference
 ) {
   let sub: Stripe.Subscription;
   try {
@@ -221,7 +316,7 @@ async function syncInitialPaidSubscription(
     });
   } catch {
     console.error("Initial paid subscription retrieval failed", {
-      eventType,
+      eventId,
       invoiceId: invoice.id,
       subscriptionId,
     });
@@ -232,26 +327,24 @@ async function syncInitialPaidSubscription(
   const price = sub.items.data.length === 1 ? sub.items.data[0]?.price : null;
   const priceId = getStripeObjectId(price);
 
-  if (!customerId || !priceId || sub.status !== "active") {
-    console.warn("Initial paid subscription did not meet welcome-email criteria", {
-      eventType,
-      invoiceId: invoice.id,
-      subscriptionId: sub.id,
-      customerId,
-      subscriptionStatus: sub.status,
-      hasSingleCurrentPrice: Boolean(priceId),
-    });
+  if (sub.status !== "active") {
+    logInitialPaidInvoiceSkip(eventId, invoice, subscriptionReference, "subscription_not_active");
+    return;
+  }
+
+  if (!priceId) {
+    logInitialPaidInvoiceSkip(eventId, invoice, subscriptionReference, "subscription_price_ambiguous");
+    return;
+  }
+
+  if (!customerId) {
+    logInitialPaidInvoiceSkip(eventId, invoice, subscriptionReference, "user_mapping_missing");
     return;
   }
 
   const userId = await resolveUserIdForInitialPaidSubscription(sub, customerId);
   if (!userId) {
-    console.warn("Initial paid subscription has no safe user mapping", {
-      eventType,
-      invoiceId: invoice.id,
-      subscriptionId: sub.id,
-      customerId,
-    });
+    logInitialPaidInvoiceSkip(eventId, invoice, subscriptionReference, "user_mapping_missing");
     return;
   }
 
@@ -273,7 +366,7 @@ async function syncInitialPaidSubscription(
   const result = Array.isArray(rpcResult) ? rpcResult[0] : null;
   if (rpcError || result?.billing_synchronized !== true) {
     console.error("Initial paid subscription lifecycle RPC failed", {
-      eventType,
+      eventId,
       invoiceId: invoice.id,
       subscriptionId: sub.id,
       customerId,
@@ -283,7 +376,7 @@ async function syncInitialPaidSubscription(
   }
 
   console.info("Initial paid subscription synchronized", {
-    eventType,
+    eventId,
     invoiceId: invoice.id,
     subscriptionId: sub.id,
     customerId,
@@ -295,7 +388,7 @@ async function syncInitialPaidSubscription(
     await deliverWelcomeEmail(outboxId, userId);
   } else if (result.outbox_inserted === true) {
     console.error("New lifecycle-email intent has no usable outbox ID", {
-      eventType,
+      eventId,
       invoiceId: invoice.id,
       subscriptionId: sub.id,
     });
