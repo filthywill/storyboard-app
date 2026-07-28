@@ -88,6 +88,10 @@ export const AnalyticsEvent = {
   AppErrorBoundary: 'app_error_boundary',
   StorageCriticalDetected: 'storage_critical_detected',
   UpgradeRequiredError: 'upgrade_required_error',
+
+  FeedbackOpened: 'feedback_opened',
+  FeedbackSubmitted: 'feedback_submitted',
+  FeedbackSubmissionFailed: 'feedback_submission_failed',
 } as const;
 
 export type AnalyticsEventName = (typeof AnalyticsEvent)[keyof typeof AnalyticsEvent];

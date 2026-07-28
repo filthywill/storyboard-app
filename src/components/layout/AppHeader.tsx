@@ -29,6 +29,11 @@ interface AppHeaderProps {
    * @default false
    */
   logoClickable?: boolean;
+
+  /**
+   * Opens the workspace feedback dialog.
+   */
+  onOpenFeedback?: () => void;
 }
 
 /**
@@ -39,6 +44,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   rightSlot,
   showOfflineBanner = true,
   logoClickable = false,
+  onOpenFeedback,
 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
@@ -113,7 +119,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                       Sign In
                     </button>
                   ) : (
-                    <UserAccountDropdown />
+                    <UserAccountDropdown onOpenFeedback={onOpenFeedback} />
                   )}
                 </>
               )}

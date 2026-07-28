@@ -8,13 +8,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getColor } from '@/styles/glassmorphism-styles';
-import { CreditCard, LogOut } from 'lucide-react';
+import { CreditCard, LogOut, MessageSquare } from 'lucide-react';
 import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 
 /** Matches AppHeader auth button height — keeps trigger alignment identical on all routes */
 const TRIGGER_HEIGHT_PX = 28;
 
-export const UserAccountDropdown: React.FC = () => {
+interface UserAccountDropdownProps {
+  onOpenFeedback?: () => void;
+}
+
+export const UserAccountDropdown: React.FC<UserAccountDropdownProps> = ({ onOpenFeedback }) => {
   const { user, signOut } = useAuthStore();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -91,6 +95,20 @@ export const UserAccountDropdown: React.FC = () => {
             <CreditCard className="w-4 h-4 mr-2" />
             Billing
           </Button>
+          {onOpenFeedback && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenFeedback();
+              }}
+              className="w-full mb-2"
+              style={getGlassmorphismStyles('button')}
+            >
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Send feedback
+            </Button>
+          )}
           {/* Sign Out Button */}
           <Button
             size="sm"

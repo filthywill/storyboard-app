@@ -112,7 +112,7 @@ flowchart TB
 
 ### Service inventory
 
-✅ Confirmed: `src/services/` contains **24** TypeScript modules (10 under `analytics/`).
+✅ Confirmed: `src/services/` contains **25** TypeScript modules (11 under `analytics/`).
 
 | Module | Role |
 |---|---|
@@ -130,6 +130,7 @@ flowchart TB
 | `guestProjectSyncService.ts` | Guest-to-cloud project migration |
 | `localProjectRecoveryService.ts` | Orphan local project recovery after sign-in |
 | `securityNotificationService.ts` | Auth rate-limit UX, upload validation, save warnings |
+| `feedbackService.ts` | Bounded feedback submission to the dedicated Edge Function; does not read or mutate project persistence/sync state |
 | `analytics/*` | PostHog adapter, registry, privacy sanitization, tracking helpers |
 
 ## 4. Application Architecture
@@ -429,6 +430,17 @@ Owner checks are also embedded in the security-definer writer/save RPCs. RLS for
 | `create-portal-session` | Enabled | Open default, payment-method, or cancellation portal flow |
 | `change-subscription` | Enabled | Immediate monthly-to-annual change or scheduled annual-to-monthly change |
 | `stripe-webhook` | Disabled; Stripe signature required | Synchronize checkout/subscription events into `billing_subscriptions`; for the initial paid subscription only, additionally verify `invoice.paid`, atomically enqueue a `welcome_pro` outbox row, and attempt immediate Resend delivery (see Stripe Billing section) |
+| `submit-feedback` | Disabled; optional bearer token validated inside handler | Accept tightly bounded guest or authenticated feedback, resolve permitted authenticated contact email from Auth, and deliver one fixed-recipient Resend email without database persistence |
+
+### Feedback delivery
+
+`/app` exposes a compact Feedback button in application chrome for guests and authenticated users, plus a `Send feedback` item in the authenticated account menu. The unauthenticated welcome overlay also exposes the same action so its full-screen layer does not block guest access. Both entry points open one non-persisted modal with a required category (`bug`, `improvement`, or `general`), a required plain-text message (maximum 5,000 characters), and an opt-in contact checkbox.
+
+`FeedbackService.submitFeedback()` sends only the bounded form data and explicitly approved aggregate/contextual diagnostics to `submit-feedback`. It reads narrow page/shot/project settings only for aggregate count/enums; it does not write editor stores, create autosave intents, or interact with project snapshots, cloud sync, leases, exports, or billing.
+
+The `submit-feedback` Edge Function uses the existing server-side Resend key and verified `EMAIL_FROM_ADDRESS`. It accepts `POST`/`OPTIONS`, applies the existing origin allowlist, rejects unknown fields and oversized/non-JSON bodies, generates fixed subjects, and sends only to `FEEDBACK_TO_ADDRESS` (configured in production as `storyboardflow@gmail.com`). The browser cannot select a recipient, sender, subject, or arbitrary headers. Authenticated bearer tokens are validated server-side; if follow-up is permitted, the authoritative Auth email is used only as Resend `reply_to`. Guest follow-up email is accepted only with explicit permission and is likewise `reply_to`, never `from`.
+
+Feedback is not stored in Postgres, Storage, lifecycle-email outbox, browser persistence, or analytics. There is no automatic retry or durable idempotency record. The function uses a server-generated Resend idempotency key per attempt, but the repository has no durable server-side feedback rate-limit seam; client in-flight prevention only improves UX and is not abuse protection. The fixed sender, recipient, plain-text body, bounded schema, and no-attachment policy keep this endpoint from acting as an open relay.
 
 ### Storage
 
@@ -556,7 +568,7 @@ PostHog disables autocapture and automatic page views. Page views are emitted by
 
 `src/utils/telemetry.ts` is a separate development-console system. Its events do not reach PostHog.
 
-The checked-in registry defines **72 event strings** in `src/services/analytics/events.ts`, not all of which are wired. **33** events (including `$pageview`) have confirmed PostHog capture callsites; the remainder are registry-only or development telemetry. The tables below distinguish runtime delivery.
+The checked-in registry defines **75 event strings** in `src/services/analytics/events.ts`, not all of which are wired. **36** events (including `$pageview`) have confirmed PostHog capture callsites; the remainder are registry-only or development telemetry. The tables below distinguish runtime delivery.
 
 ### Application and marketing
 
@@ -677,6 +689,16 @@ All current billing registry events are unwired:
 | `storage_critical_detected` | Registry only |
 
 No PostHog feature-flag API is used. Feature gating is build-time/environment-driven.
+
+### Feedback
+
+| Event | Properties | Runtime status |
+|---|---|---|
+| `feedback_opened` | `is_guest`, `has_contact_permission: false`, optional `workspace_mode` | PostHog wired |
+| `feedback_submitted` | `category`, `is_guest`, `has_contact_permission`, optional `workspace_mode` | PostHog wired only after Resend accepts the request |
+| `feedback_submission_failed` | `category`, `is_guest`, `has_contact_permission`, optional `workspace_mode`, stable `failure_code` | PostHog wired |
+
+The feedback message, guest/authenticated email, route query string, browser user-agent, provider response, project identity/name, storyboard content, filenames, and image data are not analytics properties.
 
 ## 10. Export System
 
@@ -881,6 +903,7 @@ Vite built-ins `DEV`, `PROD`, and `MODE` control diagnostics and analytics metad
 | `SERVICE_ROLE_KEY` | Administrative Supabase client |
 | `EMAIL_PROVIDER_API_KEY` | Resend API key used by `stripe-webhook` for lifecycle-email delivery |
 | `EMAIL_FROM_ADDRESS` | Verified Resend sender address for lifecycle emails (`StoryboardFlow <hello@storyboardflow.com>` in production) |
+| `FEEDBACK_TO_ADDRESS` | Fixed feedback destination for `submit-feedback` (`storyboardflow@gmail.com` in production) |
 
 ### Admin scripts
 
@@ -1211,7 +1234,7 @@ High-value refactors are recommendations, not current commitments:
 | 6. Data Flow | ✅ Accurate |
 | 7. Supabase Architecture | ✅ Accurate |
 | 8. Stripe Billing | ✅ Accurate |
-| 9. Analytics | ⚠️ Incomplete → **clarified** (33 wired PostHog events) |
+| 9. Analytics | ⚠️ Incomplete → **clarified** (36 wired PostHog events) |
 | 10. Export System | ✅ Accurate |
 | 11. Authentication | ⚠️ Incomplete → **clarified** (`AuthCallback` / private API note) |
 | 12. Synchronization | ✅ Accurate |
@@ -1233,7 +1256,7 @@ High-value refactors are recommendations, not current commitments:
 ### Sections expanded
 
 - **Section 3:** Added confirmed 24-module service inventory and duplicate `use-toast` location.
-- **Section 9:** Added explicit count of **33** PostHog-wired events (72 registry constants total).
+- **Section 9:** Added explicit count of **36** PostHog-wired events (75 registry constants total).
 - **Section 13:** Listed env vars used in code but absent from `vite-env.d.ts`.
 - **Section 16:** Restored missing section number.
 
@@ -1285,7 +1308,7 @@ These could not be confirmed from the repository alone:
 1. **Check in database-as-code:** Export full Supabase schema, RLS, Storage policies, Realtime config, and all RPCs so handbook Section 7 can move from Inference/Unknown to Confirmed.
 2. **Align state documentation:** Update `.cursorrules` and `docs/architecture/UI_STATE_HANDLING.md` to match overlay-based `Index.tsx` rendering (or refactor code to match documented order—pick one source of truth).
 3. **Implement or remove offline sign-out rule:** `.cursorrules` requires blocking sign-out when offline with unsynced changes; executable paths (`authStore.signOut`, `UserAccountDropdown`) do not enforce this. Either implement using `CloudSyncService.hasQueuedChanges()` / `BackgroundSyncService.hasQueuedChanges()` or revise the rule.
-4. **Wire or prune analytics registry:** 39 of 72 registry events have no PostHog callsite; billing/sync/reliability events are especially under-instrumented for operational visibility.
+4. **Wire or prune analytics registry:** 39 of 75 registry events have no PostHog callsite; billing/sync/reliability events are especially under-instrumented for operational visibility.
 5. **Complete `vite-env.d.ts`:** Declare all `VITE_*` variables used in code to catch misconfiguration at compile time.
 6. **Promote `AuthService` session APIs:** Make session-management methods public (or add a narrow public facade) so `AuthCallback` does not depend on `private static` methods.
 7. **Add automated tests + CI:** No test script or workflow exists; highest-value targets are project switching, autosave, sync conflicts, writer leases, and export readiness.

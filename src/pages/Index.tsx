@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { MessageSquare } from 'lucide-react';
 import { PageTabs } from '@/components/PageTabs';
 import { StoryboardPage } from '@/components/StoryboardPage';
 import ProjectSelector from '@/components/ProjectSelector';
@@ -26,7 +27,8 @@ import { LockedProjectModal } from '@/components/LockedProjectModal';
 import { LoadingModal } from '@/components/LoadingModal';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
-import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 import { setSavePaused } from '@/utils/autoSave';
 import { canCreateProjectServerSide } from '@/utils/projectCreationGate';
 import { getProjectConflictState } from '@/utils/projectConflict';
@@ -47,6 +49,7 @@ import {
   type WorkspaceMode,
 } from '@/services/workspaceModeService';
 import { APP_HOME } from '@/config/routes';
+import { trackFeedbackOpened } from '@/services/analytics/feedbackTracking';
 
 const AUTH_BROADCAST_CHANNEL = 'sbflow_auth';
 const AUTH_CONFIRMED_STALE_MS = 60_000;
@@ -81,7 +84,7 @@ const Index = () => {
     user
   } = useAuthStore();
   const authStore = useAuthStore();
-  const { openAuthModal } = useAuthModalStore();
+  const { isAuthModalOpen, openAuthModal } = useAuthModalStore();
   const cloudSaveConflict = useCloudSaveConflictStore();
   const writerLease = useWriterLeaseStore();
   const previousProjectIdRef = useRef<string | null>(null);
@@ -122,6 +125,16 @@ const Index = () => {
   const verificationRetryStartedAtRef = useRef<number | null>(null);
   const hasRecoveredGuestEditorRef = useRef(false);
   const [isStorageCritical, setIsStorageCritical] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+
+  const openFeedback = () => {
+    setIsFeedbackOpen(true);
+    trackFeedbackOpened({
+      is_guest: !isAuthenticated,
+      has_contact_permission: false,
+      workspace_mode: user?.id ? getWorkspaceMode(user.id) : undefined,
+    });
+  };
 
   const clearVerificationRetry = () => {
     if (verificationRetryTimerRef.current) {
@@ -1113,6 +1126,18 @@ const Index = () => {
   const shouldShowTemplate = !canRenderStoryboardPage && (!currentProject || (isAuthenticated && allProjects.length === 0));
 
   const activePageIndex = pages.findIndex(p => p.id === activePageId);
+  const isFloatingFeedbackBlocked =
+    isFeedbackOpen ||
+    isAuthModalOpen ||
+    showCreateProjectDialog ||
+    showWorkspaceChoiceModal ||
+    Boolean(lockedProject) ||
+    cloudSaveConflict.isOpen ||
+    (showProjectPicker && isAuthenticated) ||
+    Boolean(projectPickerLoading) ||
+    showLimitDialog ||
+    showUpgradeDialog ||
+    showReadOnlyOverlay;
 
   // STEP 1: Handle forced logout (session expired or logged out from another device)
   if (authStore.logoutReason === 'expired' || authStore.logoutReason === 'other_session') {
@@ -1157,7 +1182,7 @@ const Index = () => {
     <div className="min-h-screen flex flex-col relative" style={{ position: 'relative', zIndex: 2 }}>
       <div>
         {/* Header Section (unified AppHeader) */}
-        <AppHeader />
+        <AppHeader onOpenFeedback={openFeedback} />
 
         {showGuestLocalBanner && (
           <GuestLocalProjectBanner
@@ -1359,6 +1384,25 @@ const Index = () => {
           onClose={() => setShowUpgradeDialog(false)}
           onUpgrade={() => navigate("/billing")}
         />
+        {!isFloatingFeedbackBlocked && (
+          <Button
+            type="button"
+            onClick={openFeedback}
+            className="fixed z-50 h-11 w-11 rounded-full p-0 drop-shadow-lg hover:brightness-110 active:scale-95 active:brightness-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-10 sm:w-auto sm:rounded-md sm:px-4"
+            style={{
+              right: '1rem',
+              bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+              backgroundColor: getColor('brand', 'primary') as string,
+              border: `1px solid ${getColor('brand', 'secondary') as string}`,
+              color: getColor('brand', 'dark') as string,
+            }}
+            aria-label="Send feedback"
+          >
+            <MessageSquare className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Feedback</span>
+          </Button>
+        )}
+        <FeedbackModal open={isFeedbackOpen} onOpenChange={setIsFeedbackOpen} />
       </div>
     </div>
   );
