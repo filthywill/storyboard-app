@@ -10,6 +10,12 @@ const BRAND_CYAN = '#21d4fc';
 const PRODUCT_PREVIEW_SRC = '/product-sample-02.webp';
 /** Landing page canvas — opaque so the global body aurora does not show through. */
 const LANDING_PAGE_BG = '#050505';
+/** Subtle lighter band for alternating section separation. */
+const LANDING_SECTION_BAND_BG = '#0c0c0c';
+/** How it works container — slightly lighter than the band for separation. */
+const LANDING_HOW_IT_WORKS_CONTAINER_BG = '#111111';
+/** Step cards — slightly lighter than the How it works container. */
+const LANDING_HOW_IT_WORKS_CARD_BG = '#191919';
 
 /** Preserve inbound UTM/query params and tag the CTA source when sending users to the app. */
 function buildAppUrl(searchParams: URLSearchParams, source: string): string {
@@ -18,10 +24,10 @@ function buildAppUrl(searchParams: URLSearchParams, source: string): string {
   return `${APP_HOME}?${params.toString()}`;
 }
 const WORKFLOW_STEPS = [
-  { icon: Upload, title: 'Upload frames', description: 'Bring in your images, artwork, or references for shots.' },
-  { icon: Grid3x3, title: 'Arrange shots', description: 'Arrange your sequence while keeping your shots organized.' },
-  { icon: Layout, title: 'Adjust layout', description: 'Customize page size, aspect ratio, and template designs.' },
-  { icon: FileDown, title: 'Export PDF', description: 'Generate a PDF or PNG version of your project for review.' },
+  { icon: Upload, title: 'Upload frames', description: 'Import images, artwork, or references for your shots.' },
+  { icon: Grid3x3, title: 'Arrange shots', description: 'Arrange the sequence while keeping it organized.' },
+  { icon: Layout, title: 'Customize layout', description: 'Adjust page size, aspect ratio, and template features.' },
+  { icon: FileDown, title: 'Export PDF', description: 'Generate a PDF file to share or review your project.' },
 ] as const;
 
 const heroPrimaryCtaStyle = {
@@ -81,7 +87,8 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-5xl mx-auto px-6 py-12 sm:py-16 w-full space-y-20 pb-24">
+      <main className="flex-1 w-full pb-16 sm:pb-20">
+        <div className="max-w-5xl mx-auto px-6 pt-10 sm:pt-12 pb-10 sm:pb-12">
         <section className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center">
           <div className="space-y-6 text-center lg:text-left">
             <h1
@@ -89,7 +96,7 @@ export default function LandingPage() {
               style={{ color: getColor('text', 'primary') as string }}
             >
               <span className="whitespace-nowrap">Storyboard layout</span>{' '}
-              <span className="whitespace-nowrap">fast and easy.</span>
+              <span className="whitespace-nowrap">fast and flexible</span>
             </h1>
             <p
               className="text-base sm:text-lg leading-relaxed max-w-xl mx-auto lg:mx-0"
@@ -130,12 +137,27 @@ export default function LandingPage() {
             />
           </div>
         </section>
+        </div>
 
-        <div className="text-center space-y-20">
+        <div
+          className="py-8 sm:py-10"
+          style={{ backgroundColor: LANDING_SECTION_BAND_BG }}
+        >
+          <div className="max-w-5xl mx-auto px-6 space-y-10">
+        <section className="flex justify-center items-center w-full">
+          <h2
+            className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight tracking-tight text-center max-w-4xl mx-auto"
+            style={{ color: getColor('text', 'primary') as string }}
+          >
+            Made for creators planning visual sequences
+          </h2>
+        </section>
+
+        <div className="text-center">
         <section
           className="rounded-xl p-6 sm:p-8 space-y-6 border-no"
           style={{
-            backgroundColor: 'rgba(176, 176, 176, 0.15)',
+            backgroundColor: LANDING_HOW_IT_WORKS_CONTAINER_BG,
             borderColor: 'rgba(33, 212, 252, 0.25)',
           }}
         >
@@ -150,7 +172,10 @@ export default function LandingPage() {
               <div
                 key={title}
                 className="rounded-lg p-4 space-y-2 text-center"
-                style={getGlassmorphismStyles('content')}
+                style={{
+                  ...getGlassmorphismStyles('content'),
+                  backgroundColor: LANDING_HOW_IT_WORKS_CARD_BG,
+                }}
               >
                 <Icon
                   className="h-6 w-6 mx-auto"
@@ -170,34 +195,30 @@ export default function LandingPage() {
             ))}
           </div>
         </section>
+        </div>
+          </div>
+        </div>
 
-        <section
-          className="rounded-lg p-6 space-y-3 max-w-3xl mx-auto"
-          style={getGlassmorphismStyles('content')}
+        <div
+          className="py-12 sm:py-16"
+          style={{ backgroundColor: LANDING_PAGE_BG }}
         >
+          <div className="max-w-5xl mx-auto px-6 text-center">
+        <section className="w-full max-w-5xl mx-auto space-y-5 sm:space-y-6">
           <h2
-            className="text-lg font-semibold"
+            className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight tracking-tight"
             style={{ color: getColor('text', 'primary') as string }}
           >
-            Stop fighting with storyboard templates
+            Stop rebuilding static storyboard templates.
           </h2>
-          <p className="text-sm leading-relaxed" style={{ color: getColor('text', 'secondary') as string }}>
-            StoryboardFlow replaces the manual workflow of rebuilding storyboard templates in programs like 
-            Illustrator, InDesign, Canva, or Google Slides. Stop wasting time trying to manage your layouts in softwares that are designed to do everything, StoryboardFlow was designed to do one thing and do it the best. 
-          </p>
-        </section>
-
-        <section className="mx-auto">
           <p
-            className="text-lg sm:text-xl font-bold leading-relaxed"
-            style={{ color: getColor('text', 'primary') as string }}
+            className="text-base sm:text-lg leading-relaxed max-w-4xl mx-auto"
+            style={{ color: getColor('text', 'secondary') as string }}
           >
-            <span className="whitespace-nowrap">Made for storyboard artists, animators, motion designers,</span>{' '}
-            <span className="whitespace-nowrap">directors, and video producers.</span>
+          StoryboardFlow gives you a dynamic storyboard layout template that adapts as your sequence changes. Add frames, rearrange shots, adjust the template, and keep your visual plan organized without manually rebuilding pages in Illustrator, InDesign, Canva, or Google Slides. 
           </p>
         </section>
-
-        
+          </div>
         </div>
       </main>
 
