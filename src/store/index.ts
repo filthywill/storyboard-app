@@ -669,6 +669,15 @@ export const useAppStore = () => {
     // Initialize app with default content if needed
     initializeAppContent: () => {
       try {
+        if (import.meta.env.DEV) {
+          const { currentProjectId } = getProjectManagerStore();
+          void import('@/utils/projectIdentityDiagnostics').then(({ ProjectIdentityDiagnostics }) => {
+            ProjectIdentityDiagnostics.log('initializeAppContent.begin', {
+              kind: 'init',
+              currentProjectId,
+            });
+          });
+        }
         const { pages } = getPageStore();
         const { shots, shotOrder } = getShotStore();
         const { templateSettings } = getProjectStore();
@@ -756,6 +765,10 @@ export const useAppStore = () => {
     // Project operations
     createProject: async (name: string, description?: string) => {
       return await ProjectSwitcher.createAndSwitchToProject(name, description);
+    },
+
+    createLocalProjectFromTemplate: async () => {
+      return await ProjectSwitcher.createLocalProjectFromTemplate();
     },
     
     switchToProject: async (

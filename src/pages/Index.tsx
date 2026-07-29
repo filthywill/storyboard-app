@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
 import { PageTabs } from '@/components/PageTabs';
@@ -50,12 +50,14 @@ import {
 } from '@/services/workspaceModeService';
 import { APP_HOME } from '@/config/routes';
 import { trackFeedbackOpened } from '@/services/analytics/feedbackTracking';
+import { ProjectIdentityDiagnostics } from '@/utils/projectIdentityDiagnostics';
 
 const AUTH_BROADCAST_CHANNEL = 'sbflow_auth';
 const AUTH_CONFIRMED_STALE_MS = 60_000;
 const RESEND_COOLDOWN_SECONDS = 60;
 const VERIFICATION_RETRY_INTERVAL_MS = 2_000;
 const VERIFICATION_RETRY_WINDOW_MS = 14_000;
+const SAMPLE_REQUEST_LEDGER_PREFIX = 'sbflow:sample-request:';
 
 const Index = () => {
   const { 
@@ -71,7 +73,8 @@ const Index = () => {
     switchToProject,
     reconcileFromShotOrder,
     canCreateProject,
-    createProject
+    createProject,
+    createLocalProjectFromTemplate,
   } = useAppStore();
   
   const navigate = useNavigate();
@@ -87,7 +90,12 @@ const Index = () => {
   const { isAuthModalOpen, openAuthModal } = useAuthModalStore();
   const cloudSaveConflict = useCloudSaveConflictStore();
   const writerLease = useWriterLeaseStore();
+  const projectManagerInitialized = useProjectManagerStore((state) => state.isInitialized);
   const previousProjectIdRef = useRef<string | null>(null);
+  const sampleRequestInFlightRef = useRef<string | null>(null);
+  const sampleHandoffFailedRef = useRef(false);
+  const previousSampleRequestRef = useRef<string | null>(null);
+  const [isSampleHandoffProcessing, setIsSampleHandoffProcessing] = useState(false);
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
   const [isLoadingCloudProjects, setIsLoadingCloudProjects] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
@@ -124,7 +132,9 @@ const Index = () => {
   const verificationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const verificationRetryStartedAtRef = useRef<number | null>(null);
   const hasRecoveredGuestEditorRef = useRef(false);
+  const indexMountCountRef = useRef(0);
   const [isStorageCritical, setIsStorageCritical] = useState(false);
+  const [isProjectSystemReady, setIsProjectSystemReady] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   const openFeedback = () => {
@@ -146,8 +156,21 @@ const Index = () => {
   
   useEffect(() => {
     isMountedRef.current = true;
+    indexMountCountRef.current += 1;
+    if (import.meta.env.DEV) {
+      ProjectIdentityDiagnostics.log('index.mount', {
+        kind: 'init',
+        mountCount: indexMountCountRef.current,
+      });
+    }
     return () => {
       isMountedRef.current = false;
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('index.unmount', {
+          kind: 'init',
+          mountCount: indexMountCountRef.current,
+        });
+      }
       clearVerificationRetry();
     };
   }, []);
@@ -577,12 +600,204 @@ const Index = () => {
     }
   };
 
+  useEffect(() => {
+    const sampleRequest = searchParams.get('sampleRequest');
+    if (previousSampleRequestRef.current !== sampleRequest) {
+      sampleHandoffFailedRef.current = false;
+      previousSampleRequestRef.current = sampleRequest;
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const sampleRequest = searchParams.get('sampleRequest');
+    if (searchParams.get('sample') !== '1' || !sampleRequest) return;
+    if (sampleHandoffFailedRef.current) return;
+    if (
+      isStorageCritical ||
+      authLoading ||
+      !isProjectSystemReady ||
+      !projectManagerInitialized ||
+      authStatus === 'authenticated_unconfirmed'
+    ) {
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('sample_handoff.waiting', {
+          kind: 'lookup',
+          sampleRequestId: sampleRequest,
+          isStorageCritical,
+          authLoading,
+          isProjectSystemReady,
+          projectManagerInitialized,
+          authStatus,
+          hydrationComplete: ProjectIdentityDiagnostics.getHydrationComplete(),
+        });
+      }
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      ProjectIdentityDiagnostics.assertSampleHandoffReadiness({
+        sampleRequestId: sampleRequest,
+        isProjectSystemReady,
+        projectManagerInitialized,
+      });
+      ProjectIdentityDiagnostics.log('sample_handoff.begin', {
+        kind: 'lookup',
+        sampleRequestId: sampleRequest,
+      });
+    }
+
+    const ledgerKey = `${SAMPLE_REQUEST_LEDGER_PREFIX}${sampleRequest}`;
+    const clearTransientSampleParams = () => {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('sample');
+      nextParams.delete('sampleRequest');
+      if (nextParams.get('source') === 'sample_storyboard') {
+        nextParams.delete('source');
+      }
+      const query = nextParams.toString();
+      navigate(query ? `${APP_HOME}?${query}` : APP_HOME, { replace: true });
+    };
+
+    if (sessionStorage.getItem(ledgerKey) === 'completed') {
+      clearTransientSampleParams();
+      return;
+    }
+    if (sampleRequestInFlightRef.current === sampleRequest) return;
+
+    sampleRequestInFlightRef.current = sampleRequest;
+    sessionStorage.setItem(ledgerKey, 'processing');
+    setIsSampleHandoffProcessing(true);
+
+    const createSample = async () => {
+      try {
+        const result = await createLocalProjectFromTemplate();
+        if (import.meta.env.DEV) {
+          ProjectIdentityDiagnostics.log('sample_handoff.result', {
+            kind: result.ok && result.created ? 'create' : result.ok ? 'reopen' : 'lookup',
+            sampleRequestId: sampleRequest,
+            ok: result.ok,
+            created: result.ok ? result.created : undefined,
+            projectId: result.ok ? result.projectId : undefined,
+            reason: result.ok ? undefined : result.reason,
+          });
+          if (result.ok) {
+            ProjectIdentityDiagnostics.assertDuplicateClassifiedSamples();
+          }
+        }
+        if (result.ok) {
+          sessionStorage.setItem(ledgerKey, 'completed');
+          setIsSampleHandoffProcessing(false);
+          clearTransientSampleParams();
+          return;
+        }
+
+        sessionStorage.removeItem(ledgerKey);
+        sampleRequestInFlightRef.current = null;
+        sampleHandoffFailedRef.current = true;
+        setIsSampleHandoffProcessing(false);
+        switch (result.reason) {
+          case 'capacity_reached':
+            if (!isAuthenticated) {
+              setShowLimitDialog(true);
+            } else {
+              toast.error('Project limit reached. Remove a project and try again.');
+            }
+            return;
+          case 'save_current_failed':
+            toast.error('Could not save your current project. Please try again.');
+            return;
+          case 'template_invalid':
+            toast.error('The sample storyboard could not be prepared. Please try again.');
+            return;
+          case 'persist_failed':
+            toast.error('Could not save the sample storyboard. Please free storage and try again.');
+            return;
+          case 'load_failed':
+            toast.error('Could not load the sample storyboard. Please try again.');
+            return;
+        }
+      } catch (error) {
+        console.error('Failed to create sample storyboard:', error);
+        sessionStorage.removeItem(ledgerKey);
+        sampleRequestInFlightRef.current = null;
+        sampleHandoffFailedRef.current = true;
+        setIsSampleHandoffProcessing(false);
+        toast.error('Could not create the sample storyboard. Please try again.');
+      }
+    };
+
+    void createSample();
+  }, [
+    authLoading,
+    authStatus,
+    createLocalProjectFromTemplate,
+    isAuthenticated,
+    isProjectSystemReady,
+    isStorageCritical,
+    navigate,
+    projectManagerInitialized,
+    searchParams,
+  ]);
+
+  const sampleRequest = searchParams.get('sampleRequest');
+  const hasValidSampleRequest =
+    searchParams.get('sample') === '1' && Boolean(sampleRequest?.trim());
+  const sampleLedgerState = useMemo(() => {
+    if (!hasValidSampleRequest || !sampleRequest) return null;
+    try {
+      return sessionStorage.getItem(`${SAMPLE_REQUEST_LEDGER_PREFIX}${sampleRequest}`);
+    } catch {
+      return null;
+    }
+  }, [
+    hasValidSampleRequest,
+    sampleRequest,
+    isSampleHandoffProcessing,
+    currentProject?.id,
+  ]);
+  const sampleReadinessBlocked =
+    isStorageCritical ||
+    authLoading ||
+    !isProjectSystemReady ||
+    !projectManagerInitialized ||
+    authStatus === 'authenticated_unconfirmed';
+  const isSampleHandoffActive =
+    hasValidSampleRequest &&
+    !currentProject &&
+    sampleLedgerState !== 'completed' &&
+    authStatus !== 'authenticated_unconfirmed' &&
+    !isStorageCritical &&
+    !sampleHandoffFailedRef.current &&
+    (sampleReadinessBlocked || isSampleHandoffProcessing);
+
+  useLayoutEffect(() => {
+    if (!hasValidSampleRequest || sampleHandoffFailedRef.current || currentProject) {
+      return;
+    }
+    if (sampleLedgerState === 'completed') {
+      setIsSampleHandoffProcessing(false);
+      return;
+    }
+    if (sampleReadinessBlocked) {
+      return;
+    }
+    setIsSampleHandoffProcessing(true);
+  }, [
+    currentProject,
+    hasValidSampleRequest,
+    sampleLedgerState,
+    sampleReadinessBlocked,
+  ]);
+
   // Initialize app with robust error handling
   useEffect(() => {
     const initializeApp = async () => {
       let onLoadReport: ReturnType<typeof DataValidator.validateOnLoad> | null = null;
       try {
         console.log('Starting app initialization...');
+        if (import.meta.env.DEV) {
+          ProjectIdentityDiagnostics.log('index.initializeApp.begin', { kind: 'init' });
+        }
         
         // Initialize localStorage manager first
         const { LocalStorageManager } = await import('@/utils/localStorageManager');
@@ -591,6 +806,12 @@ const Index = () => {
         // Validate storage early (non-destructive). If critical, gate any auto-open/switch behaviors.
         onLoadReport = DataValidator.validateOnLoad();
         if (isMountedRef.current) setIsStorageCritical(Boolean(onLoadReport?.critical));
+        if (import.meta.env.DEV) {
+          ProjectIdentityDiagnostics.log('index.storage_validated', {
+            kind: 'init',
+            storageCritical: Boolean(onLoadReport?.critical),
+          });
+        }
         
         // Small delay to ensure everything is ready
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -602,6 +823,15 @@ const Index = () => {
               return;
             }
             await initializeProjectSystem();
+            if (isMountedRef.current) {
+              setIsProjectSystemReady(true);
+            }
+            if (import.meta.env.DEV) {
+              ProjectIdentityDiagnostics.log('index.project_system_ready', {
+                kind: 'init',
+                projectManagerInitialized: useProjectManagerStore.getState().isInitialized,
+              });
+            }
           } catch (error) {
             console.error('Error initializing project system:', error);
             // Don't block the app if project system fails
@@ -650,7 +880,17 @@ const Index = () => {
             );
             return;
           }
-          if (!authState.isAuthenticated && !authState.isLoading) {
+          if (
+            !authState.isAuthenticated &&
+            !authState.isLoading &&
+            !useProjectManagerStore.getState().getCurrentProject()
+          ) {
+            if (import.meta.env.DEV) {
+              ProjectIdentityDiagnostics.log('guest.initializeAppContent.scheduled', {
+                kind: 'init',
+                source: 'index.initializeApp.300ms',
+              });
+            }
             console.log('Guest user detected - initializing default app content...');
             initializeAppContent();
             
@@ -659,6 +899,14 @@ const Index = () => {
               reconcileFromShotOrder();
             }, 50);
           } else {
+            if (import.meta.env.DEV) {
+              ProjectIdentityDiagnostics.log('guest.initializeAppContent.skipped', {
+                kind: 'init',
+                isAuthenticated: authState.isAuthenticated,
+                authLoading: authState.isLoading,
+                hasCurrentProject: Boolean(useProjectManagerStore.getState().getCurrentProject()),
+              });
+            }
             console.log('Authenticated user detected - skipping default app content initialization');
           }
         }, 300);
@@ -1103,6 +1351,12 @@ const Index = () => {
     if (hasRecoveredGuestEditorRef.current) return;
     hasRecoveredGuestEditorRef.current = true;
 
+    if (import.meta.env.DEV) {
+      ProjectIdentityDiagnostics.log('guest.initializeAppContent.recovery', {
+        kind: 'init',
+        source: 'index.guest_editor_recovery',
+      });
+    }
     initializeAppContent();
     setTimeout(() => {
       reconcileFromShotOrder();
@@ -1171,6 +1425,17 @@ const Index = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your projects...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSampleHandoffActive) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading sample storyboard...</p>
         </div>
       </div>
     );
@@ -1302,7 +1567,7 @@ const Index = () => {
         </main>
         
         {/* Full-screen EmptyProjectState overlay for unauthenticated users with no current project */}
-        {!isAuthenticated && !currentProject && (
+        {!isAuthenticated && !currentProject && !isSampleHandoffActive && (
           <EmptyProjectState 
             isAuthenticated={false}
             onCreateProject={() => void handleGuestTryWithoutAccount()}
@@ -1338,7 +1603,7 @@ const Index = () => {
         />
         
         {/* Project Picker Modal - for authenticated users with no active project */}
-        {showProjectPicker && isAuthenticated && (
+        {showProjectPicker && isAuthenticated && !isSampleHandoffActive && (
           <ProjectPickerModal
             projects={allProjects.map(p => ({
               id: p.id,

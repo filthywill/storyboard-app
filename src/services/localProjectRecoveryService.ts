@@ -1,5 +1,12 @@
 import { useProjectManagerStore, type ProjectMetadata } from '@/store/projectManagerStore';
 
+const logRecovery = (operation: string, fields: Record<string, unknown> = {}) => {
+  if (!import.meta.env.DEV) return;
+  void import('@/utils/projectIdentityDiagnostics').then(({ ProjectIdentityDiagnostics }) => {
+    ProjectIdentityDiagnostics.log(operation, { kind: 'recovery', ...fields });
+  });
+};
+
 const PROJECT_KEY_PREFIXES = {
   page: 'page-storage-project-',
   shot: 'shot-storage-project-',
@@ -11,6 +18,7 @@ type ParsedProjectPayload = {
   pages: unknown[];
   shots: Record<string, unknown>;
   projectName: string;
+  projectOrigin?: 'sample_storyboard';
 };
 
 type StorageObject = Record<string, unknown>;
@@ -59,6 +67,10 @@ const getPayloadForProject = (projectId: string): ParsedProjectPayload | null =>
     pages,
     shots: shots as Record<string, unknown>,
     projectName,
+    projectOrigin:
+      projectPayload?.projectOrigin === 'sample_storyboard'
+        ? 'sample_storyboard'
+        : undefined,
   };
 };
 
@@ -68,6 +80,9 @@ export class LocalProjectRecoveryService {
 
     const projectManager = useProjectManagerStore.getState();
     const existingProjectIds = new Set(Object.keys(projectManager.projects));
+    logRecovery('local_recovery.scan_begin', {
+      metadataProjectIds: Array.from(existingProjectIds),
+    });
     const candidateProjectIds = new Set<string>();
 
     try {
@@ -103,11 +118,24 @@ export class LocalProjectRecoveryService {
         isLocal: true,
         isCloudOnly: false,
         isCloudBacked: false,
+        ...(payload.projectOrigin ? { projectOrigin: payload.projectOrigin } : {}),
       };
     });
 
     const recoveredCount = Object.keys(recoveredProjects).length;
-    if (recoveredCount === 0) return 0;
+    if (recoveredCount === 0) {
+      logRecovery('local_recovery.scan_complete', { recoveredCount: 0 });
+      return 0;
+    }
+
+    logRecovery('local_recovery.recovered', {
+      orphanSnapshotIds: Array.from(candidateProjectIds),
+      recoveredProjectIds: Object.keys(recoveredProjects),
+      recoveredOrigins: Object.values(recoveredProjects).map((project) => ({
+        id: project.id,
+        origin: project.projectOrigin ?? null,
+      })),
+    });
 
     useProjectManagerStore.setState((state) => ({
       projects: {

@@ -194,5 +194,20 @@ export function isAnalyticsSuppressed(): boolean {
   return isBatchMode || isSwitchingProject || isSavePaused;
 }
 
+/** Read-only autosave flags for development diagnostics only. */
+export function getAutosaveDiagnosticsState(): {
+  isSwitchingProject: boolean;
+  isSavePaused: boolean;
+  isBatchMode: boolean;
+  intentDepth: number;
+} {
+  return {
+    isSwitchingProject,
+    isSavePaused,
+    isBatchMode,
+    intentDepth,
+  };
+}
+
 
 

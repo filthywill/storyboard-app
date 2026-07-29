@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FileDown, Grid3x3, Layout, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles';
@@ -23,6 +23,14 @@ function buildAppUrl(searchParams: URLSearchParams, source: string): string {
   params.set('source', source);
   return `${APP_HOME}?${params.toString()}`;
 }
+
+function buildSampleStoryboardUrl(searchParams: URLSearchParams): string {
+  const params = new URLSearchParams(searchParams);
+  params.set('sample', '1');
+  params.set('sampleRequest', crypto.randomUUID());
+  params.set('source', 'sample_storyboard');
+  return `${APP_HOME}?${params.toString()}`;
+}
 const WORKFLOW_STEPS = [
   { icon: Upload, title: 'Upload frames', description: 'Import images, artwork, or references for your shots.' },
   { icon: Grid3x3, title: 'Arrange shots', description: 'Arrange the sequence while keeping it organized.' },
@@ -39,6 +47,7 @@ const heroPrimaryCtaStyle = {
 
 export default function LandingPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const headerAppHref = useMemo(
     () => buildAppUrl(searchParams, 'homepage_header'),
     [searchParams]
@@ -47,6 +56,9 @@ export default function LandingPage() {
     () => buildAppUrl(searchParams, 'homepage_hero'),
     [searchParams]
   );
+  const handleSampleStoryboardClick = () => {
+    navigate(buildSampleStoryboardUrl(searchParams));
+  };
 
   useEffect(() => {
     document.title = 'Storyboard Flow — Instant storyboard layout';
@@ -104,7 +116,7 @@ export default function LandingPage() {
             >
               Upload your shots, arrange the sequence, customize the template, and export your storyboard in minutes.
             </p>
-            <div className="pt-2 w-fit max-w-full mx-auto lg:mx-0">
+            <div className="pt-2 flex flex-wrap justify-center lg:justify-start gap-3">
               <Button
                 asChild
                 size="lg"
@@ -117,6 +129,15 @@ export default function LandingPage() {
                 >
                   Create a storyboard
                 </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="whitespace-nowrap max-[400px]:w-full"
+                onClick={handleSampleStoryboardClick}
+              >
+                Sample storyboard
               </Button>
             </div>
           </div>

@@ -6,6 +6,7 @@ export interface ProjectMetadata {
   id: string;
   name: string;
   description?: string;
+  projectOrigin?: 'sample_storyboard';
   lastModified: Date;
   baseCloudUpdatedAt?: string | null;
   shotCount: number;
@@ -26,6 +27,7 @@ export interface ProjectManagerState {
 export interface ProjectManagerActions {
   // Project management
   createProject: (name: string, description?: string) => string;
+  createSampleProject: (name: string, description?: string) => string;
   createProjectWithId: (
     projectId: string,
     name: string,
@@ -49,6 +51,8 @@ export interface ProjectManagerActions {
   
   // Utility
   canCreateProject: () => boolean;
+  canCreateSampleProject: () => boolean;
+  getSampleProject: () => ProjectMetadata | null;
   getCurrentProject: () => ProjectMetadata | null;
   initializeDefaultProject: () => string | null;
   setInitialized: (value: boolean) => void;
@@ -90,6 +94,38 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
           isLocal: true,
           isCloudOnly: false,
           isCloudBacked: false
+        };
+
+        set((state) => {
+          state.projects[projectId] = newProject;
+          state.currentProjectId = projectId;
+        });
+
+        return projectId;
+      },
+
+      createSampleProject: (name, description) => {
+        const state = get();
+
+        if (!state.canCreateSampleProject()) {
+          throw new Error('A sample storyboard already exists');
+        }
+
+        const projectId = crypto.randomUUID();
+        const now = new Date();
+        const newProject: ProjectMetadata = {
+          id: projectId,
+          name,
+          description,
+          projectOrigin: 'sample_storyboard',
+          lastModified: now,
+          baseCloudUpdatedAt: null,
+          shotCount: 0,
+          pageCount: 1,
+          createdAt: now,
+          isLocal: true,
+          isCloudOnly: false,
+          isCloudBacked: false,
         };
 
         set((state) => {
@@ -214,7 +250,8 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
 
       // Utility
       canCreateProject: () => {
-        const projectCount = Object.keys(get().projects).length;
+        const projects = Object.values(get().projects);
+        const projectCount = projects.length;
         const maxProjects = get().maxProjects;
         
         // Check if user is authenticated
@@ -229,20 +266,47 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
             
             // Unauthenticated users: max 1 test project
             if (!isAuthenticated) {
-              return projectCount < 1;
+              return projects.filter((project) => project.projectOrigin !== 'sample_storyboard').length < 1;
             }
           } else {
             // No auth state found, assume unauthenticated
-            return projectCount < 1;
+            return projects.filter((project) => project.projectOrigin !== 'sample_storyboard').length < 1;
           }
         } catch (error) {
           console.warn('Could not check auth status for project limit', error);
           // If we can't determine auth status, default to unauthenticated limit
-          return projectCount < 1;
+          return projects.filter((project) => project.projectOrigin !== 'sample_storyboard').length < 1;
         }
         
         // Authenticated users: max 15 projects
         return projectCount < maxProjects;
+      },
+
+      canCreateSampleProject: () => {
+        const projects = Object.values(get().projects);
+        try {
+          const authStoreState = localStorage.getItem('auth-storage');
+          if (authStoreState) {
+            const parsed = JSON.parse(authStoreState);
+            const isAuthenticated = parsed.state?.isAuthenticated || false;
+            if (!isAuthenticated) {
+              return !projects.some((project) => project.projectOrigin === 'sample_storyboard');
+            }
+          } else {
+            return !projects.some((project) => project.projectOrigin === 'sample_storyboard');
+          }
+        } catch (error) {
+          console.warn('Could not check auth status for sample project limit', error);
+          return !projects.some((project) => project.projectOrigin === 'sample_storyboard');
+        }
+
+        return projects.length < get().maxProjects;
+      },
+
+      getSampleProject: () => {
+        return Object.values(get().projects)
+          .filter((project) => project.projectOrigin === 'sample_storyboard')
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0] ?? null;
       },
 
       getCurrentProject: () => {
@@ -333,6 +397,20 @@ export const useProjectManagerStore = create<ProjectManagerStore>()(
         currentProjectId: state.currentProjectId,
         isInitialized: state.isInitialized,
       }),
+      onRehydrateStorage: () => {
+        if (import.meta.env.DEV) {
+          void import('@/utils/projectIdentityDiagnostics').then(({ ProjectIdentityDiagnostics }) => {
+            ProjectIdentityDiagnostics.onHydrationStart();
+          });
+        }
+        return (state, error) => {
+          if (import.meta.env.DEV) {
+            void import('@/utils/projectIdentityDiagnostics').then(({ ProjectIdentityDiagnostics }) => {
+              ProjectIdentityDiagnostics.onHydrationComplete(error);
+            });
+          }
+        };
+      },
     }
   )
 );

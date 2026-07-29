@@ -27,6 +27,13 @@ import { resolvePageSizeMode } from '@/utils/pageSize';
 import { DataValidator } from '@/utils/dataValidator';
 import { normalizeProjectSettings } from '@/utils/projectSettings';
 import { serializeShotsForStorage } from '@/utils/shotSerialization';
+import {
+  instantiateSampleStoryboard,
+  sampleStoryboardTemplate,
+  validateInstantiatedSampleStoryboard,
+  type InstantiatedSampleStoryboard,
+} from '@/fixtures/sampleStoryboard';
+import { ProjectIdentityDiagnostics } from '@/utils/projectIdentityDiagnostics';
 
 type ProjectCacheEntry = {
   key: string;
@@ -49,6 +56,14 @@ type ParsedProjectCache = {
     showDeleteConfirmation: boolean;
   };
 };
+
+export type CreateLocalProjectFromTemplateResult =
+    | { ok: true; projectId: string; created: boolean }
+  | {
+      ok: false;
+      reason: 'capacity_reached' | 'save_current_failed' | 'template_invalid' | 'persist_failed' | 'load_failed';
+      error?: string;
+    };
 
 export class ProjectSwitcher {
   private static isSwitching = false;
@@ -121,10 +136,32 @@ export class ProjectSwitcher {
         return false;
       }
 
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('saveCurrentProject.begin', {
+          kind: 'save',
+          argumentProjectId: currentProjectId,
+          isManual,
+        });
+        ProjectIdentityDiagnostics.assertSaveProjectIds(currentProjectId);
+      }
+
       if (!this.saveCurrentProjectState(currentProjectId)) {
+        if (import.meta.env.DEV) {
+          ProjectIdentityDiagnostics.log('saveCurrentProject.failed', {
+            kind: 'save',
+            argumentProjectId: currentProjectId,
+          });
+        }
         return false;
       }
       this.updateProjectMetadata(currentProjectId);
+
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('saveCurrentProject.complete', {
+          kind: 'save',
+          argumentProjectId: currentProjectId,
+        });
+      }
 
       // If cloud sync is enabled, also save to cloud
       if (import.meta.env.VITE_CLOUD_SYNC_ENABLED === 'true') {
@@ -165,6 +202,16 @@ export class ProjectSwitcher {
   ): Promise<boolean> {
     const previousProjectId = useProjectManagerStore.getState().currentProjectId;
     const userInitiated = options.userInitiated === true;
+
+    if (import.meta.env.DEV) {
+      ProjectIdentityDiagnostics.log('switchToProject.begin', {
+        kind: 'switch',
+        sourceProjectId: previousProjectId,
+        destinationProjectId: projectId,
+        skipSaveCurrent,
+        forceReload,
+      });
+    }
 
     const success = await withOperation<boolean>(async () => {
       Telemetry.event('project.switch.begin', { projectId, skipSaveCurrent });
@@ -235,12 +282,33 @@ export class ProjectSwitcher {
       if (currentProjectId && !skipSaveCurrent) {
         try {
           console.log('💾 Final save before project switch...');
+          if (import.meta.env.DEV) {
+            ProjectIdentityDiagnostics.log('switchToProject.save_before_switch.begin', {
+              kind: 'save',
+              sourceProjectId: currentProjectId,
+              destinationProjectId: projectId,
+            });
+          }
           const saved = this.saveCurrentProjectState(currentProjectId);
           if (!saved) {
             console.warn('Aborting project switch because final local save failed');
+            if (import.meta.env.DEV) {
+              ProjectIdentityDiagnostics.log('switchToProject.save_before_switch.failed', {
+                kind: 'save',
+                sourceProjectId: currentProjectId,
+                destinationProjectId: projectId,
+              });
+            }
             Telemetry.event('project.switch.error', { projectId, reason: 'final-save-failed' });
             endTimer.end({ projectId, success: false });
             return false;
+          }
+          if (import.meta.env.DEV) {
+            ProjectIdentityDiagnostics.log('switchToProject.save_before_switch.complete', {
+              kind: 'save',
+              sourceProjectId: currentProjectId,
+              destinationProjectId: projectId,
+            });
           }
           
           // Wait a moment to ensure save completes
@@ -257,6 +325,12 @@ export class ProjectSwitcher {
       
       // Step 3: Load new project data with timeout protection
       try {
+        if (import.meta.env.DEV) {
+          ProjectIdentityDiagnostics.log('switchToProject.load.begin', {
+            kind: 'hydrate',
+            destinationProjectId: projectId,
+          });
+        }
         const targetProject = projectManager.projects[projectId];
         const shouldCheckRevision =
           (targetProject?.isCloudOnly || targetProject?.isCloudBacked) &&
@@ -280,9 +354,24 @@ export class ProjectSwitcher {
         
         if (!loadSuccess) {
           console.error(`Failed to load project ${projectId}`);
+          if (import.meta.env.DEV) {
+            ProjectIdentityDiagnostics.log('switchToProject.load.failed', {
+              kind: 'hydrate',
+              destinationProjectId: projectId,
+            });
+            ProjectIdentityDiagnostics.warn('switch_completed_without_snapshot_load', {
+              destinationProjectId: projectId,
+            });
+          }
           Telemetry.event('project.switch.error', { projectId, reason: 'load-failed' });
           endTimer.end({ projectId, success: false });
           return false;
+        }
+        if (import.meta.env.DEV) {
+          ProjectIdentityDiagnostics.log('switchToProject.load.complete', {
+            kind: 'hydrate',
+            destinationProjectId: projectId,
+          });
         }
       } catch (loadError) {
         console.error(`Timeout or error loading project ${projectId}:`, loadError);
@@ -302,6 +391,14 @@ export class ProjectSwitcher {
 
       latestProjectManager.setCurrentProject(projectId);
       
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('switchToProject.current_project_set', {
+          kind: 'switch',
+          destinationProjectId: projectId,
+          currentProjectIdAfterSet: useProjectManagerStore.getState().currentProjectId,
+        });
+      }
+
       // Step 5: Update project metadata (counts only, not timestamp - switching doesn't modify data)
       this.updateProjectMetadata(projectId, false);
       
@@ -331,6 +428,19 @@ export class ProjectSwitcher {
         previousProjectId,
         projectId,
         userInitiated,
+      });
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('switchToProject.complete', {
+          kind: 'switch',
+          sourceProjectId: previousProjectId,
+          destinationProjectId: projectId,
+        });
+      }
+    } else if (import.meta.env.DEV) {
+      ProjectIdentityDiagnostics.log('switchToProject.failed', {
+        kind: 'switch',
+        sourceProjectId: previousProjectId,
+        destinationProjectId: projectId,
       });
     }
 
@@ -371,15 +481,81 @@ export class ProjectSwitcher {
       return false;
     }
 
+    if (import.meta.env.DEV && writtenKeys.length > 0) {
+      const projectIdMatch = writtenKeys[0]?.match(/-project-(.+)$/);
+      if (projectIdMatch?.[1]) {
+        ProjectIdentityDiagnostics.noteSnapshotWrite(projectIdMatch[1], writtenKeys);
+      }
+    }
+
     return true;
+  }
+
+  private static writeTemplateSnapshot(
+    projectId: string,
+    snapshot: InstantiatedSampleStoryboard,
+  ): boolean {
+    const validation = DataValidator.validateBeforeSave(
+      {
+        pages: snapshot.pages,
+        shots: snapshot.shots,
+        shotOrder: snapshot.shotOrder,
+        projectSettings: snapshot.projectSettings,
+        uiSettings: snapshot.uiSettings,
+      },
+      projectId,
+      snapshot.projectSettings.projectName,
+    );
+
+    if (!validation.valid) {
+      console.error('Refusing to persist invalid sample storyboard snapshot:', validation.errors);
+      return false;
+    }
+
+    return this.writeProjectCacheEntries([
+      {
+        key: `page-storage-project-${projectId}`,
+        value: JSON.stringify({
+          pages: snapshot.pages,
+          activePageId: snapshot.activePageId,
+        }),
+      },
+      {
+        key: `shot-storage-project-${projectId}`,
+        value: JSON.stringify({
+          shots: serializeShotsForStorage(snapshot.shots),
+          shotOrder: snapshot.shotOrder,
+        }),
+      },
+      {
+        key: `project-storage-project-${projectId}`,
+        value: JSON.stringify(snapshot.projectSettings),
+      },
+      {
+        key: `ui-store-project-${projectId}`,
+        value: JSON.stringify(snapshot.uiSettings),
+      },
+    ]);
   }
 
   private static saveCurrentProjectState(projectId: string): boolean {
     try {
+      if (import.meta.env.DEV) {
+        const metadata = useProjectManagerStore.getState().projects[projectId];
+        ProjectIdentityDiagnostics.log('saveCurrentProjectState.begin', {
+          kind: 'save',
+          argumentProjectId: projectId,
+          projectOrigin: metadata?.projectOrigin ?? null,
+          metadataExists: Boolean(metadata),
+        });
+        ProjectIdentityDiagnostics.assertSaveProjectIds(projectId);
+      }
+
       const pageStore = usePageStore.getState();
       const shotStore = useShotStore.getState();
       const projectStore = useProjectStore.getState();
       const uiStore = useUIStore.getState();
+      const projectManager = useProjectManagerStore.getState();
 
       // Save each store's data to project-specific keys
       const pageData = {
@@ -408,6 +584,9 @@ export class ProjectSwitcher {
         pageSizeMode: projectStore.pageSizeMode,
         templateSettings: projectStore.templateSettings,
         storyboardTheme: projectStore.storyboardTheme,
+        ...(projectManager.projects[projectId]?.projectOrigin
+          ? { projectOrigin: projectManager.projects[projectId].projectOrigin }
+          : {}),
       };
 
       const uiData = {
@@ -438,14 +617,35 @@ export class ProjectSwitcher {
       }
 
       // Save to localStorage with project-specific keys using safe methods
-      return this.writeProjectCacheEntries([
-        { key: `page-storage-project-${projectId}`, value: JSON.stringify(pageData) },
-        { key: `shot-storage-project-${projectId}`, value: JSON.stringify(shotData) },
-        { key: `project-storage-project-${projectId}`, value: JSON.stringify(projectData) },
-        { key: `ui-store-project-${projectId}`, value: JSON.stringify(uiData) },
+      const keys = [
+        `page-storage-project-${projectId}`,
+        `shot-storage-project-${projectId}`,
+        `project-storage-project-${projectId}`,
+        `ui-store-project-${projectId}`,
+      ];
+      const saved = this.writeProjectCacheEntries([
+        { key: keys[0], value: JSON.stringify(pageData) },
+        { key: keys[1], value: JSON.stringify(shotData) },
+        { key: keys[2], value: JSON.stringify(projectData) },
+        { key: keys[3], value: JSON.stringify(uiData) },
       ]);
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log(saved ? 'saveCurrentProjectState.complete' : 'saveCurrentProjectState.failed', {
+          kind: 'save',
+          argumentProjectId: projectId,
+          snapshotKeysWritten: keys,
+        });
+      }
+      return saved;
     } catch (error) {
       console.error('Error saving project state:', error);
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('saveCurrentProjectState.error', {
+          kind: 'save',
+          argumentProjectId: projectId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       return false;
     }
   }
@@ -620,6 +820,9 @@ export class ProjectSwitcher {
       });
 
       useUIStore.setState(parsedCache.uiData);
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.noteLoadProjectData(projectId);
+      }
       return true;
     } catch (error) {
       console.error('Error loading project data:', error);
@@ -734,6 +937,196 @@ export class ProjectSwitcher {
   
       console.error('Error creating new project:', error);
       return null;
+    }
+  }
+
+  /**
+   * Create a fresh project from the checked-in sample snapshot without touching cloud services.
+   */
+  static async createLocalProjectFromTemplate(): Promise<CreateLocalProjectFromTemplateResult> {
+    const projectManager = useProjectManagerStore.getState();
+    const previousProjectId = projectManager.currentProjectId;
+    const { isAuthenticated } = useAuthStore.getState();
+
+    if (import.meta.env.DEV) {
+      ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.begin', {
+        kind: 'lookup',
+        sourceProjectId: previousProjectId,
+        hydrationComplete: ProjectIdentityDiagnostics.getHydrationComplete(),
+      });
+      ProjectIdentityDiagnostics.assertDuplicateClassifiedSamples();
+    }
+
+    const sampleProjects = projectManager
+      .getAllProjects()
+      .filter((project) => project.projectOrigin === 'sample_storyboard')
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const existingSample = sampleProjects[0];
+
+    if (import.meta.env.DEV) {
+      ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.lookup', {
+        kind: 'lookup',
+        existingSampleId: existingSample?.id ?? null,
+        existingSampleCount: sampleProjects.length,
+      });
+    }
+
+    if (sampleProjects.length > 1 && import.meta.env.DEV) {
+      console.warn('[sample-storyboard] Multiple sample projects found; opening the oldest.', {
+        projectIds: sampleProjects.map((project) => project.id),
+      });
+      ProjectIdentityDiagnostics.assertDuplicateClassifiedSamples();
+    }
+
+    if (existingSample) {
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.reopen', {
+          kind: 'reopen',
+          destinationProjectId: existingSample.id,
+        });
+      }
+      const switched = await this.switchToProject(existingSample.id, false, false, {
+        userInitiated: true,
+      });
+      if (switched) {
+        if (import.meta.env.DEV) {
+          ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.result', {
+            kind: 'reopen',
+            created: false,
+            projectId: existingSample.id,
+          });
+        }
+        return { ok: true, projectId: existingSample.id, created: false };
+      }
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.result', {
+          kind: 'reopen',
+          created: false,
+          reason: 'load_failed',
+        });
+      }
+      return { ok: false, reason: 'load_failed', error: 'Failed to load the existing sample storyboard.' };
+    }
+
+    if (!isAuthenticated && !projectManager.canCreateSampleProject()) {
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.capacity_blocked', {
+          kind: 'create',
+        });
+      }
+      return { ok: false, reason: 'capacity_reached' };
+    }
+
+    if (previousProjectId && !this.saveCurrentProjectState(previousProjectId)) {
+      return { ok: false, reason: 'save_current_failed' };
+    }
+
+    let snapshot: InstantiatedSampleStoryboard;
+    try {
+      snapshot = instantiateSampleStoryboard();
+      validateInstantiatedSampleStoryboard(snapshot);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: 'template_invalid',
+        error: error instanceof Error ? error.message : 'Unknown template error',
+      };
+    }
+
+    let projectId: string | null = null;
+    try {
+      projectId = isAuthenticated
+        ? projectManager.createProject(
+            snapshot.projectSettings.projectName,
+            sampleStoryboardTemplate.description,
+          )
+        : projectManager.createSampleProject(
+            snapshot.projectSettings.projectName,
+            sampleStoryboardTemplate.description,
+          );
+      if (isAuthenticated) {
+        projectManager.updateProjectMetadata(projectId, { projectOrigin: 'sample_storyboard' });
+      }
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.metadata_created', {
+          kind: 'create',
+          generatedProjectId: projectId,
+          projectOrigin: 'sample_storyboard',
+        });
+      }
+      const snapshotWithOrigin = {
+        ...snapshot,
+        projectSettings: {
+          ...snapshot.projectSettings,
+          projectOrigin: 'sample_storyboard' as const,
+        },
+      };
+      if (!this.writeTemplateSnapshot(projectId, snapshotWithOrigin)) {
+        throw new Error('Failed to persist the project snapshot.');
+      }
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.snapshot_written', {
+          kind: 'create',
+          generatedProjectId: projectId,
+        });
+      }
+
+      if (!this.loadProjectData(projectId)) {
+        throw new Error('Failed to load the persisted project snapshot.');
+      }
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.loaded', {
+          kind: 'create',
+          generatedProjectId: projectId,
+        });
+      }
+
+      const { reconcileFromShotOrderNonHook } = await import('@/utils/reconcile');
+      reconcileFromShotOrderNonHook();
+      validateInstantiatedSampleStoryboard({
+        pages: usePageStore.getState().pages,
+        activePageId: usePageStore.getState().activePageId ?? '',
+        shots: useShotStore.getState().shots,
+        shotOrder: useShotStore.getState().shotOrder,
+      });
+
+      if (!this.saveCurrentProjectState(projectId)) {
+        throw new Error('Failed to persist the reconciled project snapshot.');
+      }
+
+      projectManager.setCurrentProject(projectId);
+      this.updateProjectMetadata(projectId);
+
+      captureProjectCreated({
+        isGuest: !useAuthStore.getState().isAuthenticated,
+        isCloud: false,
+        projectCount: projectManager.getAllProjects().length,
+        source: 'sample_storyboard',
+      });
+
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.assertDuplicateClassifiedSamples();
+        ProjectIdentityDiagnostics.log('createLocalProjectFromTemplate.result', {
+          kind: 'create',
+          created: true,
+          projectId,
+        });
+      }
+
+      return { ok: true, projectId, created: true };
+    } catch (error) {
+      if (projectId) {
+        this.clearProjectStorage(projectId);
+        projectManager.deleteProject(projectId);
+        projectManager.setCurrentProject(previousProjectId);
+      }
+
+      const message = error instanceof Error ? error.message : 'Unknown local template creation error';
+      return {
+        ok: false,
+        reason: message.includes('load') ? 'load_failed' : 'persist_failed',
+        error: message,
+      };
     }
   }
   
@@ -1142,6 +1535,9 @@ export class ProjectSwitcher {
    */
   static async initializeProjectSystem(): Promise<void> {
     try {
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('initializeProjectSystem.begin', { kind: 'init' });
+      }
       // Initialize localStorage manager first
       LocalStorageManager.initialize();
       
@@ -1166,9 +1562,22 @@ export class ProjectSwitcher {
           const allProjects = projectManager.getAllProjects();
           if (allProjects.length > 0) {
             projectManager.setCurrentProject(allProjects[0].id);
+            if (import.meta.env.DEV) {
+              ProjectIdentityDiagnostics.noteStartupProjectSelected(
+                allProjects[0].id,
+                'initializeProjectSystem.guest_fallback',
+              );
+            }
           }
           // If no projects exist, don't create one - let empty state show
         }
+      }
+
+      if (import.meta.env.DEV) {
+        ProjectIdentityDiagnostics.log('initializeProjectSystem.complete', {
+          kind: 'init',
+          projectManagerInitialized: useProjectManagerStore.getState().isInitialized,
+        });
       }
 
       // The previous startup imageData hydration fallback is intentionally disabled

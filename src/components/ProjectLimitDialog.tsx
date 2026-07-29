@@ -8,7 +8,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Sparkles, LogIn } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 
 interface FeatureBullet {
@@ -17,7 +17,6 @@ interface FeatureBullet {
 }
 
 const DEFAULT_FEATURE_BULLETS: FeatureBullet[] = [
-  { emoji: '✨', text: 'Create unlimited projects' },
   { emoji: '☁️', text: 'Automatic cloud backup & sync' },
   { emoji: '📱', text: 'Access your work from any device' },
   { emoji: '🎨', text: 'Advanced features and tools' },
@@ -37,7 +36,7 @@ export const ProjectLimitDialog: React.FC<ProjectLimitDialogProps> = ({
   onClose,
   onSignIn,
   title = 'Ready for More?',
-  description = "You've reached the test project limit. Create an account to unlock unlimited projects, cloud sync, and more!",
+  description = "You've reached the guest limit for original projects. Create an account to access more features!",
   featureBullets = DEFAULT_FEATURE_BULLETS,
 }) => {
   const handleSignIn = () => {
@@ -53,9 +52,11 @@ export const ProjectLimitDialog: React.FC<ProjectLimitDialogProps> = ({
       >
         <DialogHeader>
           <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-              <Sparkles className="h-8 w-8 text-white" />
-            </div>
+            <img
+              src="/sf_icon_01.svg"
+              alt="Storyboard Flow logo"
+              className="h-16 w-16"
+            />
           </div>
           <DialogTitle className="text-center text-2xl text-white">
             {title}
