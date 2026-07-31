@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getToolbarContainerStyles, getLayoutToolbarContainerStyles, TOOLBAR_STYLES } from '@/styles/toolbar-styles';
-import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
+import { getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 import { ProjectLimitDialog } from '@/components/ProjectLimitDialog';
 import { UpgradeToProDialog } from '@/components/UpgradeToProDialog';
 import { 
@@ -168,13 +168,28 @@ export const ProjectDropdown = ({
     }
   };
 
+  const newProjectButton = (
+    <Button
+      size={compact ? "compact" : "default"}
+      className={compact ? "px-2 flex items-center gap-1" : "flex items-center gap-2"}
+      style={getGlassmorphismStyles('buttonAccent')}
+      onClick={() => void handleRequestCreateProject()}
+    >
+      <Plus size={16} strokeWidth={2.5} />
+      <span>NEW</span>
+    </Button>
+  );
+
   // Fallback if project system isn't ready yet
   if (!sortedProjects) {
     return (
-      <Button variant="outline" size={compact ? "compact" : "default"} disabled className={compact ? "px-2" : ""}>
-        <FolderOpen size={16} className={compact ? "mr-1" : "mr-2"} />
-        Loading...
-      </Button>
+      <div className="flex items-center gap-1">
+        {newProjectButton}
+        <Button variant="outline" size={compact ? "compact" : "default"} disabled className={compact ? "px-2" : ""}>
+          <FolderOpen size={16} className={compact ? "mr-1" : "mr-2"} />
+          Loading...
+        </Button>
+      </div>
     );
   }
 
@@ -345,21 +360,23 @@ export const ProjectDropdown = ({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button 
-            variant="outline" 
-            size={compact ? "compact" : "default"}
-            className={compact ? "px-2" : "flex items-center gap-2"}
-            style={compact ? getLayoutToolbarContainerStyles() : getToolbarContainerStyles()}
-          >
-            <FolderOpen size={16} className={`${TOOLBAR_STYLES.iconClasses} ${compact ? "mr-1" : "mr-2"}`} />
-            <span className={compact ? "max-w-32 truncate" : "max-w-40 truncate"}>
-              {currentProject?.name || 'No Project'}
-            </span>
-            <ChevronDown size={14} className={`${TOOLBAR_STYLES.iconClasses} ${compact ? "ml-1" : "ml-2"}`} />
-          </Button>
-        </DropdownMenuTrigger>
+      <div className="flex items-center gap-1">
+        {newProjectButton}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="outline" 
+              size={compact ? "compact" : "default"}
+              className={compact ? "px-2" : "flex items-center gap-2"}
+              style={compact ? getLayoutToolbarContainerStyles() : getToolbarContainerStyles()}
+            >
+              <FolderOpen size={16} className={`${TOOLBAR_STYLES.iconClasses} ${compact ? "mr-1" : "mr-2"}`} />
+              <span className={compact ? "max-w-32 truncate" : "max-w-40 truncate"}>
+                {currentProject?.name || 'No Project'}
+              </span>
+              <ChevronDown size={14} className={`${TOOLBAR_STYLES.iconClasses} ${compact ? "ml-1" : "ml-2"}`} />
+            </Button>
+          </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
           <div className="px-2 py-1 text-sm font-semibold text-white flex items-center justify-between">
             <span>Projects ({visibleProjects.length}/{isAuthenticated ? '15' : '1'})</span>
@@ -496,31 +513,9 @@ export const ProjectDropdown = ({
               No projects yet
             </div>
           )}
-          
-          <div className="mt-2">
-            <DropdownMenuItem 
-              onClick={() => void handleRequestCreateProject()}
-              className="py-1.5"
-              style={{
-                ...getGlassmorphismStyles('buttonAccent'),
-                outline: 'none',
-                boxShadow: 'none'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.outline = 'none';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <Plus 
-                className="h-4 w-4 mr-2" 
-                strokeWidth={2.5}
-                style={{ color: getColor('text', 'primary') as string }}
-              />
-              New Project
-            </DropdownMenuItem>
-          </div>
         </DropdownMenuContent>
-      </DropdownMenu>
+        </DropdownMenu>
+      </div>
 
       {/* Loading Modal */}
       <LoadingModal 
