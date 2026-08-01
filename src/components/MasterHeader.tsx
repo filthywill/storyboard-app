@@ -6,7 +6,7 @@ import { Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
 import { RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSize';
-import { getStoryboardHeaderAlignmentInsetCss } from '@/utils/storyboardLayout';
+import { getStoryboardHeaderAlignmentInsetCss, calculateStoryboardLogoContainerWidth } from '@/utils/storyboardLayout';
 
 interface MasterHeaderProps {
   readOnly?: boolean;
@@ -58,6 +58,46 @@ const getRelativeLuminance = ({ r, g, b }: { r: number; g: number; b: number }):
   return (0.2126 * normalize(r)) + (0.7152 * normalize(g)) + (0.0722 * normalize(b));
 };
 
+const LOGO_PLACEHOLDER_CONTAINER_WIDTH = 96;
+
+const loadLogoContainerWidthFromUrl = (
+  url: string,
+  callbacks: {
+    onSuccess: (width: number, loadedUrl: string) => void;
+    onFailure?: (loadedUrl: string) => void;
+  }
+): (() => void) => {
+  const img = new Image();
+  let cancelled = false;
+
+  img.onload = () => {
+    if (cancelled) {
+      return;
+    }
+
+    callbacks.onSuccess(
+      calculateStoryboardLogoContainerWidth(img.naturalWidth, img.naturalHeight),
+      url
+    );
+  };
+
+  img.onerror = () => {
+    if (cancelled) {
+      return;
+    }
+
+    callbacks.onFailure?.(url);
+  };
+
+  img.src = url;
+
+  return () => {
+    cancelled = true;
+    img.onload = null;
+    img.onerror = null;
+  };
+};
+
 const getLogoPlaceholderStyles = (contentBackground: string | undefined) => {
   const rgb = parseRgbColor(contentBackground);
   const isLightBackground = rgb ? getRelativeLuminance(rgb) > 0.45 : true;
@@ -106,8 +146,10 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean; gridCols: number }> 
   const jobInfoRef = useRef<HTMLTextAreaElement>(null);
   
   // State for dynamic logo container width
-  const [logoContainerWidth, setLogoContainerWidth] = useState<number>(96); // Default width
-  const [lastProcessedLogoUrl, setLastProcessedLogoUrl] = useState<string | null>(null);
+  const [logoContainerWidth, setLogoContainerWidth] = useState<number>(LOGO_PLACEHOLDER_CONTAINER_WIDTH);
+  const activeLogoUrlRef = useRef<string | null>(null);
+  const uploadPreviewCleanupRef = useRef<(() => void) | null>(null);
+  const uploadPreviewIdRef = useRef(0);
 
   useEffect(() => {
     if (projectNameRef.current) {
@@ -141,67 +183,84 @@ const ConnectedMasterHeader: React.FC<{ readOnly?: boolean; gridCols: number }> 
 
   // Handle dynamic width when projectLogoUrl changes (e.g., loading existing project)
   useEffect(() => {
-    // Only process if this is a new/different logo URL
-    if (projectLogoUrl === lastProcessedLogoUrl) {
+    if (!projectLogoUrl) {
+      activeLogoUrlRef.current = null;
+      setLogoContainerWidth(LOGO_PLACEHOLDER_CONTAINER_WIDTH);
       return;
     }
 
-    if (projectLogoUrl && projectLogoUrl.startsWith('data:')) {
-      // If it's a base64 image, calculate dimensions
-      const img = new Image();
-      img.onload = () => {
-        const aspectRatio = img.width / img.height;
-        const newWidth = Math.min(60 * aspectRatio, 200); // Max 200px width
-        setLogoContainerWidth(Math.max(newWidth, 60)); // Min 60px width
-        setLastProcessedLogoUrl(projectLogoUrl);
-      };
-      img.src = projectLogoUrl;
-    } else if (projectLogoUrl && projectLogoUrl.includes('supabase')) {
-      // If it's a cloud URL, try to get dimensions from the image
-      const img = new Image();
-      img.onload = () => {
-        const aspectRatio = img.width / img.height;
-        const newWidth = Math.min(60 * aspectRatio, 200); // Max 200px width
-        setLogoContainerWidth(Math.max(newWidth, 60)); // Min 60px width
-        setLastProcessedLogoUrl(projectLogoUrl);
-      };
-      img.onerror = () => {
-        // If we can't load the image, keep current width instead of resetting
-        console.log('Could not load cloud image for dimension calculation, keeping current width');
-        setLastProcessedLogoUrl(projectLogoUrl);
-      };
-      img.src = projectLogoUrl;
-    } else if (!projectLogoUrl) {
-      // No logo, reset to default
-      setLogoContainerWidth(96);
-      setLastProcessedLogoUrl(null);
-    }
-  }, [projectLogoUrl, lastProcessedLogoUrl]);
+    activeLogoUrlRef.current = projectLogoUrl;
+
+    return loadLogoContainerWidthFromUrl(projectLogoUrl, {
+      onSuccess: (width, loadedUrl) => {
+        if (activeLogoUrlRef.current !== loadedUrl) {
+          return;
+        }
+
+        setLogoContainerWidth(width);
+      },
+      onFailure: (loadedUrl) => {
+        if (activeLogoUrlRef.current !== loadedUrl) {
+          return;
+        }
+      },
+    });
+  }, [projectLogoUrl]);
+
+  useEffect(() => {
+    return () => {
+      uploadPreviewCleanupRef.current?.();
+      uploadPreviewCleanupRef.current = null;
+    };
+  }, []);
 
   const handleLogoUploadClick = () => {
     logoInputRef.current?.click();
   };
 
   const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setProjectLogo(event.target.files[0]);
-      
-      // Calculate container width based on image aspect ratio
-      const file = event.target.files[0];
-      const img = new Image();
-      img.onload = () => {
-        const aspectRatio = img.width / img.height;
-        const newWidth = Math.min(60 * aspectRatio, 200); // Max 200px width
-        setLogoContainerWidth(Math.max(newWidth, 60)); // Min 60px width
-      };
-      img.src = URL.createObjectURL(file);
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
     }
+
+    uploadPreviewCleanupRef.current?.();
+    const previewId = uploadPreviewIdRef.current + 1;
+    uploadPreviewIdRef.current = previewId;
+
+    const previewUrl = URL.createObjectURL(file);
+    uploadPreviewCleanupRef.current = loadLogoContainerWidthFromUrl(previewUrl, {
+      onSuccess: (width) => {
+        if (uploadPreviewIdRef.current !== previewId) {
+          URL.revokeObjectURL(previewUrl);
+          return;
+        }
+
+        setLogoContainerWidth(width);
+        URL.revokeObjectURL(previewUrl);
+        uploadPreviewCleanupRef.current = null;
+      },
+      onFailure: () => {
+        if (uploadPreviewIdRef.current !== previewId) {
+          URL.revokeObjectURL(previewUrl);
+          return;
+        }
+
+        URL.revokeObjectURL(previewUrl);
+        uploadPreviewCleanupRef.current = null;
+      },
+    });
+
+    setProjectLogo(file);
   };
   
   const handleLogoRemove = () => {
+    uploadPreviewIdRef.current += 1;
+    uploadPreviewCleanupRef.current?.();
+    uploadPreviewCleanupRef.current = null;
+    activeLogoUrlRef.current = null;
     setProjectLogo(null);
-    setLogoContainerWidth(96); // Reset to default width
-    setLastProcessedLogoUrl(null); // Reset processed URL
+    setLogoContainerWidth(LOGO_PLACEHOLDER_CONTAINER_WIDTH);
   };
 
   const logoPlaceholderStyles = getLogoPlaceholderStyles(storyboardTheme.contentBackground);

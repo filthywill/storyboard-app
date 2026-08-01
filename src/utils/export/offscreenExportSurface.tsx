@@ -7,7 +7,12 @@ import { ExportStoryboardPageContent } from '@/components/export/ExportStoryboar
 import { RENDERED_PAGE_WIDTH_PX, type PageSizeMode } from '@/utils/pageSize';
 import type { StoryboardTheme } from '@/styles/storyboardTheme';
 
+import { calculateStoryboardLogoContainerWidth } from '@/utils/storyboardLayout';
+
 const OFFSCREEN_EXPORT_PAGE_ID_PREFIX = 'offscreen-storyboard-page-';
+
+const LOGO_WIDTH_TOLERANCE_PX = 1;
+const LOGO_WIDTH_SETTLE_TIMEOUT_MS = 3000;
 
 export const getOffscreenExportPageElementId = (pageId: string): string =>
   `${OFFSCREEN_EXPORT_PAGE_ID_PREFIX}${pageId}`;
@@ -143,6 +148,7 @@ export class OffscreenExportSurface {
 
     await this.waitForFonts();
     await this.waitForImages();
+    await this.waitForLogoContainerWidths();
     await this.waitForAnimationFrames(2);
     this.forceTextareaAutoSize();
     await this.waitForAnimationFrames(1);
@@ -162,6 +168,57 @@ export class OffscreenExportSurface {
     if (images.length === 0) return;
 
     await Promise.allSettled(images.map((image) => this.waitForSingleImage(image)));
+  }
+
+  private async waitForLogoContainerWidths(): Promise<void> {
+    if (!this.rootContainer) return;
+
+    const logoImages = Array.from(
+      this.rootContainer.querySelectorAll<HTMLImageElement>('img[alt="Project Logo"]')
+    );
+    if (logoImages.length === 0) return;
+
+    await Promise.allSettled(
+      logoImages.map((image) => this.waitForSingleLogoContainerWidth(image))
+    );
+  }
+
+  private async waitForSingleLogoContainerWidth(image: HTMLImageElement): Promise<void> {
+    const wrapper = image.parentElement;
+    if (!wrapper) return;
+
+    if (image.complete && image.naturalWidth <= 0) {
+      return;
+    }
+
+    const expectedWidth = calculateStoryboardLogoContainerWidth(
+      image.naturalWidth,
+      image.naturalHeight
+    );
+
+    const isWidthSettled = (): boolean => {
+      const currentWidth = wrapper.getBoundingClientRect().width;
+      return Math.abs(currentWidth - expectedWidth) <= LOGO_WIDTH_TOLERANCE_PX;
+    };
+
+    if (isWidthSettled()) {
+      await this.waitForAnimationFrames(1);
+      return;
+    }
+
+    const deadline = Date.now() + LOGO_WIDTH_SETTLE_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+      await this.waitForAnimationFrames(1);
+      if (isWidthSettled()) {
+        await this.waitForAnimationFrames(1);
+        return;
+      }
+    }
+
+    console.warn(
+      'Logo container width did not settle before PNG export capture; continuing with current layout.'
+    );
   }
 
   private async waitForSingleImage(image: HTMLImageElement): Promise<void> {

@@ -206,8 +206,11 @@ export class CanvasRenderer {
         height: logoHeight
       };
       
-      // Use object-contain behavior for logo (not object-cover)
-      await this.renderImageWithObjectContain(header.logoImageData, logoBounds, 6 * scale);
+      // Use object-contain behavior for logo (not object-cover); no shot image-frame styling.
+      await this.renderImageWithObjectContain(header.logoImageData, logoBounds, 6 * scale, {
+        skipBorder: true,
+        skipPlaceholderFill: true,
+      });
       
       leftX += logoWidth + (16 * scale); // Add gap after logo
     }
@@ -498,20 +501,23 @@ export class CanvasRenderer {
   private async renderImageWithObjectContain(
     imageData: ImageData | HTMLImageElement,
     bounds: Rectangle,
-    borderRadius: number
+    borderRadius: number,
+    options?: { skipBorder?: boolean; skipPlaceholderFill?: boolean }
   ): Promise<void> {
     if (imageData instanceof HTMLImageElement) {
-      // Fill background
-      this.ctx.fillStyle = '#f3f4f6';
-      this.ctx.save();
-      this.ctx.beginPath();
-      if (typeof this.ctx.roundRect === 'function') {
-        this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
-      } else {
-        this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      if (!options?.skipPlaceholderFill) {
+        // Fill background
+        this.ctx.fillStyle = '#f3f4f6';
+        this.ctx.save();
+        this.ctx.beginPath();
+        if (typeof this.ctx.roundRect === 'function') {
+          this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderRadius);
+        } else {
+          this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+        this.ctx.fill();
+        this.ctx.restore();
       }
-      this.ctx.fill();
-      this.ctx.restore();
       
       // Calculate dimensions to fit entire image (object-contain)
       const imgAspect = imageData.naturalWidth / imageData.naturalHeight;
@@ -545,19 +551,21 @@ export class CanvasRenderer {
       this.ctx.restore();
       
       // Add border (theme-aware)
-      const borderStyles = this.getImageFrameBorderStyles();
-      if (borderStyles) {
-        this.ctx.strokeStyle = borderStyles.color;
-        this.ctx.lineWidth = borderStyles.width;
-        this.ctx.save();
-        this.ctx.beginPath();
-        if (typeof this.ctx.roundRect === 'function') {
-          this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderStyles.radius);
-        } else {
-          this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      if (!options?.skipBorder) {
+        const borderStyles = this.getImageFrameBorderStyles();
+        if (borderStyles) {
+          this.ctx.strokeStyle = borderStyles.color;
+          this.ctx.lineWidth = borderStyles.width;
+          this.ctx.save();
+          this.ctx.beginPath();
+          if (typeof this.ctx.roundRect === 'function') {
+            this.ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, borderStyles.radius);
+          } else {
+            this.ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+          }
+          this.ctx.stroke();
+          this.ctx.restore();
         }
-        this.ctx.stroke();
-        this.ctx.restore();
       }
       
     } else if (imageData instanceof ImageData) {
@@ -569,7 +577,7 @@ export class CanvasRenderer {
       tempCanvas.height = imageData.height;
       tempCtx.putImageData(imageData, 0, 0);
       
-      await this.renderImageWithObjectContain(tempCanvas as any, bounds, borderRadius);
+      await this.renderImageWithObjectContain(tempCanvas as any, bounds, borderRadius, options);
     }
   }
 

@@ -184,8 +184,10 @@ export class DOMRenderer {
       height: logoHeight
     };
     
-    // Logo uses object-contain (not object-cover)
-    await this.renderImage(header.logoImageData, logoBounds, 1.0, 0, 0, 'contain');
+    // Logo uses object-contain (not object-cover); never apply shot image-frame borders.
+    await this.renderImage(header.logoImageData, logoBounds, 1.0, 0, 0, 'contain', undefined, {
+      skipBorder: true,
+    });
   }
   
   /**
@@ -714,7 +716,8 @@ export class DOMRenderer {
     imageOffsetX: number = 0,
     imageOffsetY: number = 0,
     objectFit: 'cover' | 'contain' = 'cover',
-    renderedImageGeometry?: RenderedDOMImageGeometry
+    renderedImageGeometry?: RenderedDOMImageGeometry,
+    options?: { skipBorder?: boolean }
   ): Promise<void> {
     if (imageData instanceof HTMLImageElement) {
       // Calculate aspect ratio preserving fit
@@ -801,7 +804,7 @@ export class DOMRenderer {
       this.ctx.restore();
       
       // Add border around image container with rounded corners (theme-aware)
-      if (this.storyboardState?.storyboardTheme?.imageFrame?.borderEnabled) {
+      if (!options?.skipBorder && this.storyboardState?.storyboardTheme?.imageFrame?.borderEnabled) {
         this.ctx.strokeStyle = this.storyboardState.storyboardTheme.imageFrame.border;
         this.ctx.lineWidth = this.storyboardState.storyboardTheme.imageFrame.borderWidth * this.scale;
         this.ctx.beginPath();

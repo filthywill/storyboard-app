@@ -62,3 +62,31 @@ export const getStoryboardHeaderAlignmentInsetCss = (
   gridCols: number,
   target: StoryboardHeaderAlignmentTarget = STORYBOARD_CANONICAL_HEADER_ALIGNMENT_TARGET
 ): string => `${getStoryboardHeaderAlignmentInset(gridCols, target)}px`;
+
+/** Fixed display height for the live storyboard header logo container (px). */
+export const STORYBOARD_LOGO_CONTAINER_HEIGHT = 60;
+
+/** Minimum width for the live storyboard header logo container (px). */
+export const STORYBOARD_LOGO_CONTAINER_MIN_WIDTH = 60;
+
+/** Maximum width for the live storyboard header logo container (px). */
+export const STORYBOARD_LOGO_CONTAINER_MAX_WIDTH = 200;
+
+/**
+ * Aspect-derived width for the live storyboard header logo container.
+ * Matches MasterHeader / PNG offscreen readiness sizing.
+ */
+export const calculateStoryboardLogoContainerWidth = (
+  naturalWidth: number,
+  naturalHeight: number
+): number => {
+  if (naturalWidth <= 0 || naturalHeight <= 0) {
+    return STORYBOARD_LOGO_CONTAINER_MIN_WIDTH;
+  }
+
+  const aspectRatio = naturalWidth / naturalHeight;
+  return Math.max(
+    STORYBOARD_LOGO_CONTAINER_MIN_WIDTH,
+    Math.min(STORYBOARD_LOGO_CONTAINER_HEIGHT * aspectRatio, STORYBOARD_LOGO_CONTAINER_MAX_WIDTH)
+  );
+};
