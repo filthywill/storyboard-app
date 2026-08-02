@@ -982,6 +982,7 @@ Available scripts are `dev`, `build`, `build:dev`, `lint`, `preview`, and `clean
 - Central glassmorphism functions and semantic color categories control app chrome.
 - Storyboard appearance is represented separately by `StoryboardTheme`.
 - Inline centralized styles should not be combined with conflicting shadcn variants.
+- Explicit cover-image renderers (`ShotCard`, `ShotImageRenderer`, `export-pdf-static.ts`) calculate pixel width and height for uniform cover scaling and locally override Tailwind Preflight's responsive `img` rules with `maxWidth: 'none'` and `maxHeight: 'none'`. The image viewport provides clipping; the image element may intentionally exceed that viewport without distorting source aspect ratio.
 
 ### Type safety
 
@@ -1210,7 +1211,7 @@ High-value refactors are recommendations, not current commitments:
 3. ~~Verify Stripe is using live products/prices and exercise webhook failure/retry behavior.~~ — **Partially superseded by the 2026-07-27 targeted update:** live-labeled prices are now confirmed in code and one `invoice.paid` webhook replay was independently verified end to end. Broader webhook failure/retry behavior in live mode, beyond that single verified replay, remains a valid follow-up.
 4. Run a manual state-matrix audit for guest, unconfirmed, confirmed, forced-logout, no-project, cloud-loading, read-only, offline, and conflict states.
 5. Test project open/edit/save/reconnect/takeover flows in two tabs and two devices.
-6. Compare PDF and PNG output against the live editor across page sizes, themes, fonts, logos, images, and multi-page projects.
+6. Compare PDF and PNG output against the live editor across page sizes, themes, fonts, logos, images, and multi-page projects. For shot images, manually verify cover rendering across frame ratios (16:9, 4:3, 1:1, 9:16) and source aspects (landscape, square, portrait) on live ShotCard, Image Editor, PNG export, and production PDF, including transformed images with non-default zoom/pan where applicable.
 7. Establish automated unit and browser tests before large sync, state, or export refactors.
 
 ---

@@ -1,5 +1,5 @@
 import './export-pdf-static.css';
-import { calculatePreviewDimensions } from './utils/export/previewDimensions';
+import { calculatePreviewDimensions, getEffectiveImageFrameBorderWidth } from './utils/export/previewDimensions';
 import type {
   ExportTemplateVisibility,
   NormalizedExportImageSource,
@@ -386,6 +386,8 @@ function applyCoverImageGeometry(root: HTMLElement): void {
       left: `${geometry.left}px`,
       top: `${geometry.top}px`,
       visibility: 'visible',
+      maxWidth: 'none',
+      maxHeight: 'none',
       transform: `scale(${imageScale}) translate(${offsetX}px, ${offsetY}px)`,
       transformOrigin: 'center center',
     });
@@ -692,6 +694,7 @@ function buildShotCard(
   const actualOffsetY = (shot.imageOffsetY || 0) * previewDimensions.imageHeight;
   const actionTextSpacing = getShotTextSpacing(theme.actionText.fontSize);
   const scriptTextSpacing = getShotTextSpacing(theme.scriptText.fontSize);
+  const effectiveImageFrameBorderWidth = getEffectiveImageFrameBorderWidth(theme.imageFrame);
 
   const card = createElement('div', {
     className: 'group relative transition-all duration-200 shot-card storyboard-themeable',
@@ -749,6 +752,8 @@ function buildShotCard(
       className: 'relative h-full overflow-hidden',
       style: {
         width: `${previewDimensions.imageContainerWidth}px`,
+        marginLeft: `${effectiveImageFrameBorderWidth}px`,
+        marginRight: `${effectiveImageFrameBorderWidth}px`,
         borderRadius: `${theme.shotCard.borderRadius}px`,
       },
     });
@@ -769,6 +774,8 @@ function buildShotCard(
         style: {
           position: 'absolute',
           visibility: 'hidden',
+          maxWidth: 'none',
+          maxHeight: 'none',
           borderRadius: `${theme.shotCard.borderRadius}px`,
           border: 'none',
           boxShadow: 'none',
@@ -869,7 +876,7 @@ function buildEmptySlotPlaceholder(
 function buildShotGrid(payload: ServerPDFExportPayload): HTMLElement {
   const resolvedPageSizeMode = resolveExportPageSizeMode(payload);
   const isFixedPageMode = resolvedPageSizeMode !== 'dynamic';
-  const previewDimensions = calculatePreviewDimensions(payload.page);
+  const previewDimensions = calculatePreviewDimensions(payload.page, payload.theme.imageFrame);
   const footerAlignmentInset = getStoryboardHeaderAlignmentInsetCss(payload.page.gridCols);
   const root = createElement('div', {
     className: `w-full shot-grid${isFixedPageMode ? ' h-full flex flex-col' : ''}`,

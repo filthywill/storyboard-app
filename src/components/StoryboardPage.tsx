@@ -224,8 +224,8 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
 
   // Calculate dimensions for shot grid (moved from ShotGrid)
   const previewDimensions = React.useMemo(() => {
-    return calculatePreviewDimensions(page);
-  }, [page]);
+    return calculatePreviewDimensions(page, storyboardTheme.imageFrame);
+  }, [page, storyboardTheme.imageFrame.borderEnabled, storyboardTheme.imageFrame.borderWidth]);
 
   // Helper function to detect if a shot should be inserted into a sub-shot group
   const shouldInsertIntoSubGroup = useCallback((activeShot: Shot, overShot: Shot, targetPosition: number): { shouldInsert: boolean; groupId?: string; insertPosition?: number } => {

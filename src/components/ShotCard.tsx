@@ -14,6 +14,7 @@ import { getColor } from '@/styles/glassmorphism-styles';
 import { getShotTextSpacing } from '@/styles/storyboardTheme';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
 import { calculateCoverImageGeometry } from '@/utils/imageGeometry';
+import { getEffectiveImageFrameBorderWidth } from '@/utils/export/previewDimensions';
 
 interface ShotCardProps {
   shot: Shot;
@@ -89,6 +90,8 @@ const TransformedCoverImage: React.FC<TransformedCoverImageProps> = ({
           ? `scale(${imageScale}) translate(${offsetX}px, ${offsetY}px)`
           : undefined,
         transformOrigin: 'center center',
+        maxWidth: 'none',
+        maxHeight: 'none',
         border: 'none',
         boxShadow: 'none',
         outline: 'none',
@@ -129,6 +132,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
   const [imageError, setImageError] = useState(false);
   const actionTextSpacing = getShotTextSpacing(storyboardTheme.actionText.fontSize);
   const scriptTextSpacing = getShotTextSpacing(storyboardTheme.scriptText.fontSize);
+  const effectiveImageFrameBorderWidth = getEffectiveImageFrameBorderWidth(storyboardTheme.imageFrame);
 
   useEffect(() => {
     const animationFrame = requestAnimationFrame(() => {
@@ -405,6 +409,8 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                 className="relative h-full group overflow-hidden"
                 style={{
                   width: `${containerWidth}px`,
+                  marginLeft: `${effectiveImageFrameBorderWidth}px`,
+                  marginRight: `${effectiveImageFrameBorderWidth}px`,
                   borderRadius: `${storyboardTheme.shotCard.borderRadius}px`
                 }}
               >
@@ -755,6 +761,7 @@ const ExportShotCard: React.FC<ShotCardProps> = ({
   const actualOffsetY = (shot.imageOffsetY || 0) * containerHeight;
   const actionTextSpacing = getShotTextSpacing(theme.actionText.fontSize);
   const scriptTextSpacing = getShotTextSpacing(theme.scriptText.fontSize);
+  const effectiveImageFrameBorderWidth = getEffectiveImageFrameBorderWidth(theme.imageFrame);
 
   return (
     <div
@@ -802,6 +809,8 @@ const ExportShotCard: React.FC<ShotCardProps> = ({
               data-image-viewport
               style={{
                 width: `${containerWidth}px`,
+                marginLeft: `${effectiveImageFrameBorderWidth}px`,
+                marginRight: `${effectiveImageFrameBorderWidth}px`,
                 borderRadius: `${theme.shotCard.borderRadius}px`
               }}
             >

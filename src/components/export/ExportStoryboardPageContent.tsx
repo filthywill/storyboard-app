@@ -34,8 +34,15 @@ export const ExportStoryboardPageContent: React.FC<ExportStoryboardPageContentPr
   pageSizeMode
 }) => {
   const previewDimensions = React.useMemo(() => {
-    return calculatePreviewDimensions(page);
-  }, [page]);
+    const imageFrame = exportPayload?.theme.imageFrame ?? storyboardTheme.imageFrame;
+    return calculatePreviewDimensions(page, imageFrame);
+  }, [
+    page,
+    exportPayload?.theme.imageFrame.borderEnabled,
+    exportPayload?.theme.imageFrame.borderWidth,
+    storyboardTheme.imageFrame.borderEnabled,
+    storyboardTheme.imageFrame.borderWidth,
+  ]);
   const normalizedPageSizeMode = resolvePageSizeMode(pageSizeMode ?? exportPayload?.pageSizeMode);
   const fixedPageFrameHeight = getFixedPageFrameHeight(normalizedPageSizeMode);
   const isFixedPageMode = normalizedPageSizeMode !== 'dynamic';

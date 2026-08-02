@@ -84,6 +84,8 @@ export const ShotImageRenderer: React.FC<ShotImageRendererProps> = ({
           // This makes transforms stable across aspect ratio changes
           transform: `scale(${shot.imageScale || 1.0}) translate(${actualOffsetX}px, ${actualOffsetY}px)`,
           transformOrigin: 'center center',
+          maxWidth: 'none',
+          maxHeight: 'none',
           border: 'none',
           boxShadow: 'none',
           outline: 'none'

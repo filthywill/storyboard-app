@@ -92,6 +92,16 @@ Minimum state matrix to consider:
 | Cloud | offline, reconnect, conflict, read-only lease, takeover |
 | Billing | free limit, pro access, checkout return, portal return |
 | Export | single/multi-page PDF and PNG, theme/layout parity |
+| Shot-image cover rendering | See aspect-ratio matrix below when changing image layout or render code |
+
+**Shot-image cover rendering (manual QA):** When changing shot-image rendering, verify each combination below. Confirm intrinsic source aspect ratio is preserved, the image fully covers the viewport, overflow is cropped rather than stretched, and live ShotCard, Image Editor, production PDF, and PNG export remain equivalent. Include transformed images with non-default zoom/pan where applicable.
+
+| Frame ratio | Source aspect | Surfaces |
+|---|---|---|
+| 16:9 | landscape, square, portrait | Live ShotCard, Image Editor, PNG export, production PDF |
+| 4:3 | landscape, square, portrait | Live ShotCard, Image Editor, PNG export, production PDF |
+| 1:1 | landscape, square, portrait | Live ShotCard, Image Editor, PNG export, production PDF |
+| 9:16 | landscape, square, portrait | Live ShotCard, Image Editor, PNG export, production PDF |
 
 ---
 
@@ -181,6 +191,7 @@ Project lifecycle orchestration also lives in `src/utils/projectSwitcher.ts`; tr
 - App chrome uses centralized glassmorphism helpers and semantic color categories.
 - Storyboard appearance uses `StoryboardTheme`, separate from app chrome.
 - **Do not** combine centralized inline styles with conflicting shadcn `variant` props.
+- **Explicit cover-image geometry must neutralize Tailwind Preflight responsive-image rules.** Renderers that set explicit pixel width and height for uniform cover scaling must also set `maxWidth: 'none'` and `maxHeight: 'none'` (or an equivalent localized safeguard) on the `<img>`. Tailwind Preflight applies a global `img { max-width: 100%; height: auto; }` rule that can clamp one axis and distort cover scaling at frame ratios such as 4:3, 1:1, and 9:16. Applies to live `ShotCard`, Image Editor (`ShotImageRenderer`), static PDF renderer (`export-pdf-static.ts`), and any future explicit-cover path.
 
 ## Type safety
 
@@ -209,6 +220,7 @@ Project lifecycle orchestration also lives in `src/utils/projectSwitcher.ts`; tr
 | **Respect writer lease semantics** | Cloud writes require valid lease ownership; UI read-only is not sufficient protection. |
 | **Pause autosave on unresolved conflict** | Silent overwrite during conflict is worse than paused sync. |
 | **Preserve export contracts** | PDF uses server static renderer; PNG uses offscreen DOM capture; do not depend on visible page state. |
+| **Preserve explicit-cover image safeguards across render paths** | Editor, Image Editor, PNG, and static PDF renderers share explicit cover geometry; keep Preflight overrides (`maxWidth`/`maxHeight: none`) in every path. |
 | **Do not send blob URLs to server export payloads** | Server cannot resolve browser-only blob references. |
 | **Keep analytics behind `AnalyticsService`** | Preserves sanitization and no-throw behavior. |
 | **Do not capture user content in analytics** | Privacy invariant; use counts, enums, and IDs only. |
@@ -219,6 +231,7 @@ Project lifecycle orchestration also lives in `src/utils/projectSwitcher.ts`; tr
 | **Avoid drive-by refactors and dependency upgrades** | High coupling and no automated regression suite make broad changes risky. |
 | **Do not create commits, PRs, or docs unless asked** | Follow user instructions precisely. |
 | **Note discovered debt instead of silently fixing it** | Example: `lastModified` currently advances on some switch paths despite intended invariant. |
+| **Neutralize Preflight on explicit-cover images** | Tailwind's global `img max-width: 100%` can clamp calculated cover width while explicit height remains, distorting non-16:9 frames unless locally overridden with `maxWidth`/`maxHeight: none`. |
 
 ---
 
@@ -286,7 +299,7 @@ These systems need extra caution, narrower diffs, and explicit validation.
 |---|---|
 | **Why risky** | Multiple render paths; server/runtime limits; WYSIWYG expectations |
 | **Preserve** | PDF via `/api/export-pdf` → `/export/pdf/render-static`; PNG via offscreen React/DOM capture; explicit payload |
-| **Validate** | Single/multi-page export; dynamic and fixed page sizes; images/logo/theme parity; failure messaging |
+| **Validate** | Single/multi-page export; dynamic and fixed page sizes; images/logo/theme parity; failure messaging; shot-image cover matrix (16:9, 4:3, 1:1, 9:16 × landscape/square/portrait sources) across ShotCard, Image Editor, PNG, and production PDF |
 | **Primary files** | `exportManager.ts`, `serverPdfPayload.ts`, `api/export-pdf.ts`, `export-pdf-static.ts`, export modals |
 
 ## Analytics taxonomy
