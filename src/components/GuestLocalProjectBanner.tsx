@@ -1,41 +1,23 @@
 import React from 'react';
-import { getColor } from '@/styles/glassmorphism-styles';
+import { getColor, getGlassmorphismStyles } from '@/styles/glassmorphism-styles';
 
 interface GuestLocalProjectBannerProps {
-  onSignIn: () => void;
   onSignUp: () => void;
 }
 
-const linkClassName =
-  'font-semibold underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-offset-1';
-
-export function GuestLocalProjectBanner({ onSignIn, onSignUp }: GuestLocalProjectBannerProps) {
-  const textColor = getColor('brand', 'dark') as string;
-  const bg = getColor('brand', 'primary') as string;
-  const border = getColor('brand', 'secondary') as string;
-
+export function GuestLocalProjectBanner({ onSignUp }: GuestLocalProjectBannerProps) {
   return (
-    <div
-      role="region"
-      aria-label="Local project notice"
-      className="fixed top-0 left-0 right-0 z-50 px-4 py-1 text-center text-sm shadow-md"
+    <button
+      type="button"
+      onClick={onSignUp}
+      className="fixed left-1/2 top-3 z-40 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full px-4 py-2 text-center text-sm font-semibold shadow-lg transition hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
       style={{
-        fontFamily: '"Open Sans", sans-serif',
-        backgroundColor: bg,
-        borderBottom: `1px solid ${border}`,
-        color: textColor,
+        ...getGlassmorphismStyles('buttonAccent'),
+        backgroundColor: getColor('brand', 'primary') as string,
+        color: getColor('brand', 'dark') as string,
       }}
     >
-      <p>
-        <button type="button" className={linkClassName} style={{ color: textColor }} onClick={onSignUp}>
-          Create a free account
-        </button>
-        {' or '}
-        <button type="button" className={linkClassName} style={{ color: textColor }} onClick={onSignIn}>
-          Sign In
-        </button>
-        {' to save your project.'}
-      </p>
-    </div>
+      Create a free account to save projects
+    </button>
   );
 }

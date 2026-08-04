@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
-import { Chrome } from 'lucide-react'
 import { getGlassmorphismStyles, getColor } from '@/styles/glassmorphism-styles'
 import { AuthService } from '@/services/authService'
 import { AnalyticsService } from '@/services/analytics/AnalyticsService'
@@ -14,6 +13,17 @@ import { useAuthModalStore } from '@/store/authModalStore'
 interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
+}
+
+function GoogleLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path fill="#4285F4" d="M21.35 11.1H12v2.98h5.39c-.23 1.5-1.75 4.4-5.39 4.4-3.24 0-5.88-2.68-5.88-5.98S8.76 6.52 12 6.52c1.85 0 3.09.79 3.8 1.47l2.59-2.51C16.73 3.94 14.4 3 12 3 7.05 3 3 7.03 3 12s4.05 9 9 9c5.19 0 8.62-3.65 8.62-8.8 0-.59-.06-1.04-.13-1.49z" />
+      <path fill="#34A853" d="M3 12c0 2.9 1.7 5.34 4.16 6.69l2.72-2.11c-.71-.21-1.31-.64-1.74-1.2-.44-.57-.7-1.28-.7-2.07 0-.79.26-1.5.7-2.07l-2.72-2.11A8.97 8.97 0 0 0 3 12z" />
+      <path fill="#FBBC05" d="M7.58 11.2c.28-.84.93-1.56 1.76-1.99l-2.72-2.11A8.97 8.97 0 0 0 3 12c0 1.44.34 2.8.94 4l2.72-2.11c-.2-.58-.2-1.2-.08-1.8z" />
+      <path fill="#EA4335" d="M12 6.52c1.85 0 3.09.79 3.8 1.47l2.59-2.51C16.73 3.94 14.4 3 12 3 8.49 3 5.45 5.01 3.94 7.9l2.72 2.11C7.49 7.92 9.57 6.52 12 6.52z" />
+    </svg>
+  )
 }
 
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -469,7 +479,46 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 )}
               </DialogDescription>
             </DialogHeader>
-        
+
+        {isSignUp && (
+          <>
+            <div className="space-y-2 px-4">
+              <Button
+                type="button"
+                className="w-full"
+                style={getGlassmorphismStyles('button')}
+                onClick={handleGoogleLogin}
+                disabled={loading}
+              >
+                <GoogleLogo className="mr-2 h-4 w-4" />
+                Continue with Google
+              </Button>
+            </div>
+
+            <div className="relative px-4">
+              <div className="absolute inset-0 flex items-center px-4">
+                <span
+                  className="w-full"
+                  style={{
+                    borderTop: `1px solid ${getColor('input', 'border') as string}`
+                  }}
+                />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span
+                  className="px-2"
+                  style={{
+                    color: getColor('text', 'muted') as string,
+                    backgroundColor: getColor('background', 'secondary') as string
+                  }}
+                >
+                  or continue with
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4 px-4">
           {isSignUp && (
             <div>
@@ -552,42 +601,46 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </Button>
         </form>
 
-        {/* Social Login Divider */}
-        <div className="relative px-4">
-          <div className="absolute inset-0 flex items-center px-4">
-            <span 
-              className="w-full" 
-              style={{ 
-                borderTop: `1px solid ${getColor('input', 'border') as string}`
-              }}
-            />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span 
-              className="px-2" 
-              style={{ 
-                color: getColor('text', 'muted') as string,
-                backgroundColor: getColor('background', 'secondary') as string
-              }}
-            >
-              Or continue with
-            </span>
-          </div>
-        </div>
+        {!isSignUp && (
+          <>
+            {/* Social Login Divider */}
+            <div className="relative px-4">
+              <div className="absolute inset-0 flex items-center px-4">
+                <span
+                  className="w-full"
+                  style={{
+                    borderTop: `1px solid ${getColor('input', 'border') as string}`
+                  }}
+                />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span
+                  className="px-2"
+                  style={{
+                    color: getColor('text', 'muted') as string,
+                    backgroundColor: getColor('background', 'secondary') as string
+                  }}
+                >
+                  Or continue with
+                </span>
+              </div>
+            </div>
 
-        {/* Social Login Buttons */}
-        <div className="space-y-2 px-4 pb-4">
-          <Button
-            type="button"
-            className="w-full"
-            style={getGlassmorphismStyles('button')}
-            onClick={handleGoogleLogin}
-            disabled={loading}
-          >
-            <Chrome className="w-4 h-4 mr-2" />
-            Continue with Google
-          </Button>
-        </div>
+            {/* Social Login Buttons */}
+            <div className="space-y-2 px-4 pb-4">
+              <Button
+                type="button"
+                className="w-full"
+                style={getGlassmorphismStyles('button')}
+                onClick={handleGoogleLogin}
+                disabled={loading}
+              >
+                <GoogleLogo className="mr-2 h-4 w-4" />
+                Continue with Google
+              </Button>
+            </div>
+          </>
+        )}
           </>
         )}
       </DialogContent>

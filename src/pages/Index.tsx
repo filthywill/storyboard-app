@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
 import { PageTabs } from '@/components/PageTabs';
@@ -58,6 +58,8 @@ const RESEND_COOLDOWN_SECONDS = 60;
 const VERIFICATION_RETRY_INTERVAL_MS = 2_000;
 const VERIFICATION_RETRY_WINDOW_MS = 14_000;
 const SAMPLE_REQUEST_LEDGER_PREFIX = 'sbflow:sample-request:';
+// Temporarily bypass the welcome gate for the feedback-acquisition experiment.
+const BYPASS_GUEST_WELCOME_GATE = true;
 
 const Index = () => {
   const { 
@@ -132,6 +134,7 @@ const Index = () => {
   const verificationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const verificationRetryStartedAtRef = useRef<number | null>(null);
   const hasRecoveredGuestEditorRef = useRef(false);
+  const hasStartedGuestOnboardingRef = useRef(false);
   const indexMountCountRef = useRef(0);
   const [isStorageCritical, setIsStorageCritical] = useState(false);
   const [isProjectSystemReady, setIsProjectSystemReady] = useState(false);
@@ -237,7 +240,7 @@ const Index = () => {
     }
   };
 
-  const handleGuestTryWithoutAccount = async () => {
+  const handleGuestTryWithoutAccount = useCallback(async () => {
     if (!canCreateProject()) {
       setShowLimitDialog(true);
       return;
@@ -256,7 +259,39 @@ const Index = () => {
       console.error('Error creating guest project:', error);
       toast.error('Failed to create project');
     }
-  };
+  }, [canCreateProject, createProject]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      hasStartedGuestOnboardingRef.current = false;
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (
+      !BYPASS_GUEST_WELCOME_GATE ||
+      isAuthenticated ||
+      authLoading ||
+      isStorageCritical ||
+      !isProjectSystemReady ||
+      !projectManagerInitialized ||
+      currentProject ||
+      hasStartedGuestOnboardingRef.current
+    ) {
+      return;
+    }
+
+    hasStartedGuestOnboardingRef.current = true;
+    void handleGuestTryWithoutAccount();
+  }, [
+    authLoading,
+    currentProject,
+    handleGuestTryWithoutAccount,
+    isAuthenticated,
+    isProjectSystemReady,
+    isStorageCritical,
+    projectManagerInitialized,
+  ]);
 
   const handlePickerCreateNew = async () => {
     if (!isAuthenticated) {
@@ -1451,7 +1486,6 @@ const Index = () => {
 
         {showGuestLocalBanner && (
           <GuestLocalProjectBanner
-            onSignIn={() => openAuthModal('sign-in')}
             onSignUp={() => openAuthModal('sign-up')}
           />
         )}
@@ -1567,7 +1601,7 @@ const Index = () => {
         </main>
         
         {/* Full-screen EmptyProjectState overlay for unauthenticated users with no current project */}
-        {!isAuthenticated && !currentProject && !isSampleHandoffActive && (
+        {!BYPASS_GUEST_WELCOME_GATE && !isAuthenticated && !currentProject && !isSampleHandoffActive && (
           <EmptyProjectState 
             isAuthenticated={false}
             onCreateProject={() => void handleGuestTryWithoutAccount()}
