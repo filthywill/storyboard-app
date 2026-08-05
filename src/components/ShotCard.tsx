@@ -15,6 +15,7 @@ import { getShotTextSpacing } from '@/styles/storyboardTheme';
 import type { ServerPDFExportPayload } from '@/utils/types/exportTypes';
 import { calculateCoverImageGeometry } from '@/utils/imageGeometry';
 import { getEffectiveImageFrameBorderWidth } from '@/utils/export/previewDimensions';
+import { ShotActions } from '@/components/shot-card/ShotActions';
 
 interface ShotCardProps {
   shot: Shot;
@@ -32,6 +33,7 @@ interface ShotCardProps {
   aspectRatio?: string;
   previewDimensions?: { width: number; imageContainerWidth: number; imageHeight: number; gap: number } | null;
   minimumGridCellHeight?: number;
+  sortableTransformScale?: number;
   exportPayload?: ServerPDFExportPayload;
 }
 
@@ -123,6 +125,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
   aspectRatio = '16/9',
   previewDimensions = null,
   minimumGridCellHeight,
+  sortableTransformScale = 1,
 }) => {
   const { templateSettings, storyboardTheme } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -172,10 +175,18 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
     disabled: readOnly
   });
 
+  const normalizedSortableTransform = transform && sortableTransformScale !== 1
+    ? {
+      ...transform,
+      x: transform.x / sortableTransformScale,
+      y: transform.y / sortableTransformScale,
+    }
+    : transform;
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Transform.toString(normalizedSortableTransform),
     transition
   };
+  const isDragPresentation = isDragging || isOverlay;
 
   // Calculate aspect ratio for image container
   const getAspectRatioStyle = (ratio: string) => {
@@ -272,6 +283,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
   return (
     <div
       ref={setNodeRef}
+      data-shot-card-id={shot.id}
       style={{
         ...style,
         ...(previewDimensions ? {
@@ -299,16 +311,16 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
         'hover:shadow-md',
         className
       )}
-      {...(readOnly ? {} : attributes)}
+      {...(readOnly || isDragPresentation ? {} : attributes)}
     >
       {/* Drag Handle - Hide in Image Editor */}
-      {!isImageEditor && !readOnly && (
+      {!isImageEditor && !readOnly && !isDragPresentation && (
         <Tooltip>
           <TooltipTrigger asChild>
             <div
               {...attributes}
               {...listeners}
-              className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 cursor-grab touch-none active:cursor-grabbing opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(pointer:coarse)]:opacity-100"
             >
             <div 
               className="rounded-full p-2 shadow-lg"
@@ -345,7 +357,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
       </div>
 
       {/* Delete Button - Hide in Image Editor */}
-      {!isImageEditor && !readOnly && (
+      {!isImageEditor && !readOnly && !isDragPresentation && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -391,9 +403,9 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
               ? getColor('interaction', 'hover') as string 
               : getColor('background', 'lighter') as string
           }}
-          onDrop={readOnly ? undefined : handleDrop}
-          onDragOver={readOnly ? undefined : handleDragOver}
-          onDragLeave={readOnly ? undefined : handleDragLeave}
+          onDrop={readOnly || isDragPresentation ? undefined : handleDrop}
+          onDragOver={readOnly || isDragPresentation ? undefined : handleDragOver}
+          onDragLeave={readOnly || isDragPresentation ? undefined : handleDragLeave}
         >
           {(() => {
             const imageSource = getImageSource(shot);
@@ -510,7 +522,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                 )}
                 
                 {/* Normal hover overlay (only show when not editing and not in image editor) */}
-                {!isEditing && !isImageEditor && (
+                {!isEditing && !isImageEditor && !isDragPresentation && (
                   <div 
                     className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"
                     style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
@@ -547,17 +559,30 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                     </div>
                   </div>
                 )}
+
+                {!isImageEditor && !readOnly && !isDragPresentation && (
+                  <ShotActions
+                    onDelete={onDelete}
+                    onAddSubShot={onAddSubShot}
+                    onInsertShot={onInsertShot}
+                    onEditImage={onEditImage}
+                    onReplaceImage={() => fileInputRef.current?.click()}
+                  />
+                )}
               </div>
             ) : (
               <div 
-                className="w-full h-full flex flex-col items-center justify-center cursor-pointer transition-colors"
+                className={cn(
+                  "w-full h-full flex flex-col items-center justify-center transition-colors",
+                  !isDragPresentation && "cursor-pointer"
+                )}
                 style={{
                   backgroundColor: 'rgba(0, 0, 0, 0.3)',
                   color: getColor('text', 'primary') as string,
                   borderRadius: `${storyboardTheme.shotCard.borderRadius}px`
                 }}
                 onClick={() => {
-                  if (!readOnly) {
+                  if (!readOnly && !isDragPresentation) {
                     fileInputRef.current?.click();
                   }
                 }}
@@ -589,7 +614,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
           />
 
           {/* Insert Shot Button - Hide in Image Editor */}
-          {!isImageEditor && !readOnly && (
+          {!isImageEditor && !readOnly && !isDragPresentation && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -612,7 +637,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
           )}
 
           {/* Add Sub-Shot Button - Hide in Image Editor */}
-          {!isImageEditor && !readOnly && (
+          {!isImageEditor && !readOnly && !isDragPresentation && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -640,7 +665,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
           <div className={cn("flex flex-col gap-0", "mt-1")}>
             {/* Action Text */}
             {templateSettings.showActionText && (
-              readOnly ? (
+              readOnly || isDragPresentation ? (
                 <div
                   className={cn(
                     "w-full font-semibold border-0 rounded-sm bg-transparent",
@@ -683,7 +708,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
 
             {/* Script Text */}
             {templateSettings.showScriptText && (
-              readOnly ? (
+              readOnly || isDragPresentation ? (
                 <div
                   className={cn(
                     "w-full border-0 rounded-sm bg-transparent",

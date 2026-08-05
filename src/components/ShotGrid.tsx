@@ -15,6 +15,7 @@ interface ShotGridProps {
   pageId: string;
   className?: string;
   previewDimensions: { width: number; imageHeight: number; gap: number };
+  sortableTransformScale?: number;
   // Export-only overrides (additive). Live editor keeps default behavior when omitted.
   pageNumberOverride?: number;
   hideEmptySlots?: boolean;
@@ -33,6 +34,7 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
   pageId, 
   className, 
   previewDimensions,
+  sortableTransformScale = 1,
   pageNumberOverride,
   hideEmptySlots = false,
   readOnly = false,
@@ -189,6 +191,7 @@ const ConnectedShotGrid: React.FC<ShotGridProps> = ({
             aspectRatio={aspectRatio}
             previewDimensions={previewDimensions}
             minimumGridCellHeight={emptySlotMinHeight}
+            sortableTransformScale={sortableTransformScale}
             readOnly={readOnly}
           />
         ))}

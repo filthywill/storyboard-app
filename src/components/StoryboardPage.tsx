@@ -53,8 +53,9 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
-  PointerSensor,
+  MouseSensor,
   KeyboardSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCenter
@@ -67,6 +68,11 @@ import { getFixedPageFrameHeight, RENDERED_PAGE_WIDTH_PX } from '@/utils/pageSiz
 interface StoryboardPageProps {
   pageId: string;
   className?: string;
+}
+
+interface DragOverlayOffset {
+  x: number;
+  y: number;
 }
 
 const toolbarSectionLabelClasses = cn(
@@ -117,6 +123,9 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const sortableTransformScale = window.matchMedia('(hover: none), (pointer: coarse)').matches
+    ? scale
+    : 1;
   const [showPNGModal, setShowPNGModal] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [showBatchLoadModal, setShowBatchLoadModal] = useState(false);
@@ -169,6 +178,8 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   
   // Drag and drop state
   const [activeShot, setActiveShot] = React.useState<Shot | null>(null);
+  const [dragOverlayScale, setDragOverlayScale] = React.useState(1);
+  const [dragOverlayOffset, setDragOverlayOffset] = React.useState<DragOverlayOffset>({ x: 0, y: 0 });
   const pageShots = getPageShots(pageId);
   const fixedPageFrameHeight = getFixedPageFrameHeight(pageSizeMode);
   const isFixedPageMode = pageSizeMode !== 'dynamic';
@@ -212,9 +223,15 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
 
   // Drag and drop sensors
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         distance: 8
+      }
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: { x: 5, y: 15 }
       }
     }),
     useSensor(KeyboardSensor, {
@@ -301,14 +318,42 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
   // Drag handlers
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const shot = pageShots.find(s => s.id === event.active.id);
+    const sourceCard = contentRef.current?.querySelector<HTMLElement>(
+      `[data-shot-card-id="${event.active.id}"]`
+    );
+    const sourceRect = sourceCard?.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    const isTouchViewport = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+    const isPinchZoomed = (visualViewport?.scale ?? 1) !== 1;
+
+    // The source rect includes the canvas transform; the overlay is outside it.
+    setDragOverlayScale(
+      isTouchViewport && sourceRect && previewDimensions.width > 0
+        ? sourceRect.width / previewDimensions.width
+        : 1
+    );
+
+    if (isTouchViewport && isPinchZoomed) {
+      const fixedOriginProbe = document.createElement('div');
+      fixedOriginProbe.style.cssText = 'position:fixed;top:0;left:0;pointer-events:none;';
+      document.body.appendChild(fixedOriginProbe);
+      const fixedOriginRect = fixedOriginProbe.getBoundingClientRect();
+      fixedOriginProbe.remove();
+      setDragOverlayOffset({ x: -fixedOriginRect.left, y: -fixedOriginRect.top });
+    } else {
+      setDragOverlayOffset({ x: 0, y: 0 });
+    }
+
     setActiveShot(shot || null);
     setIsDragging(true);
-  }, [pageShots, setIsDragging]);
+  }, [pageShots, previewDimensions.width, setIsDragging]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     
     setActiveShot(null);
+    setDragOverlayScale(1);
+    setDragOverlayOffset({ x: 0, y: 0 });
     setIsDragging(false);
 
     if (!over || active.id === over.id) return;
@@ -348,6 +393,13 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
       }
     }
   }, [pageShots, setIsDragging, getGlobalShotIndex, moveShot, moveShotGroup, shouldInsertIntoSubGroup, shouldMoveEntireGroup, insertShotIntoSubGroup, removeFromSubGroup, shots]);
+
+  const handleDragCancel = useCallback(() => {
+    setActiveShot(null);
+    setDragOverlayScale(1);
+    setDragOverlayOffset({ x: 0, y: 0 });
+    setIsDragging(false);
+  }, [setIsDragging]);
 
   if (!page) {
     return (
@@ -590,6 +642,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
       <div 
         ref={wrapperRef}
@@ -641,6 +694,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
             <ShotGrid 
               pageId={pageId} 
               previewDimensions={previewDimensions}
+              sortableTransformScale={sortableTransformScale}
               onShotUpdate={updateShot}
               onShotDelete={deleteShot}
               onAddShot={addShot}
@@ -657,16 +711,30 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
         
         <DragOverlay>
           {activeShot ? (
-            <ShotCard
-              shot={activeShot}
-              onUpdate={() => {}}
-              onDelete={() => {}}
-              onAddSubShot={() => {}}
-              onInsertShot={() => {}}
-              isOverlay
-              aspectRatio={page?.aspectRatio || '16/9'}
-              previewDimensions={previewDimensions}
-            />
+            <div
+              style={{
+                transform: `translate(${dragOverlayOffset.x}px, ${dragOverlayOffset.y}px)`,
+                transformOrigin: 'top left',
+              }}
+            >
+              <div
+                style={{
+                  transform: `scale(${dragOverlayScale})`,
+                  transformOrigin: 'top left',
+                }}
+              >
+                <ShotCard
+                  shot={activeShot}
+                  onUpdate={() => {}}
+                  onDelete={() => {}}
+                  onAddSubShot={() => {}}
+                  onInsertShot={() => {}}
+                  isOverlay
+                  aspectRatio={page?.aspectRatio || '16/9'}
+                  previewDimensions={previewDimensions}
+                />
+              </div>
+            </div>
           ) : null}
         </DragOverlay>
         </DndContext>
