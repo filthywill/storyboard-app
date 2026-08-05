@@ -524,21 +524,32 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-row flex-wrap items-end justify-between gap-x-3 gap-y-3">
-          <div className="min-w-0">
-            <div className="flex flex-nowrap items-end gap-1.5 overflow-x-auto">
-            <div className="flex flex-col gap-1">
-              <Label className={toolbarSectionLabelClasses}>Page Size</Label>
-              <PageSizeModeSelector />
+        <div className="flex flex-row flex-wrap items-end gap-1.5 w-full min-w-0">
+          <div className="min-w-0 w-full max-w-full sm:w-auto">
+            <div
+              className={cn(
+                "max-sm:w-full max-sm:min-w-0 max-sm:overflow-x-auto max-sm:overscroll-x-contain",
+                "max-sm:[scrollbar-width:thin]",
+                "sm:overflow-visible"
+              )}
+            >
+              <div className="flex flex-nowrap items-end gap-1.5 max-sm:min-w-max sm:min-w-0">
+                <div className="flex shrink-0 flex-col gap-1">
+                  <Label className={toolbarSectionLabelClasses}>Page Size</Label>
+                  <PageSizeModeSelector />
+                </div>
+                <div className="flex shrink-0 flex-col gap-1">
+                  <Label className={toolbarSectionLabelClasses}>Layout</Label>
+                  <GridSizeSelector pageId={pageId} />
+                </div>
+                <div className="flex shrink-0 flex-col gap-1">
+                  <Label className={toolbarSectionLabelClasses}>Aspect Ratio</Label>
+                  <AspectRatioSelector pageId={pageId} />
+                </div>
+              </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <Label className={toolbarSectionLabelClasses}>Layout</Label>
-              <GridSizeSelector pageId={pageId} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className={toolbarSectionLabelClasses}>Aspect Ratio</Label>
-              <AspectRatioSelector pageId={pageId} />
-            </div>
+          </div>
+          <div className="flex flex-nowrap items-end gap-1.5 shrink-0">
             <div className="flex flex-col gap-1">
               <Label className={toolbarSectionLabelClasses}>Numbers</Label>
               <StartNumberSelector />
@@ -597,7 +608,7 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
             </div>
           </div>
         </div>
-        
+
         <div className="flex flex-nowrap items-end gap-2 overflow-x-auto">
           <div className="flex flex-col gap-1">
             <Label className={toolbarSectionLabelClasses}>Images</Label>
@@ -625,7 +636,6 @@ export const StoryboardPage: React.FC<StoryboardPageProps> = ({
               Load Shot List
             </Button>
           </div>
-        </div>
         </div>
       </div>
 

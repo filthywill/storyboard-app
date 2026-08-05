@@ -34,7 +34,7 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={cn(TOOLBAR_STYLES.containerClasses)}
+          className={cn(TOOLBAR_STYLES.containerClasses, "max-sm:py-0.5")}
           style={getLayoutToolbarContainerStyles()}
         >
           <ToggleGroup
@@ -42,14 +42,20 @@ export const AspectRatioSelector: React.FC<AspectRatioSelectorProps> = ({ pageId
             value={currentAspectRatio} 
             onValueChange={handleAspectRatioChange}
             aria-label="Aspect Ratio"
-            className='gap-1'
+            className="gap-1 max-sm:gap-0.5"
           >
             {aspectRatios.map((ratio) => (
               <ToggleGroupItem
                 key={ratio.value}
                 value={ratio.value}
                 aria-label={ratio.label}
-                className={`h-5 px-1.5 border-none ${TOOLBAR_STYLES.layoutEditableHoverClasses} ${TOOLBAR_STYLES.textClasses} transition-colors`}
+                className={cn(
+                  "h-5 px-1.5 border-none transition-colors",
+                  "max-sm:min-h-11 max-sm:min-w-11 max-sm:h-11 max-sm:px-2",
+                  "max-sm:flex max-sm:items-center max-sm:justify-center",
+                  TOOLBAR_STYLES.layoutEditableHoverClasses,
+                  TOOLBAR_STYLES.textClasses
+                )}
                 >
                   {ratio.label}
               </ToggleGroupItem>

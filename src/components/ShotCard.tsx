@@ -362,7 +362,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
           <TooltipTrigger asChild>
             <Button
               size="sm"
-              className="absolute top-1 right-1 z-10 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute top-1 right-1 z-10 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity [@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden"
               style={{
                 backgroundColor: getColor('button', 'destructive') as string,
                 color: getColor('button', 'destructiveText') as string,
@@ -524,7 +524,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                 {/* Normal hover overlay (only show when not editing and not in image editor) */}
                 {!isEditing && !isImageEditor && !isDragPresentation && (
                   <div 
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg [@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden"
                     style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
                   >
                     {/* Center action buttons */}
@@ -620,7 +620,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                 <Button
                   variant="default"
                   size="icon"
-                  className="absolute top-1/2 -translate-y-1/2 -left-5 z-10 h-8 w-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1/2 -translate-y-1/2 -left-5 z-10 h-8 w-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity [@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden"
                   style={{
                     backgroundColor: getColor('brand', 'primary') as string,
                     color: getColor('text', 'inverse') as string
@@ -643,7 +643,7 @@ const ConnectedShotCard: React.FC<ShotCardProps> = ({
                 <Button
                   variant="secondary"
                   size="icon"
-                  className="absolute top-1/2 -translate-y-1/2 -right-2 z-10 h-6 w-6 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1/2 -translate-y-1/2 -right-2 z-10 h-6 w-6 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity [@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden"
                   style={{
                     backgroundColor: getColor('overlayButton', 'blue') as string,
                     color: getColor('text', 'inverse') as string
